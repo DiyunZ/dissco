@@ -549,6 +549,13 @@ void EventAttributesViewController::showCurrentEventData() {
 
     // Choose page based on type of currently shown event
     Eventtype type = m_curreventtype;
+
+    //  add (optional) after the text “spacialization”, “reverb”, “filter” on Hevents
+    bool isHEvent = (type == top || type == high || type == mid || type == low);
+    ui->spaLabel->setText(isHEvent ? "Spatialization (Optional):" : "Spatialization:");
+    ui->revLabel->setText(isHEvent ? "Reverb (Optional):" : "Reverb:");
+    ui->filLabel->setText(isHEvent ? "Filter (Optional):" : "Filter:");
+    
     //qDebug() << "In showCurrentEventData saving " << type;
     switch(type) {
         case top: 
