@@ -8,6 +8,7 @@ Partials::Partials(unsigned eventIndex, int partialIndex, QWidget* parent)
       m_eventIndex(eventIndex),
       m_partialIndex(partialIndex)
 {
+
     m_mainLayout = new QVBoxLayout(this);
     m_mainLayout->setContentsMargins(0, 0, 0, 0);
     m_mainLayout->setSpacing(0);
@@ -28,9 +29,12 @@ Partials::Partials(unsigned eventIndex, int partialIndex, QWidget* parent)
             [this](FunctionEntryRow*){ emit deleteRequested(this); });
     connect(m_row, &FunctionEntryRow::textChanged, this,
             [this](FunctionEntryRow*){ getBackendLayer().partials[m_partialIndex] = m_row->getText(); });
-
+           
     m_mainLayout->addWidget(m_row);
     setSizePolicy(QSizePolicy::Preferred, QSizePolicy::Fixed);
+    //// Issue #40
+    setFixedHeight(28);
+    ////
 }
 
 
