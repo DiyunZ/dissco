@@ -36,10 +36,56 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 
 #include <algorithm>
 #include <cmath>
+
+#ifndef M_PI
+  #define M_PI 3.14159265358979323846264338327950288
+#endif
+
+#ifdef _WIN32
+  inline int strcasecmp(const char* s1, const char* s2) {
+    return _stricmp(s1, s2);
+  }
+
+  inline int strncasecmp(const char* s1, const char* s2, size_t n) {
+    return _strnicmp(s1, s2, n);
+  }
+
+  inline char* index(char* s, int c) {
+    return ::strchr(s, c);
+  }
+
+  inline const char* index(const char* s, int c) {
+    return ::strchr(s, c);
+  }
+
+  inline char* rindex(char* s, int c) {
+    return ::strrchr(s, c);
+  }
+
+  inline const char* rindex(const char* s, int c) {
+    return ::strrchr(s, c);
+  }
+#endif
+#ifdef _WIN32
+  inline long random() {
+    return static_cast<long>(std::rand());
+  }
+
+  inline void srandom(unsigned int seed) {
+    std::srand(seed);
+  }
+#endif
+#include <cstdlib>
 #include <cstdarg>
 #include <cstring>
+#include <string.h>
 #include <ctime>
-#include <unistd.h>
+#ifndef _WIN32
+  #include <unistd.h>
+#else
+  #include <io.h>
+  #include <direct.h>
+#endif
 #include <iomanip>
 #include <iostream>
 #include <fstream>
@@ -53,7 +99,25 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 /*The C++ standards committee only recently agreed on the new name
 for "unordered_map". It used to be referred to as a hash_map, which
 will be used here for now.*/
-#include <ext/hash_map>
+#ifdef _WIN32
+  #include <unordered_map>
+
+  namespace __gnu_cxx {
+    template <
+      class Key,
+      class T,
+      class Hash = std::hash<Key>,
+      class Pred = std::equal_to<Key>,
+      class Alloc = std::allocator<std::pair<const Key, T>>
+    >
+    using hash_map = std::unordered_map<Key, T, Hash, Pred, Alloc>;
+  }
+
+  using __gnu_cxx::hash_map;
+#else
+  #include <ext/hash_map>
+  using __gnu_cxx::hash_map;
+#endif
 #define DISSCO_HASHMAP hash_map
 
 /* C++0x Alternative (must compile with -std=c++0x):
