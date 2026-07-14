@@ -223,8 +223,6 @@ void EnvLibDrawingArea::paintEvent(QPaintEvent* event)
         painter.drawText(x + 2, h - 3, label);
     }
 
-    //adjustBoundary(env);
-
     // Draw each segment
     EnvLibEntrySeg* seg = env->head ? env->head->rightSeg : nullptr;
     while (seg) {
