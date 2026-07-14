@@ -40,8 +40,8 @@ MakeEnvelopeRow::MakeEnvelopeRow(int index, QWidget* parent)
     m_hBox->addWidget(m_rmBtn);
     m_hBox->addWidget(m_insBtn);
 
-    m_xEdit->setFixedHeight(20);
-    m_yEdit->setFixedHeight(20);
+    m_xEdit->setFixedHeight(30);
+    m_yEdit->setFixedHeight(30);
     m_xEdit->setMinimumWidth(70);
     m_yEdit->setMinimumWidth(70);
 
