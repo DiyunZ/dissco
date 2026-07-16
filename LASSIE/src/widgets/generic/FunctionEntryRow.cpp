@@ -16,10 +16,10 @@ FunctionEntryRow::FunctionEntryRow(const QString& labelText,
 
     m_hBox    = new QHBoxLayout(this);
 
-    //// Issue #40   
+    //// Set spacing between spectrum partial rows
     m_hBox->setContentsMargins(0, 0, 0, 0);
     m_hBox->setSpacing(4);
-    ////
+
     
     m_label   = new QLabel(labelText);
     m_entry   = new QLineEdit;
@@ -39,9 +39,7 @@ FunctionEntryRow::FunctionEntryRow(const QString& labelText,
     connect(m_entry,    &QLineEdit::textChanged,         this, &FunctionEntryRow::onTextChanged);
     connect(m_entry,    &QLineEdit::cursorPositionChanged, this, [this](){ emit editFocused(m_entry); });
 
-    //// Issue #40
-    //// m_entry->setFixedHeight(20);
-    //// setSizePolicy(QSizePolicy::Preferred, QSizePolicy::Fixed);
+    // Set spacing between spectrum partial rows
     m_label->setFixedHeight(24);
     m_entry->setFixedHeight(24);
 
@@ -51,7 +49,7 @@ FunctionEntryRow::FunctionEntryRow(const QString& labelText,
 
     setSizePolicy(QSizePolicy::Preferred, QSizePolicy::Fixed);
     setFixedHeight(28);
-    ////   
+
 }
 
 QString FunctionEntryRow::getText() const {
