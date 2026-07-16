@@ -6,9 +6,9 @@ MakeEnvelopeRow::MakeEnvelopeRow(int index, QWidget* parent)
 {
     setFrameShape(QFrame::NoFrame);
 
-    m_hBox = new QHBoxLayout(this);
-    m_hBox->setContentsMargins(0, 0, 0, 0);
-    m_hBox->setSpacing(4);
+    m_vBox = new QVBoxLayout(this);
+    m_vBox->setContentsMargins(0, 0, 0, 0);
+    m_vBox->setSpacing(4);
 
     m_label   = new QLabel(QString("Point %1:").arg(index + 1));
     m_xEdit   = new QLineEdit;
@@ -28,22 +28,30 @@ MakeEnvelopeRow::MakeEnvelopeRow(int index, QWidget* parent)
     m_rmBtn  = new QPushButton("rm");
     m_insBtn = new QPushButton("ins");
 
-    m_hBox->addWidget(m_label);
-    m_hBox->addWidget(new QLabel("X:"));
-    m_hBox->addWidget(m_xEdit);
-    m_hBox->addWidget(m_xFnBtn);
-    m_hBox->addWidget(new QLabel("Y:"));
-    m_hBox->addWidget(m_yEdit);
-    m_hBox->addWidget(m_yFnBtn);
-    m_hBox->addWidget(m_typeCombo);
-    m_hBox->addWidget(m_proCombo);
-    m_hBox->addWidget(m_rmBtn);
-    m_hBox->addWidget(m_insBtn);
+    auto* firstRow = new QHBoxLayout;
+    auto* secondRow = new QHBoxLayout;
+    auto* thirdRow = new QHBoxLayout;
+
+    firstRow->addWidget(m_label);
+    firstRow->addWidget(new QLabel("X:"));
+    firstRow->addWidget(m_xEdit);
+    firstRow->addWidget(m_xFnBtn);
+    secondRow->addWidget(new QLabel("Y:"));
+    secondRow->addWidget(m_yEdit);
+    secondRow->addWidget(m_yFnBtn);
+    thirdRow->addWidget(m_typeCombo);
+    thirdRow->addWidget(m_proCombo);
+    thirdRow->addWidget(m_rmBtn);
+    thirdRow->addWidget(m_insBtn);
 
     m_xEdit->setFixedHeight(30);
     m_yEdit->setFixedHeight(30);
     m_xEdit->setMinimumWidth(70);
     m_yEdit->setMinimumWidth(70);
+
+    m_vBox->addLayout(firstRow);
+    m_vBox->addLayout(secondRow);
+    m_vBox->addLayout(thirdRow);
 
     connect(m_xFnBtn,    &QPushButton::clicked, this, &MakeEnvelopeRow::onXFnClicked);
     connect(m_yFnBtn,    &QPushButton::clicked, this, &MakeEnvelopeRow::onYFnClicked);

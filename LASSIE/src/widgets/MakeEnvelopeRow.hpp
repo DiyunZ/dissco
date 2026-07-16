@@ -48,7 +48,7 @@ private slots:
 private:
     int m_index;
 
-    QHBoxLayout* m_hBox      = nullptr;
+    QVBoxLayout* m_vBox      = nullptr;
     QLabel*      m_label     = nullptr;
     QLineEdit*   m_xEdit     = nullptr;
     QPushButton* m_xFnBtn    = nullptr;
