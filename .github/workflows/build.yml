@@ -62,11 +62,11 @@ jobs:
 
   windows:
     name: Windows build
-    if: false
     runs-on: windows-2022
     defaults:
       run:
         shell: pwsh
+
     steps:
       - uses: actions/checkout@v5
 
@@ -82,14 +82,25 @@ jobs:
           host: windows
           target: desktop
           arch: win64_msvc2022_64
-          modules: ""
           cache: true
+
+      - name: Install vcpkg and libsndfile
+        run: |
+          git clone https://github.com/microsoft/vcpkg.git "$env:RUNNER_TEMP\vcpkg"
+          & "$env:RUNNER_TEMP\vcpkg\bootstrap-vcpkg.bat" -disableMetrics
+          & "$env:RUNNER_TEMP\vcpkg\vcpkg.exe" install libsndfile:x64-windows
 
       - name: Configure
         run: |
+          $vcpkg = "$env:RUNNER_TEMP\vcpkg"
+
           cmake -S . -B build -G Ninja `
             -DCMAKE_BUILD_TYPE=Release `
-            -DCMAKE_PREFIX_PATH="$env:Qt6_DIR"
+            -DCMAKE_PREFIX_PATH="$env:Qt6_DIR" `
+            -DCMAKE_TOOLCHAIN_FILE="$vcpkg\scripts\buildsystems\vcpkg.cmake" `
+            -DVCPKG_TARGET_TRIPLET=x64-windows `
+            -DSNDFILE_INCLUDE_DIR="$vcpkg\installed\x64-windows\include" `
+            -DSNDFILE_LIBRARY="$vcpkg\installed\x64-windows\lib\sndfile.lib"
 
       - name: Build
         run: cmake --build build --parallel
