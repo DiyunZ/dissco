@@ -51,6 +51,7 @@ namespace PVCHelper {
         auto* typeItem = new QStandardItem(type);
         auto* nameItem = new QStandardItem(name);
         typeItem->setFlags(typeItem->flags() & ~Qt::ItemIsEditable);
+        nameItem->setFlags(nameItem->flags() & ~Qt::ItemIsEditable);
         typeItem->setData(type, Qt::UserRole + 1);
         typeItem->setData(name, Qt::UserRole + 2);
         nameItem->setData(type, Qt::UserRole + 1);
@@ -99,6 +100,35 @@ ProjectView::~ProjectView() {
     }
 }
 
+/** Re-emits a parsed DOM node through the QXmlStreamWriter. Doing this 
+ * through the writer allows us to write inline xml (as in <Fun/> blocks) properly.
+ */ 
+static void writeDomNode(QXmlStreamWriter& xmlWriter, const QDomNode& node) {
+    if (node.isElement()) {
+        QDomElement element = node.toElement();
+        xmlWriter.writeStartElement(element.tagName());
+        QDomNamedNodeMap attrs = element.attributes();
+        for (int i = 0; i < attrs.count(); ++i) {
+            QDomAttr attr = attrs.item(i).toAttr();
+            xmlWriter.writeAttribute(attr.name(), attr.value());
+        }
+        for (QDomNode child = element.firstChild(); !child.isNull();
+             child = child.nextSibling()) {
+            writeDomNode(xmlWriter, child);
+        }
+        xmlWriter.writeEndElement();
+    } else if (node.isCDATASection()) {
+        xmlWriter.writeCDATA(node.toCDATASection().data());
+    } else if (node.isText()) {
+        // Skip whitespace-only text nodes (formatting between elements) so the
+        // output stays compact, but keep real values like "STEREO" or "250".
+        const QString text = node.toText().data();
+        if (!text.trimmed().isEmpty()) {
+            xmlWriter.writeCharacters(text);
+        }
+    }
+}
+
 // Function to write XML Formatting
 void ProjectView::writeInlineXml(QXmlStreamWriter& xmlWriter, const QString& xmlString) {
     QDomDocument tempDoc;
@@ -106,28 +136,10 @@ void ProjectView::writeInlineXml(QXmlStreamWriter& xmlWriter, const QString& xml
     if (tempDoc.setContent(wrappedXml)) {
         QDomNodeList children = tempDoc.documentElement().childNodes();
         for (int i = 0; i < children.count(); ++i) {
-            QDomNode node = children.at(i);
-            if (node.isElement()) {
-                // Write raw XML
-                QString rawXml;
-                QTextStream stream(&rawXml);
-                node.save(stream, 0);
-                rawXml.remove(QRegularExpression("[\\n\\t\\r]+"));
-                rawXml.replace(QRegularExpression(">\\s+<"), "><");
-                xmlWriter.writeCharacters("");
-                xmlWriter.device()->write(rawXml.toUtf8());
-            } else {
-                // Write plain text (like "1 - ") normally so it's safely escaped
-                xmlWriter.writeCharacters(node.nodeValue());
-            }
+            writeDomNode(xmlWriter, children.at(i));
         }
-        // QString str = tempDoc.toString();
-        // str.remove(QRegularExpression("[\\n\\t\\r]+"));
-        // str.replace(QRegularExpression(">\\s+<"), "><");
-        // xmlWriter.writeCharacters("");
-        // xmlWriter.device()->write(str.toUtf8());
     } else {
-        // String/Number 
+        // String/Number
         xmlWriter.writeCharacters(xmlString);
     }
 }
@@ -996,6 +1008,7 @@ void ProjectView::insertObject() {
             HEvent obj = {};
             obj.type = t;
             obj.name = nameStr;
+            obj.event_layers.append(Layer());
             list.push_back(obj);
             typeStr = ts;
             folder = f;
@@ -1022,6 +1035,7 @@ void ProjectView::insertObject() {
             BottomEvent obj = {};
             obj.event.type = bottom;
             obj.event.name = nameStr;
+            obj.event.event_layers.append(Layer());
             pm->bottomevents().push_back(obj);
             typeStr = "Bottom";
             folder = paletteView->folderBottom;
