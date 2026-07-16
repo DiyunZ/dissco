@@ -1301,19 +1301,47 @@ void ProjectView::duplicateEvent(const QString& typeStr, int index)
 
     // Get original name
     QString oldName;
-    if      (etype == high)    oldName = pm->highevents()[index].name;
-    else if (etype == mid)     oldName = pm->midevents()[index].name;
-    else if (etype == low)     oldName = pm->lowevents()[index].name;
-    else if (etype == bottom)  oldName = pm->bottomevents()[index].event.name;
-    else if (etype == sound)   oldName = pm->spectrumevents()[index].name;
-    else if (etype == note)    oldName = pm->noteevents()[index].name;
-    else if (etype == env)     oldName = pm->envelopeevents()[index].name;
-    else if (etype == sieve)   oldName = pm->sieveevents()[index].name;
-    else if (etype == spa)     oldName = pm->spaevents()[index].name;
-    else if (etype == pattern) oldName = pm->patternevents()[index].name;
-    else if (etype == reverb)  oldName = pm->reverbevents()[index].name;
-    else if (etype == filter)  oldName = pm->filterevents()[index].name;
-    else return;
+    switch (etype) {
+        case high: 
+           oldName = pm->highevents()[index].name;
+           break;
+        case mid: 
+            oldName = pm->midevents()[index].name;
+            break;
+        case low: 
+            oldName = pm->lowevents()[index].name;
+            break;
+        case bottom: 
+            oldName = pm->bottomevents()[index].event.name;
+            break;
+        case sound: 
+            oldName = pm->spectrumevents()[index].name;
+            break;
+        case note: 
+            oldName = pm->noteevents()[index].name;
+            break;
+        case env: 
+            oldName = pm->envelopeevents()[index].name;
+            break;
+        case sieve: 
+            oldName = pm->sieveevents()[index].name;
+            break;
+        case spa:
+            oldName = pm->spaevents()[index].name;
+            break;
+        case pattern: 
+            oldName = pm->patternevents()[index].name;
+            break;
+        case reverb: 
+            oldName = pm->reverbevents()[index].name;
+            break;
+        case filter: 
+            oldName = pm->filterevents()[index].name;
+            break;
+        default: 
+            return;
+    }
+
 
     // Ask user for new name
     bool ok = false;
