@@ -17,10 +17,13 @@ Stochos::Stochos(int methodType, int stochosIndex, QWidget *parent)
         m_mainLayout->setSpacing(10);
         auto* minLabel = new QLabel("Min:");
         m_minEntry = new QLineEdit;
+        m_minEntry->setMinimumWidth(70);
         auto* maxLabel = new QLabel("Max:");
         m_maxEntry = new QLineEdit;
+        m_maxEntry->setMinimumWidth(70);
         auto* distLabel = new QLabel("Distribution:");
         m_distEntry = new QLineEdit;
+        m_distEntry->setMinimumWidth(70);
         m_removeStochosButton = new QPushButton("Remove Node");
 
         connect(m_removeStochosButton, &QPushButton::clicked, this, &Stochos::onRemoveNodeClicked);
