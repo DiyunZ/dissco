@@ -188,11 +188,9 @@ void EventAttributesViewController::fixStackedWidgetLayout(QWidget* currPage) {
 
     if (currPage == ui->soundPage && ui->soundPage->layout()) {
         // Set spacing between spectrum partial rows.
-
         ui->soundPage->layout()->setSpacing(0);
         ui->partialsLayout->setContentsMargins(0, 0, 0, 0);
         ui->partialsLayout->setAlignment(Qt::AlignTop);
-
     }
     if (currPage == ui->standardPage && ui->standardPage->layout()) {
         ui->standardPage->layout()->setSpacing(10);
