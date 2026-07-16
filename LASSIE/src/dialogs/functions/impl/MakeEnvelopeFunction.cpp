@@ -32,7 +32,7 @@ MakeEnvelopeFunction::MakeEnvelopeFunction(QWidget* parent)
     layout->addWidget(m_scrollArea);
 
     auto* addRow = new QHBoxLayout;
-    auto* addButton = new QPushButton(tr("Add Point"), this);
+    auto* addButton = new QPushButton(tr("Add Node"), this);
     addRow->addWidget(addButton);
     addRow->addStretch(1);
     layout->addLayout(addRow);
