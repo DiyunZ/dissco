@@ -1397,23 +1397,48 @@ if (nameExists(newName)) {
         list.append(copy);
     };
 
-    if      (etype == high)    dup(pm->highevents());
-    else if (etype == mid)     dup(pm->midevents());
-    else if (etype == low)     dup(pm->lowevents());
-    else if (etype == bottom) {
-        BottomEvent copy = pm->bottomevents()[index];
-        copy.event.name = newName;
-        pm->bottomevents().append(copy);
+    switch (etype) {
+        case high:
+            dup(pm->highevents()); 
+            break;
+        case mid: 
+            dup(pm->midevents());
+            break;
+        case low: 
+            dup(pm->lowevents());
+            break;
+        case bottom:
+            BottomEvent copy = pm->bottomevents()[index];
+            copy.event.name = newName;
+            pm->bottomevents().append(copy);
+            break; 
+        case sound:
+            dup(pm->spectrumevents());
+            break; 
+        case note:
+            dup(pm->noteevents());
+            break; 
+        case env: 
+            dup(pm->envelopeevents());
+            break;
+        case sieve:
+            dup(pm->sieveevents());
+            break; 
+        case spa: 
+            dup(pm->spaevents());
+            break;
+        case pattern:
+            dup(pm->patternevents());
+            break; 
+        case reverb:
+            dup(pm->reverbevents());
+            break; 
+        case filter:
+            dup(pm->filterevents());
+            break;
+        default: 
+            return;
     }
-    else if (etype == sound)   dup(pm->spectrumevents());
-    else if (etype == note)    dup(pm->noteevents());
-    else if (etype == env)     dup(pm->envelopeevents());
-    else if (etype == sieve)   dup(pm->sieveevents());
-    else if (etype == spa)     dup(pm->spaevents());
-    else if (etype == pattern) dup(pm->patternevents());
-    else if (etype == reverb)  dup(pm->reverbevents());
-    else if (etype == filter)  dup(pm->filterevents());
-    else return;
 
     folder->appendRow(PVCHelper::make_child_palette_tuple(typeStr, newName));
 }
