@@ -90,7 +90,7 @@ jobs:
         run: |
           $vcpkgRoot = "$env:RUNNER_TEMP\vcpkg"
 
-          git clone https://github.com/microsoft/vcpkg.git $vcpkgRoot
+          git clone --depth 1 https://github.com/microsoft/vcpkg.git $vcpkgRoot
           & "$vcpkgRoot\bootstrap-vcpkg.bat" -disableMetrics
 
           & "$vcpkgRoot\vcpkg.exe" install `
@@ -98,22 +98,29 @@ jobs:
             dirent:x64-windows
 
       - name: Configure
+        env:
+          CL: /EHsc /DNOMINMAX /DNOGDI /DMUPARSER_STATIC /D_CRT_SECURE_NO_WARNINGS
         run: |
           $vcpkgRoot = "$env:RUNNER_TEMP\vcpkg"
 
+          Write-Host "MSVC flags: $env:CL"
+
           cmake -S . -B build -G Ninja `
             -DCMAKE_BUILD_TYPE=Release `
-            -DCMAKE_PREFIX_PATH="$env:Qt6_DIR" `
-            -DCMAKE_TOOLCHAIN_FILE="$vcpkgRoot\scripts\buildsystems\vcpkg.cmake" `
+            "-DCMAKE_PREFIX_PATH=$env:Qt6_DIR" `
+            "-DCMAKE_TOOLCHAIN_FILE=$vcpkgRoot\scripts\buildsystems\vcpkg.cmake" `
             -DVCPKG_TARGET_TRIPLET=x64-windows `
             -DBUILD_SHARED_LIBS=OFF `
-            "-DCMAKE_CXX_FLAGS=/EHsc /DNOMINMAX /DNOGDI /DMUPARSER_STATIC /D_CRT_SECURE_NO_WARNINGS" `
-            -DSNDFILE_INCLUDE_DIR="$vcpkgRoot\installed\x64-windows\include" `
-            -DSNDFILE_LIBRARY="$vcpkgRoot\installed\x64-windows\lib\sndfile.lib"
+            "-DSNDFILE_INCLUDE_DIR=$vcpkgRoot\installed\x64-windows\include" `
+            "-DSNDFILE_LIBRARY=$vcpkgRoot\installed\x64-windows\lib\sndfile.lib"
 
       - name: Build
-        run: cmake --build build --parallel
-        
+        env:
+          CL: /EHsc /DNOMINMAX /DNOGDI /DMUPARSER_STATIC /D_CRT_SECURE_NO_WARNINGS
+        run: |
+          Write-Host "MSVC flags: $env:CL"
+          cmake --build build --parallel --verbose
+
   macos:
     name: macOS build
     runs-on: macos-14
