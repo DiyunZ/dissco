@@ -32,7 +32,7 @@ MakeEnvelopeFunction::MakeEnvelopeFunction(QWidget* parent)
     layout->addWidget(m_scrollArea);
 
     auto* addRow = new QHBoxLayout;
-    auto* addButton = new QPushButton(tr("Add Point"), this);
+    auto* addButton = new QPushButton(tr("Add Node"), this);
     addRow->addWidget(addButton);
     addRow->addStretch(1);
     layout->addLayout(addRow);
@@ -86,7 +86,7 @@ void MakeEnvelopeFunction::clearRows() {
 
 void MakeEnvelopeFunction::updateRowLabels() {
     for (int i = 0; i < m_rows.size(); ++i)
-        m_rows[i]->setLabel(QStringLiteral("Point %1:").arg(i + 1));
+        m_rows[i]->setLabel(QStringLiteral("Node %1:").arg(i + 1));
 }
 
 QString MakeEnvelopeFunction::buildXMLString() const {

@@ -13,14 +13,17 @@ Stochos::Stochos(int methodType, int stochosIndex, QWidget *parent)
     QHBoxLayout* stochosHBox = new QHBoxLayout();
 
     if (methodType == 0) {
-        m_mainLayout->setContentsMargins(10, 10, 10, 10);
+        m_mainLayout->setContentsMargins(10, 0, 10, 0);
         m_mainLayout->setSpacing(10);
         auto* minLabel = new QLabel("Min:");
         m_minEntry = new QLineEdit;
+        m_minEntry->setMinimumWidth(70);
         auto* maxLabel = new QLabel("Max:");
         m_maxEntry = new QLineEdit;
+        m_maxEntry->setMinimumWidth(70);
         auto* distLabel = new QLabel("Distribution:");
         m_distEntry = new QLineEdit;
+        m_distEntry->setMinimumWidth(70);
         m_removeStochosButton = new QPushButton("Remove Node");
 
         connect(m_removeStochosButton, &QPushButton::clicked, this, &Stochos::onRemoveNodeClicked);
@@ -39,9 +42,9 @@ Stochos::Stochos(int methodType, int stochosIndex, QWidget *parent)
         stochosHBox->addWidget(m_distEntry);
         stochosHBox->addWidget(m_removeStochosButton);
 
-        m_minEntry->setFixedHeight(20);
-        m_maxEntry->setFixedHeight(20);
-        m_distEntry->setFixedHeight(20);
+        m_minEntry->setFixedHeight(30);
+        m_maxEntry->setFixedHeight(30);
+        m_distEntry->setFixedHeight(30);
 
         m_mainLayout->addLayout(stochosHBox);
     }

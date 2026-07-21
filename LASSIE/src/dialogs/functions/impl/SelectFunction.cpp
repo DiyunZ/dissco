@@ -30,6 +30,9 @@ SelectFunction::SelectFunction(QWidget* parent)
     m_scrollArea->setMinimumSize(400, 200);
     auto* scrollContents = new QWidget;
     m_nodesLayout = new QVBoxLayout(scrollContents);
+    m_nodesLayout->setContentsMargins(10, 0, 10, 0);
+    m_nodesLayout->setSpacing(0);
+    m_nodesLayout->setAlignment(Qt::AlignTop);
     m_nodesLayout->addStretch(1);
     m_scrollArea->setWidget(scrollContents);
     layout->addWidget(m_scrollArea);

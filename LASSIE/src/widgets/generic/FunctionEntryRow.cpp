@@ -43,7 +43,6 @@ FunctionEntryRow::FunctionEntryRow(const QString& labelText,
     if (rmVisible) { m_rmButton->setFixedHeight(24); }
     if (insVisible) { m_insButton->setFixedHeight(24); }
 
-    setSizePolicy(QSizePolicy::Preferred, QSizePolicy::Fixed);
     setFixedHeight(28);
 }
 

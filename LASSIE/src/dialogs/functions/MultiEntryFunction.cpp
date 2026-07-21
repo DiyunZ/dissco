@@ -9,7 +9,9 @@ MultiEntryFunction::MultiEntryFunction(QList<EntrySpec> specs, QWidget* parent)
       m_specs(std::move(specs))
 {
     auto* layout = new QVBoxLayout(this);
-
+    layout->setSpacing(1);                    // vertical gap between rows
+    layout->setContentsMargins(0, 0, 0, 0);  // padding around all rows
+    layout->setAlignment(Qt::AlignTop);
     int idx = 0;
     for (const EntrySpec& s : m_specs) {
         auto* row = new FunctionEntryRow(s.labelText, idx++, s.fnReturnType,
