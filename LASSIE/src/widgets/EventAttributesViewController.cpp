@@ -92,6 +92,8 @@ EventAttributesViewController::EventAttributesViewController(ProjectView* projec
             this, &EventAttributesViewController::attributesStandardSpaButtonClicked);
     connect(ui->BSLoudnessButton, &QPushButton::clicked,
             this, &EventAttributesViewController::BSLoudnessButtonClicked);
+    connect(ui->BSPhaseButton, &QPushButton::clicked,
+            this, &EventAttributesViewController::BSPhaseButtonClicked);
 /*    connect(ui->BSSpatializationButton, &QPushButton::clicked,
             this, &EventAttributesViewController::BSSpatializationButtonClicked);
     connect(ui->BSReverbButton, &QPushButton::clicked,
@@ -187,8 +189,10 @@ void EventAttributesViewController::fixStackedWidgetLayout(QWidget* currPage) {
     currPage->adjustSize();
 
     if (currPage == ui->soundPage && ui->soundPage->layout()) {
-        ui->soundPage->layout()->setSpacing(10);
-        ui->partialsLayout->setSpacing(0);
+        // Set spacing between spectrum partial rows.
+        ui->soundPage->layout()->setSpacing(0);
+        ui->partialsLayout->setContentsMargins(0, 0, 0, 0);
+        ui->partialsLayout->setAlignment(Qt::AlignTop);
     }
     if (currPage == ui->standardPage && ui->standardPage->layout()) {
         ui->standardPage->layout()->setSpacing(10);
@@ -364,6 +368,8 @@ void EventAttributesViewController::saveCurrentShownEventData() {
         if (ui->powerOfTwoRadio->isChecked()) { freq_info.continuum_flag = 1; }
 
         extra_info.loudness = ui->loudnessEntry->text();
+        const QString phase = ui->phaseEntry->text();
+        extra_info.phase = phase.trimmed().isEmpty() ? QStringLiteral("0") : phase;
         extra_info.spa = ui->spaEntry->text();
         extra_info.reverb = ui->revEntry->text();
         extra_info.filter = ui->filEntry->text();
@@ -566,10 +572,12 @@ void EventAttributesViewController::showCurrentEventData() {
             if (type == bottom) {  
                 ui->frequencyContainer->setVisible(true);
                 ui->loudnessContainer->setVisible(true);
+                ui->phaseContainer->setVisible(true);
                 ui->modGroupContainer->setVisible(true);
             } else {
                 ui->frequencyContainer->setVisible(false);
                 ui->loudnessContainer->setVisible(false);
+                ui->phaseContainer->setVisible(false);
                 ui->modGroupContainer->setVisible(false);
             }
             fixStackedWidgetLayout(ui->standardPage);
@@ -638,6 +646,7 @@ void EventAttributesViewController::showCurrentEventData() {
             ui->powerOfTwoRadio->setChecked(freq_info.continuum_flag == 1);
 
             ui->loudnessEntry->setText(extra_info.loudness);
+            ui->phaseEntry->setText(extra_info.phase);
             ui->spaEntry->setText(extra_info.spa);
             ui->revEntry->setText(extra_info.reverb);
             ui->filEntry->setText(extra_info.filter);
@@ -1005,6 +1014,10 @@ void EventAttributesViewController::attributesStandardSpaButtonClicked() {
 void EventAttributesViewController::BSLoudnessButtonClicked() {
     insertFunctionString(BSLoudnessFunButton);
 }
+
+void EventAttributesViewController::BSPhaseButtonClicked() {
+    insertFunctionString(BSPhaseFunButton);
+}
 /*
 void EventAttributesViewController::BSSpatializationButtonClicked() {
     if (m_currentlyShownEvent->getEventExtraInfo()->getChildTypeFlag() != 0) return;
@@ -1117,6 +1130,10 @@ void EventAttributesViewController::insertFunctionString(FunctionButton button) 
         break;
     case BSLoudnessFunButton:
         target = ui->loudnessEntry;
+        gen = new FunctionGenerator(nullptr, functionReturnFloat, target->text());
+        break;
+    case BSPhaseFunButton:
+        target = ui->phaseEntry;
         gen = new FunctionGenerator(nullptr, functionReturnFloat, target->text());
         break;
     case BSModGroupFunButton:
