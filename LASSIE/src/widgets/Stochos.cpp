@@ -13,7 +13,7 @@ Stochos::Stochos(int methodType, int stochosIndex, QWidget *parent)
     QHBoxLayout* stochosHBox = new QHBoxLayout();
 
     if (methodType == 0) {
-        m_mainLayout->setContentsMargins(10, 10, 10, 10);
+        m_mainLayout->setContentsMargins(10, 0, 10, 0);
         m_mainLayout->setSpacing(10);
         auto* minLabel = new QLabel("Min:");
         m_minEntry = new QLineEdit;
