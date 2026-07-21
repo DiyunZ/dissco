@@ -8,7 +8,7 @@ MakeEnvelopeRow::MakeEnvelopeRow(int index, QWidget* parent)
 
     m_vBox = new QVBoxLayout(this);
     m_vBox->setContentsMargins(0, 0, 0, 0);
-    m_vBox->setSpacing(4);
+    m_vBox->setSpacing(0);
 
     m_label   = new QLabel(QString("Node %1:").arg(index + 1));
     m_xEdit   = new QLineEdit;
