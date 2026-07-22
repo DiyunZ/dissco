@@ -24,6 +24,26 @@ using enum FunctionReturnType;
 
 namespace {
 constexpr int phaseModType = 7;
+
+// The combo box is ordered for display, while these values must retain the
+// stable modifier IDs serialized in project files and consumed by CMOD.
+constexpr int modifierTypesByDisplayOrder[] = { 0, 1, 2, 3, 7, 4, 5, 6 };
+constexpr int modifierTypeCount =
+    sizeof(modifierTypesByDisplayOrder) / sizeof(modifierTypesByDisplayOrder[0]);
+
+int currentModifierType(const QComboBox* combo)
+{
+    bool valid = false;
+    const int type = combo->currentData().toInt(&valid);
+    return valid ? type : -1;
+}
+
+void saveCurrentModifierType(const QComboBox* combo, Modifier& modifier)
+{
+    const int type = currentModifierType(combo);
+    if (type >= 0)
+        modifier.type = static_cast<unsigned>(type);
+}
 }
 
 Modifiers::Modifiers(Eventtype eventType, unsigned eventIndex, int modifierIndex, QWidget *parent)
@@ -34,6 +54,9 @@ Modifiers::Modifiers(Eventtype eventType, unsigned eventIndex, int modifierIndex
       m_modifierIndex(modifierIndex)
 {
     ui->setupUi(this);
+    for (int index = 0; index < modifierTypeCount; ++index)
+        ui->modifierType->setItemData(index, modifierTypesByDisplayOrder[index]);
+
     this->setSizePolicy(QSizePolicy::Preferred, QSizePolicy::Fixed);
     this->setMinimumHeight(480);
 
@@ -149,8 +172,8 @@ void Modifiers::setupUi() {
     
     // connecting combobox
     connect(ui->modifierType, QOverload<int>::of(&QComboBox::currentIndexChanged),
-            this, [this](int index) {
-                getBackendLayer().type = index;
+            this, [this](int) {
+                saveCurrentModifierType(ui->modifierType, getBackendLayer());
                 updateModState();
             });
     connect(ui->modifierApply, QOverload<int>::of(&QComboBox::currentIndexChanged),
@@ -161,7 +184,7 @@ void Modifiers::setupUi() {
 }
 
 void Modifiers::updateModState() {
-    int typeIndex = ui->modifierType->currentIndex();
+    const int typeIndex = currentModifierType(ui->modifierType);
 
     const bool isPhaseMod = (typeIndex == phaseModType);
     ui->modifierMagLabel->setText(isPhaseMod
@@ -199,7 +222,6 @@ void Modifiers::updateModState() {
         { ui->modifierResLabel,    ui->modifierResEdit,    ui->modifierResFunButton    },
     };
 
-    constexpr int modifierTypeCount = 8;
     if (typeIndex < 0 || typeIndex >= modifierTypeCount) {
         ui->modifierApply->setEnabled(false);
         for (const Row& row : rows) {
@@ -296,7 +318,7 @@ void Modifiers::modFunctionButtonClicked(ModChanged type) {
     // The structured editor is deliberately PHASE_MOD-only. Other modifier
     // types retain their legacy FunctionGenerator path and wire semantics.
     if (type == modPartialChanged
-        && ui->modifierType->currentIndex() == phaseModType) {
+        && currentModifierType(ui->modifierType) == phaseModType) {
         ProjectManager* pm = Inst::get_project_manager();
         int spectrumPartialCount = 0;
         constexpr int generatedSpectrumPartialCount = 20;
@@ -335,7 +357,7 @@ void Modifiers::modFunctionButtonClicked(ModChanged type) {
 }
 
 void Modifiers::saveModifierToBackend() {
-    getBackendLayer().type = ui->modifierType->currentIndex();
+    saveCurrentModifierType(ui->modifierType, getBackendLayer());
     getBackendLayer().applyhow_flag = ui->modifierApply->currentIndex();
     modTextChanged(modNameChanged);
     modTextChanged(modProbabilityChanged);
@@ -351,7 +373,8 @@ void Modifiers::saveModifierToBackend() {
 
 void Modifiers::setModifierData(Modifier& modData) {
     ui->modifierType->blockSignals(true);
-    ui->modifierType->setCurrentIndex(modData.type);
+    ui->modifierType->setCurrentIndex(
+        ui->modifierType->findData(static_cast<int>(modData.type)));
     ui->modifierType->blockSignals(false);
 
     ui->modifierApply->blockSignals(true);
