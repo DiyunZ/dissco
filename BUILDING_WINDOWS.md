@@ -380,7 +380,7 @@ administrator access. Extract the complete ZIP and double-click `LASSIE.exe`;
 For non-default paths or automation, run the PowerShell entry point directly:
 
 ```powershell
-.\make-portable.ps1 `
+.\Make-Portable-for-Windows.ps1 `
   -BuildDirectory build `
   -QtBin "C:\Qt\6.11.1\msvc2022_64\bin" `
   -LilyPondRoot "C:\Program Files\LilyPond"
