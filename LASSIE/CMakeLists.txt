@@ -62,6 +62,7 @@ qt_add_executable(LASSIE
     src/core/project_struct.cpp src/core/project_struct.hpp
     src/widgets/PaletteViewController.cpp src/widgets/PaletteViewController.hpp
     src/widgets/EventAttributesViewController.cpp src/widgets/EventAttributesViewController.hpp src/ui/Attributes.ui
+    src/widgets/NoteModifierSelection.cpp src/widgets/NoteModifierSelection.hpp
     src/dialogs/FileNewObject.cpp src/dialogs/FileNewObject.hpp src/ui/FileNewObject.ui
     src/widgets/LayerBox.cpp src/widgets/LayerBox.hpp
     src/widgets/Partials.cpp src/widgets/Partials.hpp

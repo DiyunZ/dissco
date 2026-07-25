@@ -21,9 +21,9 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #include "Note.h"
 // #include "Note.cpp"
 
-OutputNode* Output::top;
-ofstream* Output::particelFile;
-int Output::level;
+OutputNode* Output::top = nullptr;
+ofstream* Output::particelFile = nullptr;
+int Output::level = -1;
 NotationScore Output::notation_score_;
 
 OutputNode::OutputNode(string name) : nodeName(name) {
@@ -179,7 +179,10 @@ void Output::initialize(string particelFilename) {
 void Output::free(void)
 {
   delete top;
+  top = nullptr;
   delete particelFile;
+  particelFile = nullptr;
+  level = -1;
 }
 
 
@@ -214,6 +217,12 @@ void Output::beginSubLevel(string name) {
 //----------------------------------------------------------------------------//
 
 void Output::addProperty(string name, string value, string units) {
+  // Note attributes are also needed for score rendering, so their setters call
+  // this method even when the optional Particel report is disabled. In that
+  // state there is intentionally no output tree and nothing to record.
+  if(!particelFile)
+    return;
+
   OutputNode* current = getCurrentLevelNode();
   if(!current)
     cerr << "Warning: Top level does not exist. Property can not be added."
