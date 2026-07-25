@@ -1,14 +1,15 @@
 #include "PostWindow.hpp"
 
-#include "../inst.hpp"
-
 #include <QMessageBox>
 #include <QCloseEvent>
 #include <QShortcut>
 //#include <QOverload>
 
 #include <QVBoxLayout>
+#include <QTextCursor>
 #include <QTextCharFormat>
+
+#include <algorithm>
 
 PostWindow::PostWindow(QProcess *process, QWidget *parent)
     : QWidget(parent, Qt::Window), proc(process)
@@ -53,7 +54,7 @@ PostWindow::PostWindow(QProcess *process, QWidget *parent)
     connect(killProc, &QAction::triggered, this, &PostWindow::killProcess);
     connect(runProc, &QAction::triggered, this, &PostWindow::runProcess);
     
-    connect(proc, &QProcess::stateChanged, this, [=]{
+    connect(proc, &QProcess::stateChanged, this, [this, termProc, killProc, runProc]{
         if(proc->state() != QProcess::NotRunning){
             termProc->setEnabled(true);
             killProc->setEnabled(true);
@@ -61,15 +62,47 @@ PostWindow::PostWindow(QProcess *process, QWidget *parent)
         }else{
             termProc->setEnabled(false);
             killProc->setEnabled(false);
+            runProc->setEnabled(true);
         }
     });
 
-    connect(proc, &QProcess::finished, this, [=]{
+    connect(proc, &QProcess::started, this, [this] {
+        resetProcessOutputState();
+    });
+
+    connect(proc, &QProcess::finished, this,
+            [this, runProc](int exitCode, QProcess::ExitStatus exitStatus) {
+        // Drain anything emitted immediately before the process exited.
+        handleStdout();
+        handleStderr();
+
         runProc->setEnabled(true);
-        if(proc->exitStatus() == QProcess::NormalExit)
-            appendColored("*** Process exited normally (exit code " + QString::number(proc->exitCode()) + ") ***", Qt::black);
-        else
-            appendColored("*** Process crashed (abnormal exit; exit code " + QString::number(proc->exitCode()) + ") *** ", Qt::red);
+        const bool succeeded =
+            exitStatus == QProcess::NormalExit && exitCode == 0;
+        if (succeeded) {
+            appendColored(
+                "*** Process exited normally (exit code 0) ***",
+                Qt::black);
+        } else {
+            recolorStderr(Qt::red);
+            const QString summary = exitStatus == QProcess::NormalExit
+                ? QStringLiteral("*** Process failed (exit code %1) ***")
+                      .arg(exitCode)
+                : QStringLiteral(
+                      "*** Process crashed (abnormal exit; exit code %1) ***")
+                      .arg(exitCode);
+            appendColored(summary, Qt::red);
+        }
+    });
+
+    connect(proc, &QProcess::errorOccurred, this,
+            [this](QProcess::ProcessError error) {
+        if (error == QProcess::FailedToStart) {
+            appendColored(
+                QStringLiteral("*** Process failed to start: %1 ***")
+                    .arg(proc->errorString()),
+                Qt::red);
+        }
     });
     
     QVBoxLayout *layout = new QVBoxLayout(this);
@@ -123,16 +156,60 @@ void PostWindow::appendColored(const QString &text, const QColor &color)
     scrollToBottom();
 }
 
+void PostWindow::appendProcessText(const QString &text, bool fromStderr)
+{
+    if (text.isEmpty()) {
+        return;
+    }
+
+    QTextCursor cursor = textEdit->textCursor();
+    cursor.movePosition(QTextCursor::End);
+
+    QTextCharFormat format;
+    format.setForeground(Qt::black);
+
+    const int start = cursor.position();
+    cursor.insertText(text, format);
+    const int end = cursor.position();
+    textEdit->setTextCursor(cursor);
+
+    if (fromStderr) {
+        stderrRanges.push_back({start, end});
+    }
+
+    scrollToBottom();
+}
+
+void PostWindow::recolorStderr(const QColor &color)
+{
+    QTextCharFormat format;
+    format.setForeground(color);
+
+    for (const TextRange &range : stderrRanges) {
+        QTextCursor cursor(textEdit->document());
+        cursor.setPosition(range.start);
+        cursor.setPosition(range.end, QTextCursor::KeepAnchor);
+        cursor.mergeCharFormat(format);
+    }
+}
+
+void PostWindow::resetProcessOutputState()
+{
+    stdoutDecoder.resetState();
+    stderrDecoder.resetState();
+    stderrRanges.clear();
+}
+
 void PostWindow::handleStdout()
 {
-    QString data = QString::fromLocal8Bit(proc->readAllStandardOutput());
-    appendColored(data.trimmed(), Qt::black);
+    const QString output = stdoutDecoder(proc->readAllStandardOutput());
+    appendProcessText(output, false);
 }
 
 void PostWindow::handleStderr()
 {
-    QString data = QString::fromLocal8Bit(proc->readAllStandardError());
-    appendColored(data.trimmed(), Qt::red);
+    const QString output = stderrDecoder(proc->readAllStandardError());
+    appendProcessText(output, true);
 }
 
 void PostWindow::increaseFont()
@@ -152,6 +229,7 @@ void PostWindow::decreaseFont()
 void PostWindow::clearOutput()
 {
     textEdit->clear();
+    stderrRanges.clear();
 }
 
 void PostWindow::termProcess()

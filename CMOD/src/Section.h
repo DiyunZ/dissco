@@ -265,13 +265,6 @@ private:
   void LoudnessMark(Note* current_note);
 
   /**
-   * Add a modifier to the current note.
-   * 
-   * @param current_note The note to which to add a modifier
-  **/
-  void ModifiersMark(Note* current_note);
-
-  /**
    * Get the first bar of this Section after building and
    * __remove the full bar from this Section__
    * 

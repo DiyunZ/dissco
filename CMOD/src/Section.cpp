@@ -98,6 +98,7 @@ bool Section::InsertNote(Note* n) {
   n->type = NoteType::kNote;
   is_built_ = false;
 
+  n->prepareForInsertion();
   EnsureNoteExpressible(n);
 
   if (n->end_t <= n->start_t ) {
@@ -141,10 +142,8 @@ bool Section::InsertNote(Note* n) {
       if(cur->end_t == n->end_t){
         // if the end time is still the same
         cur->split = n->split;
-        // merge the modifiers together
-        cur->mergeModifiers(n->modifiers_out);
-        // merge the notes together: Ex: <c'> + <e'> -> <c'e'>
-        cur->pitch_out = cur->pitch_out.substr(0, cur->pitch_out.length() - 1) + " " + n->pitch_out.substr(1);
+        // Group the pitches while retaining each event's own modifiers.
+        cur->mergePitches(*n);
         return true;
       }
       else if (cur->end_t > n->end_t){
@@ -152,8 +151,7 @@ bool Section::InsertNote(Note* n) {
         // merge the overlap part and insert the left of existnode again
         cur->start_t = n->end_t;
         n->split = 1;
-        n->mergeModifiers(cur->modifiers_out);
-        n->pitch_out = cur->pitch_out.substr(0, cur->pitch_out.length() - 1) + " " + n->pitch_out.substr(1);
+        n->mergePitches(*cur, true);
         InsertNote(n);
         return true;
       }
@@ -162,8 +160,7 @@ bool Section::InsertNote(Note* n) {
           // insertnote has the longer end time and ensure they have the overlap part.
           // merge the overlap part, and insert the left of insernote 
           cur->split = 1;
-          cur->mergeModifiers(n->modifiers_out);
-          cur->pitch_out = cur->pitch_out.substr(0, cur->pitch_out.length() - 1) + " " + n->pitch_out.substr(1);
+          cur->mergePitches(*n);
           n->start_t = cur->end_t;
         }
       }
@@ -175,8 +172,7 @@ bool Section::InsertNote(Note* n) {
         // shorten the existnode and merge the overlap part
         cur->split =1;
         cur->end_t = n->start_t;
-        n->mergeModifiers(cur->modifiers_out);
-        n->pitch_out = cur->pitch_out.substr(0, cur->pitch_out.length() - 1) + " " + n->pitch_out.substr(1);
+        n->mergePitches(*cur, true);
       }
       else if (cur->end_t > n->end_t){
         // if insertnode ends early
@@ -187,8 +183,7 @@ bool Section::InsertNote(Note* n) {
         cur->split = 1;
         sec_chord->start_t = n->end_t;
         n->split = 1;
-        n->mergeModifiers(cur->modifiers_out);
-        n->pitch_out = cur->pitch_out.substr(0, cur->pitch_out.length() - 1) + " " + n->pitch_out.substr(1);
+        n->mergePitches(*cur, true);
         InsertNote(sec_chord);
         InsertNote(n);
         return true;
@@ -197,8 +192,7 @@ bool Section::InsertNote(Note* n) {
         // if insertnode ends later.
         Note* sec_chord = new Note(*n);
         sec_chord->end_t = cur->end_t;
-        sec_chord->mergeModifiers(cur->modifiers_out);
-        sec_chord->pitch_out = cur->pitch_out.substr(0, cur->pitch_out.length() - 1) + " " + n->pitch_out.substr(1);
+        sec_chord->mergePitches(*cur, true);
         sec_chord->split = 1;
         cur->end_t = sec_chord->start_t;
         cur->split = 1;
@@ -213,8 +207,7 @@ bool Section::InsertNote(Note* n) {
       if(cur->end_t == n->end_t){
         // if they ends at the same time
         cur->split = n->split;
-        cur->mergeModifiers(n->modifiers_out);
-        cur->pitch_out = cur->pitch_out.substr(0, cur->pitch_out.length() - 1) + " " + n->pitch_out.substr(1);
+        cur->mergePitches(*n);
         n->end_t = cur->start_t;
         n->split = 1;
         InsertNote(n);
@@ -402,7 +395,7 @@ void Section::AddRestsAndFlatten() {
         if(it+1 == section_[i].end()){
           prev->end_t = cur->start_t; // Can't shorten current note because end of bar
         } else {
-          cur->start_t = prev->end_t;
+          cur->adjustStartTime(prev->end_t);
         }
       }
       section_flat_.push_back(cur);
@@ -450,7 +443,8 @@ void Section::Notate() {
         if (next_it != section_flat_.end()) {
           Note* next_note = *next_it;
           if (next_note != 0) {
-            next_note->start_t = cur->start_t + dur_beats * time_signature_.beat_edus_ + best_fit;
+            next_note->adjustStartTime(
+                cur->start_t + dur_beats * time_signature_.beat_edus_ + best_fit);
           }
         }
       }
@@ -465,6 +459,7 @@ void Section::Notate() {
       continue;
     }
 
+    cur->beginNotation();
     tuplet_dur = NotateCurrentNote(cur, &prev_tuplet, tuplet_dur);
   }
 }
@@ -524,8 +519,9 @@ void Section::CapEnding() {
 
     int offset = last_bar.front()->start_t;
     while (!last_bar.empty()) {
-      last_bar.front()->start_t -= offset; // make notes in cap start from 0
-      last_bar.front()->end_t -= offset;
+      // Make notes in the cap start from 0 while preserving the original
+      // attack of every individual pitch in a grouped chord.
+      last_bar.front()->shiftEDUs(-offset);
 
       if (!cap_->InsertNote(last_bar.front())) {
         cerr << "Note could not be inserted into end cap. " <<
@@ -602,14 +598,12 @@ int Section::FillCurrentTupletDur(Note* current_note,
     int unit = tuplet_dur / (time_signature_.beat_edus_ / prev_tuplet);
     if(unit == 3) {
       string s = Note::int_to_str(time_signature_.unit_note_ * 2);
-      current_note->type_out += current_note->pitch_out + s + ".";
+      current_note->type_out += current_note->nextPitchOutput() + s + ".";
       LoudnessMark(current_note);  // this places all the dynamic marks at the beginning of a sound
-      ModifiersMark(current_note);
     } else {
       string s = Note::int_to_str(time_signature_.unit_note_ * prev_tuplet / unit);
-      current_note->type_out += current_note->pitch_out + s;
+      current_note->type_out += current_note->nextPitchOutput() + s;
       LoudnessMark(current_note);  // this places all the dynamic marks at the beginning of a sound
-      ModifiersMark(current_note);
     }
     if ((dur > tuplet_dur || current_note->split == 1) && 
        (current_note->pitch_out != "r")) {
@@ -639,15 +633,14 @@ int Section::FillCompleteBeats(Note* current_note, int remaining_dur) {
   int remainder = remaining_dur % time_signature_.beat_edus_;
   int mainDur = remaining_dur / time_signature_.beat_edus_;
   // LoudnessMark(current_note);  // this places all the dynamic marks at the beginning of a sound
-  // ModifiersMark(current_note);
   while (mainDur > 0) {
     int power_of_2 = TimeSignature::DiscreteLog2(time_signature_.unit_note_);
     while (power_of_2 >= 0) {
       int beats = TimeSignature::Power(2, power_of_2);
       if (mainDur >= beats) {
-        current_note->type_out += current_note->pitch_out + Note::int_to_str(time_signature_.unit_note_ / beats);
+        current_note->type_out += current_note->nextPitchOutput()
+            + Note::int_to_str(time_signature_.unit_note_ / beats);
         LoudnessMark(current_note);  // this places all the dynamic marks at the beginning of a sound
-        ModifiersMark(current_note);
         
         mainDur -= beats;
         if (mainDur >= beats / 2 && beats >= 2){
@@ -700,14 +693,12 @@ int Section::CreateTupletWithRests(Note* current_note,
   if (tuplet_type == 2 || tuplet_type == 4) {
     if (remaining_dur / (time_signature_.beat_edus_ / tuplet_type) == 3) {
       string s = Note::int_to_str(time_signature_.unit_note_ * 2);
-      current_note->type_out += current_note->pitch_out + s + ". ";
+      current_note->type_out += current_note->nextPitchOutput() + s + ". ";
       LoudnessMark(current_note);  // this places all the dynamic marks at the beginning of a sound
-      ModifiersMark(current_note);
     } else {
       string s = Note::int_to_str(time_signature_.unit_note_ * tuplet_type);
-      current_note->type_out += current_note->pitch_out + s + " ";
+      current_note->type_out += current_note->nextPitchOutput() + s + " ";
       LoudnessMark(current_note);  // this places all the dynamic marks at the beginning of a sound
-      ModifiersMark(current_note);
     }
     tuplet_dur = time_signature_.beat_edus_ - remaining_dur;
   } else if (tuplet_type != -1) {
@@ -724,7 +715,6 @@ int Section::CreateTupletWithRests(Note* current_note,
 }
 
 void Section::NoteInTuplet(Note* current_note, int tuplet_type, int duration) {
-  string pitch = current_note->pitch_out;
   bool first = true;
 
   int beat = duration / (time_signature_.beat_edus_ / tuplet_type); // working in tuplet beats
@@ -736,7 +726,8 @@ void Section::NoteInTuplet(Note* current_note, int tuplet_type, int duration) {
     while(power_of_2 >= 0){
       int beats = TimeSignature::Power(2, power_of_2);
       if(beat >= beats){
-        current_note->type_out += current_note->pitch_out + Note::int_to_str(unit_in_tuplet / beats);
+        current_note->type_out += current_note->nextPitchOutput()
+            + Note::int_to_str(unit_in_tuplet / beats);
         //Rubin Du 2024: The dot has to be right after duration but not after modifier
         beat -= beats;
         if(beat >= beats/2 && beats >= 2){
@@ -744,7 +735,6 @@ void Section::NoteInTuplet(Note* current_note, int tuplet_type, int duration) {
           beat -= beats/2;
         }
         LoudnessMark(current_note);  // this places all the dynamic marks at the beginning of a sound
-        ModifiersMark(current_note);
         break;
       }
       power_of_2--;
@@ -758,7 +748,6 @@ void Section::NoteInTuplet(Note* current_note, int tuplet_type, int duration) {
     }
 
     if(first == true){
-      ModifiersMark(current_note);
       LoudnessMark(current_note);
       first = false;
     }
@@ -770,13 +759,6 @@ void Section::LoudnessMark(Note* current_note) {
       current_note->pitch_out != "r") {
   	current_note->type_out += current_note->loudness_out + " ";
   	prev_loudness = current_note->loudness_out;
-  }
-}
-
-void Section::ModifiersMark(Note* current_note) {
-  while (!current_note->modifiers_out.empty()){
-    current_note->type_out += current_note->modifiers_out.back() + " ";
-    current_note->modifiers_out.pop_back();
   }
 }
 

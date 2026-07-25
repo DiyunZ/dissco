@@ -115,6 +115,9 @@ class Piece {
   **/
   ~Piece();
 
+  /// Returns false when an external score-generation step failed.
+  bool completedSuccessfully() const { return buildSucceeded; }
+
   /**
   * Prints information about the piece.
   **/
@@ -170,6 +173,7 @@ class Piece {
   int sampleRate;
   int sampleSize;
   int numThreads;
+  bool buildSucceeded = true;
 
 };
 
