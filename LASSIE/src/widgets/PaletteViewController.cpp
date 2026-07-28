@@ -43,6 +43,8 @@ PaletteViewController::PaletteViewController(ProjectView* projectView)
 
     // Creates Tree View
     treeView = new QTreeView(this);
+    treeView->setEditTriggers(QAbstractItemView::NoEditTriggers);
+    
     model = new QStandardItemModel(this);
     model->setHorizontalHeaderLabels({"Type", "Name"});
 
