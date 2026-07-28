@@ -5,6 +5,8 @@
 #include <QToolBar>
 #include <QAction>
 #include <QProcess>
+#include <QStringDecoder>
+#include <QVector>
 
 class PostWindow : public QWidget
 {
@@ -23,11 +25,22 @@ private slots:
     void runProcess();
 
 private:
+    struct TextRange {
+        int start;
+        int end;
+    };
+
     QTextEdit *textEdit;
     QProcess *proc;
     bool autoscroll = true;
+    QStringDecoder stdoutDecoder{QStringDecoder::Utf8};
+    QStringDecoder stderrDecoder{QStringDecoder::Utf8};
+    QVector<TextRange> stderrRanges;
 
     void closeEvent(QCloseEvent*);
     void appendColored(const QString &text, const QColor &color);
+    void appendProcessText(const QString &text, bool fromStderr);
+    void recolorStderr(const QColor &color);
+    void resetProcessOutputState();
     void scrollToBottom();
 };

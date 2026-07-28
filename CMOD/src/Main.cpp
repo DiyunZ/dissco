@@ -98,6 +98,7 @@ int main(int parameterCount, char **parameterList) {
 
   //Create the piece!
   Piece* piece = new Piece(workingPath, projectName);
+  const bool buildSucceeded = piece->completedSuccessfully();
   delete piece;
   //delete outputFile;		//Sever
 
@@ -111,6 +112,6 @@ int main(int parameterCount, char **parameterList) {
   printf("Computation Time: %02d:%02d:%02d.\n", hr, min, sec);
 
 
-  return 0;
+  return buildSucceeded ? 0 : 1;
 
 }

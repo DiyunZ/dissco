@@ -71,6 +71,20 @@ struct NoteType {
 class Note {
   friend class Section;
 
+    /**
+     * A pitch within a notated chord.
+     *
+     * Modifiers belong to the individual pitch event, not to the chord that
+     * Section may create while laying out simultaneous or overlapping notes.
+     * attack_edu records the event's original attack so tied continuation
+     * segments do not repeat its modifiers.
+     */
+    struct ChordTone {
+      std::string pitch;
+      std::vector<std::string> modifiers;
+      int attack_edu;
+    };
+
     		//Rhythm//
 
     //The timespan of the note.
@@ -100,8 +114,11 @@ class Note {
     //Dynamic marking (i.e. "ff")
     std::string loudnessMark;
 
-    //Modifiers
-    std::vector<std::string> modifiers; //string names of the modifiers
+    // Validated LilyPond modifier commands for this individual event.
+    std::vector<std::string> modifiers;
+
+    // Individual pitch events retained when Section groups them as a chord.
+    std::vector<ChordTone> chord_tones;
     
     /* variables for output notes */
     string pitch_out;
@@ -115,12 +132,21 @@ class Note {
     string tuplet_name;
     int split;
 
-    std::vector<std::string> modifiers_out;
-
     //Absolute numeric value of the Staff
     int staffNum;
 
     NoteType::type type;
+
+    bool first_notation_fragment;
+
+    void prepareForInsertion();
+    void mergePitches(const Note& other, bool prepend_other = false);
+    void beginNotation();
+    std::string nextPitchOutput();
+    std::string renderPitch(bool include_modifiers) const;
+    void rebuildPitchOutput();
+    void adjustStartTime(int new_start_time);
+    void shiftEDUs(int offset);
 
   public:
     /**
@@ -205,8 +231,6 @@ class Note {
      *  \param modNames
      **/
     void setModifiers(std::vector<std::string> modNames);
-    void mergeModifiers(std::vector<std::string> modNames_out);
-
     /**
      * Set or get the staff number of this Note.
     **/

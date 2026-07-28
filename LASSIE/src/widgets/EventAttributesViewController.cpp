@@ -9,10 +9,12 @@
 #include "../widgets/LayerBox.hpp"
 #include "../widgets/Partials.hpp"
 #include "../widgets/Modifiers.hpp"
+#include "NoteModifierSelection.hpp"
 #include "../ui/ui_Modifiers.h"
 
 #include <QMessageBox>
 #include <QKeyEvent>
+#include <QCheckBox>
 #include <QScrollBar>
 #include <QTimer>
 #include <QMetaObject>
@@ -150,6 +152,12 @@ EventAttributesViewController::EventAttributesViewController(ProjectView* projec
 
     ui->layersLayout->setSpacing(8);
     ui->layersLayout->setContentsMargins(0, 0, 0, 0);
+
+    for (QCheckBox* checkBox : ui->notePage->findChildren<QCheckBox*>()) {
+        connect(checkBox, &QCheckBox::toggled, this, [](bool) {
+            MUtilities::modified();
+        });
+    }
 }
 
 EventAttributesViewController::~EventAttributesViewController() = default;
@@ -507,6 +515,10 @@ void EventAttributesViewController::saveCurrentShownEventData() {
             NoteEvent& event = pm->noteevents()[m_curreventindex];
             event.name = ui->noteNameEntry->text();
             event.note_info.staffs = ui->staffNumberEntry->text();
+            const QList<QCheckBox*> checkBoxes =
+                ui->notePage->findChildren<QCheckBox*>();
+            event.note_info.modifiers = NoteModifierSelection::save(
+                event.note_info.modifiers, checkBoxes);
         } else if (type == filter) {
             FilterEvent& event = pm->filterevents()[m_curreventindex];
             event.name = ui->filNameEntry->text();
@@ -827,6 +839,9 @@ void EventAttributesViewController::showCurrentEventData() {
             ui->noteNameEntry->setText(event.name);
             ui->noteNameEntry->setEnabled(false);
             ui->staffNumberEntry->setText(event.note_info.staffs);
+            NoteModifierSelection::load(
+                event.note_info.modifiers,
+                ui->notePage->findChildren<QCheckBox*>());
         }else if(type == filter){
             const FilterEvent& event = pm->filterevents()[m_curreventindex];
             ui->filNameEntry->setText(event.name);
@@ -1074,7 +1089,7 @@ void EventAttributesViewController::insertFunctionString(FunctionButton button) 
     //     break;
     case numOfChildFunButton1:
         target = ui->childCountEntry1;
-        gen = new FunctionGenerator(nullptr, functionReturnInt, target->text());
+        gen = new FunctionGenerator(nullptr, functionReturnNumOfChildren, target->text());
         break;
     case numOfChildFunButton2:
         target = ui->childCountEntry2;
@@ -1150,7 +1165,7 @@ void EventAttributesViewController::insertFunctionString(FunctionButton button) 
         break;
     case BSFunFreq2FunButton:
         target = ui->funFreqEntry2;
-        gen = new FunctionGenerator(nullptr, functionReturnSPE, target->text());
+        gen = new FunctionGenerator(nullptr, functionReturnPartialNum, target->text());
         break;
     case BSContinuumFunButton:
         target = ui->continuumFreqEntry;

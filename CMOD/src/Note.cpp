@@ -39,34 +39,42 @@ using namespace std;
 
 //----------------------------------------------------------------------------//
 
-Note::Note(TimeSpan ts, const Event* root_exact_ancestor) : ts(ts), rootExactAncestor(root_exact_ancestor),
-  pitchNum(0), octaveNum(0), octavePitch(0), loudnessNum(0), type(NoteType::kUnknown) {
+Note::Note(TimeSpan ts, const Event* root_exact_ancestor)
+    : ts(ts),
+      rootExactAncestor(root_exact_ancestor),
+      pitchNum(0),
+      octaveNum(0),
+      octavePitch(0),
+      loudnessNum(0),
+      start_t(0),
+      end_t(0),
+      tuplet(0),
+      split(0),
+      staffNum(0),
+      type(NoteType::kUnknown),
+      first_notation_fragment(true) {
 }
 
 //----------------------------------------------------------------------------//
 
-Note::Note() : type(NoteType::kUnknown) {
+Note::Note()
+    : rootExactAncestor(nullptr),
+      pitchNum(0),
+      octaveNum(0),
+      octavePitch(0),
+      loudnessNum(0),
+      start_t(0),
+      end_t(0),
+      tuplet(0),
+      split(0),
+      staffNum(0),
+      type(NoteType::kUnknown),
+      first_notation_fragment(true) {
 }
 
 //----------------------------------------------------------------------------//
 
-Note::Note(const Note& other) {
-  start_t = other.start_t;
-  end_t = other.end_t;
-  pitch_out = other.pitch_out;
-  ts = other.ts;
-  rootExactAncestor = other.rootExactAncestor;
-  pitchNum = other.pitchNum;
-  octaveNum = other.octaveNum;
-  octavePitch = other.octavePitch;
-  pitchName = other.pitchName;
-  loudnessNum = other.loudnessNum;
-  loudnessMark = other.loudnessMark;
-  loudness_out = other.loudness_out;
-  modifiers = other.modifiers;
-  type = other.type;
-  staffNum = other.staffNum;
-}
+Note::Note(const Note& other) = default;
 
 //----------------------------------------------------------------------------//
 
@@ -101,10 +109,12 @@ void Note::setPitchWellTempered(int absPitchNum) {
   octavePitch = pitchNum % 12;
   pitchName = pitchNames[octavePitch];
 
-  pitch_out = OutNames[octavePitch];
+  string pitch = OutNames[octavePitch];
   string signs[8] = {",,,",",,",",","","'","''","'''","''''"};
   string sign = signs[octaveNum];
-  pitch_out = "<" + pitch_out + sign + ">";
+  chord_tones.clear();
+  chord_tones.push_back({pitch + sign, modifiers, INT_MIN});
+  rebuildPitchOutput();
 
   
   Output::addProperty("Pitch Number", pitchNum, "semitones");
@@ -213,21 +223,99 @@ bool is_attach_mark(string mod_name){
 //----------------------------------------------------------------------------//
 
 void Note::setModifiers(vector<string> modNames) {
+  modifiers.clear();
   for(unsigned i = 0; i < modNames.size(); i++) {
     if (is_attach_mark(modNames[i])){
-      string temp = "\\" + modNames[i];
-      modifiers_out.push_back(temp);
+      modifiers.push_back("\\" + modNames[i]);
+    }
+  }
+
+  if (chord_tones.size() == 1) {
+    chord_tones.front().modifiers = modifiers;
+  }
+}
+//----------------------------------------------------------------------------//
+
+void Note::prepareForInsertion() {
+  for (ChordTone& tone : chord_tones) {
+    if (tone.attack_edu == INT_MIN) {
+      tone.attack_edu = start_t;
+    }
+  }
+  rebuildPitchOutput();
+}
+
+void Note::mergePitches(const Note& other, bool prepend_other) {
+  if (prepend_other) {
+    chord_tones.insert(
+        chord_tones.begin(), other.chord_tones.begin(), other.chord_tones.end());
+  } else {
+    chord_tones.insert(
+        chord_tones.end(), other.chord_tones.begin(), other.chord_tones.end());
+  }
+  rebuildPitchOutput();
+}
+
+void Note::beginNotation() {
+  first_notation_fragment = true;
+}
+
+string Note::nextPitchOutput() {
+  const string output = renderPitch(first_notation_fragment);
+  first_notation_fragment = false;
+  return output;
+}
+
+string Note::renderPitch(bool include_modifiers) const {
+  if (chord_tones.empty()) {
+    return pitch_out;
+  }
+
+  string output = "<";
+  for (size_t tone_idx = 0; tone_idx < chord_tones.size(); ++tone_idx) {
+    if (tone_idx > 0) {
+      output += " ";
+    }
+
+    const ChordTone& tone = chord_tones[tone_idx];
+    output += tone.pitch;
+    if (include_modifiers && tone.attack_edu == start_t) {
+      for (vector<string>::const_reverse_iterator modifier = tone.modifiers.rbegin();
+           modifier != tone.modifiers.rend();
+           ++modifier) {
+        output += *modifier;
+      }
+    }
+  }
+  output += ">";
+  return output;
+}
+
+void Note::rebuildPitchOutput() {
+  if (!chord_tones.empty()) {
+    pitch_out = renderPitch(false);
+  }
+}
+
+void Note::adjustStartTime(int new_start_time) {
+  for (ChordTone& tone : chord_tones) {
+    if (tone.attack_edu == start_t) {
+      tone.attack_edu = new_start_time;
+    }
+  }
+  start_t = new_start_time;
+}
+
+void Note::shiftEDUs(int offset) {
+  start_t += offset;
+  end_t += offset;
+  for (ChordTone& tone : chord_tones) {
+    if (tone.attack_edu != INT_MIN) {
+      tone.attack_edu += offset;
     }
   }
 }
 
-//----------------------------------------------------------------------------//
-
-void Note::mergeModifiers(vector<string> modNames_out){
-  for(size_t i=0; i<modNames_out.size();i++){
-    modifiers_out.push_back(modNames_out.at(i));
-  }
-}
 //----------------------------------------------------------------------------//
 
 // multistaffs

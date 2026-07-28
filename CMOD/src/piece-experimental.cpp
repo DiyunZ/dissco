@@ -419,6 +419,7 @@ Piece::Piece(string _workingPath, string _projectTitle){
   int lilypondStatus = system(lilypondCommand.c_str());
 
   if (lilypondStatus != 0) {
+    buildSucceeded = false;
     cerr << "Error: LilyPond failed to generate "
        << projectName << ".pdf" << endl;
   }
@@ -441,6 +442,7 @@ Piece::Piece(string _workingPath, string _projectTitle){
     string targetPdf = "ScoreFiles/" + projectName + suffix + ".pdf";
 
     if (rename(sourcePdf.c_str(), targetPdf.c_str()) != 0) {
+      buildSucceeded = false;
       cerr << "Error: could not move " << sourcePdf
           << " to " << targetPdf
           << " (" << strerror(errno) << ")" << endl;
