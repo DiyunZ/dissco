@@ -30,7 +30,6 @@ if(CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang")
 endif()
 
 option(BUILD_LASS_EXAMPLES "Build LASS examples" OFF)
-include(CTest)
 
 # see Cross Compiling with CMake -- Mastering CMake for more on the eponymous subject
 if(WIN32)

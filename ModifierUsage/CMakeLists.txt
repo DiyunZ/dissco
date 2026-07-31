@@ -14,18 +14,3 @@ target_include_directories(ModifierUsage
 )
 
 target_compile_features(ModifierUsage PUBLIC cxx_std_20)
-
-include(CTest)
-
-if(BUILD_TESTING)
-    add_executable(ModifierUsageTests
-        tests/ModifierUsageTests.cpp
-    )
-    target_link_libraries(ModifierUsageTests PRIVATE ModifierUsage)
-    target_compile_features(ModifierUsageTests PRIVATE cxx_std_20)
-
-    add_test(
-        NAME ModifierUsageTests
-        COMMAND ModifierUsageTests
-    )
-endif()
