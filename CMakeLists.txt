@@ -30,6 +30,7 @@ if(CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang")
 endif()
 
 option(BUILD_LASS_EXAMPLES "Build LASS examples" OFF)
+include(CTest)
 
 # see Cross Compiling with CMake -- Mastering CMake for more on the eponymous subject
 if(WIN32)
@@ -45,6 +46,7 @@ endif()
 
 add_subdirectory(${CMAKE_SOURCE_DIR}/LASS)
 add_subdirectory(${CMAKE_SOURCE_DIR}/external-libs)
+add_subdirectory(${CMAKE_SOURCE_DIR}/ModifierUsage)
 add_subdirectory(${CMAKE_SOURCE_DIR}/CMOD) # if successful, will set a CMOD_BINARY_DIR variable in the scope of _this_ file
 add_subdirectory(${CMAKE_SOURCE_DIR}/LASSIE)
 

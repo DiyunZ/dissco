@@ -69,6 +69,39 @@ void writeElement(QXmlStreamWriter& writer, const QString& name,
     writer.writeEndElement();
 }
 
+QString samplingScopeName(ModifierSamplingScope scope)
+{
+    return scope == ModifierSamplingScope::PerBottom
+        ? QStringLiteral("per-bottom")
+        : QStringLiteral("per-sound");
+}
+
+void writeModifierUsage(QXmlStreamWriter& writer, const Modifier& modifier)
+{
+    writer.writeStartElement(QStringLiteral("Usage"));
+    writer.writeAttribute(QStringLiteral("id"), modifier.instance_id);
+    writer.writeAttribute(QStringLiteral("defaultOn"),
+                          modifier.default_on_chance);
+
+    writer.writeStartElement(QStringLiteral("Exceptions"));
+    for (const ModifierChanceRule& rule : modifier.rules) {
+        writer.writeStartElement(QStringLiteral("Exception"));
+        writer.writeAttribute(QStringLiteral("onChance"), rule.on_chance);
+        for (const ModifierCondition& condition : rule.conditions) {
+            writer.writeEmptyElement(QStringLiteral("When"));
+            writer.writeAttribute(QStringLiteral("modifierId"),
+                                  condition.modifier_id);
+            writer.writeAttribute(QStringLiteral("state"),
+                                  condition.required_on
+                                      ? QStringLiteral("on")
+                                      : QStringLiteral("off"));
+        }
+        writer.writeEndElement();
+    }
+    writer.writeEndElement();
+    writer.writeEndElement();
+}
+
 } // namespace
 
 void ProjectXmlWriter::writeInlineXml(QXmlStreamWriter& writer,
@@ -102,6 +135,7 @@ void ProjectXmlWriter::writeModifier(QXmlStreamWriter& writer,
     writeElement(writer, QStringLiteral("GroupName"), modifier.group_name);
     writeElement(writer, QStringLiteral("PartialResultString"),
                  modifier.applyhow_flag ? modifier.partialresult_string : QString{});
+    writeModifierUsage(writer, modifier);
     writer.writeEndElement();
 }
 
@@ -126,6 +160,14 @@ void ProjectXmlWriter::writeBottomExtraInfo(QXmlStreamWriter& writer,
     writeElement(writer, QStringLiteral("Reverb"), extraInfo.reverb);
     writeElement(writer, QStringLiteral("Filter"), extraInfo.filter);
     writeElement(writer, QStringLiteral("ModifierGroup"), extraInfo.modifier_group);
+
+    if (extraInfo.modifier_usage_enabled) {
+        writer.writeEmptyElement(QStringLiteral("ModifierUsage"));
+        writer.writeAttribute(QStringLiteral("version"), QStringLiteral("1"));
+        writer.writeAttribute(QStringLiteral("samplingScope"),
+                              samplingScopeName(
+                                  extraInfo.modifier_sampling_scope));
+    }
 
     writer.writeStartElement(QStringLiteral("Modifiers"));
     for (const Modifier& modifier : extraInfo.modifiers)

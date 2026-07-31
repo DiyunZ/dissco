@@ -111,21 +111,137 @@ namespace QtParser {
         return layer;
     }
 
+    inline bool parseModifierState(const QString& source, bool& requiredOn) {
+        const QString state = source.trimmed().toLower();
+        if (state == QStringLiteral("on")
+            || state == QStringLiteral("true")
+            || state == QStringLiteral("1")) {
+            requiredOn = true;
+            return true;
+        }
+        if (state == QStringLiteral("off")
+            || state == QStringLiteral("false")
+            || state == QStringLiteral("0")) {
+            requiredOn = false;
+            return true;
+        }
+        return false;
+    }
+
+    inline ModifierChanceRule parseModifierException(QXmlStreamReader& r) {
+        // r at <Exception>; attributes are read before consuming its children.
+        ModifierChanceRule rule;
+        rule.on_chance =
+            r.attributes().value(QStringLiteral("onChance")).toString();
+
+        while (r.readNextStartElement()) {
+            if (r.name() != QStringView(u"When")) {
+                r.skipCurrentElement();
+                continue;
+            }
+
+            const auto attributes = r.attributes();
+            ModifierCondition condition;
+            condition.modifier_id =
+                attributes.value(QStringLiteral("modifierId")).toString().trimmed();
+
+            bool validState = false;
+            bool requiredOn = true;
+            validState = parseModifierState(
+                attributes.value(QStringLiteral("state")).toString(),
+                requiredOn);
+            condition.required_on = requiredOn;
+
+            // Malformed predicates are ignored rather than being silently
+            // interpreted as an OFF dependency.
+            if (!condition.modifier_id.isEmpty() && validState)
+                rule.conditions.append(condition);
+            r.skipCurrentElement();
+        }
+        return rule;
+    }
+
+    inline void parseModifierUsage(QXmlStreamReader& r, Modifier& modifier) {
+        // r at <Usage>.
+        const auto attributes = r.attributes();
+        const QString id =
+            attributes.value(QStringLiteral("id")).toString().trimmed();
+        if (!id.isEmpty())
+            modifier.instance_id = id;
+        if (attributes.hasAttribute(QStringLiteral("defaultOn")))
+            modifier.default_on_chance =
+                attributes.value(QStringLiteral("defaultOn")).toString();
+
+        modifier.rules.clear();
+        while (r.readNextStartElement()) {
+            if (r.name() != QStringView(u"Exceptions")) {
+                r.skipCurrentElement();
+                continue;
+            }
+
+            while (r.readNextStartElement()) {
+                if (r.name() == QStringView(u"Exception"))
+                    modifier.rules.append(parseModifierException(r));
+                else
+                    r.skipCurrentElement();
+            }
+        }
+    }
+
     inline Modifier parseModifier(QXmlStreamReader& r) {
         Modifier modifier;
-        modifier.type                  = nextChildInner(r).toUInt();
-        // On disk: 0 == SOUND, 1 == PARTIAL. In memory, true == PARTIAL.
-        modifier.applyhow_flag         = (nextChildInner(r).trimmed() != "0");
-        modifier.probability           = nextChildInner(r);
-        modifier.amplitude             = nextChildInner(r);
-        modifier.rate                  = nextChildInner(r);
-        modifier.width                 = nextChildInner(r);
-        modifier.detune_spread         = nextChildInner(r);
-        modifier.detune_direction      = nextChildInner(r);
-        modifier.detune_velocity       = nextChildInner(r);
-        modifier.group_name            = nextChildInner(r);
-        modifier.partialresult_string  = nextChildInner(r);
-        consumeRest(r);
+        while (r.readNextStartElement()) {
+            const QString tag = r.name().toString();
+
+            if (tag == QStringLiteral("Type")) {
+                bool valid = false;
+                const unsigned type = readInner(r).trimmed().toUInt(&valid);
+                if (valid)
+                    modifier.type = type;
+            } else if (tag == QStringLiteral("ApplyHow")) {
+                const QString value = readInner(r).trimmed();
+                bool valid = false;
+                const int applyHow = value.toInt(&valid);
+                if (valid) {
+                    modifier.applyhow_flag = (applyHow != 0);
+                } else if (value.compare(QStringLiteral("PARTIAL"),
+                                         Qt::CaseInsensitive) == 0) {
+                    modifier.applyhow_flag = true;
+                } else if (value.compare(QStringLiteral("SOUND"),
+                                         Qt::CaseInsensitive) == 0) {
+                    modifier.applyhow_flag = false;
+                }
+            } else if (tag == QStringLiteral("Probability")) {
+                modifier.probability = readInner(r);
+            } else if (tag == QStringLiteral("Amplitude")) {
+                modifier.amplitude = readInner(r);
+            } else if (tag == QStringLiteral("Rate")) {
+                modifier.rate = readInner(r);
+            } else if (tag == QStringLiteral("Width")) {
+                modifier.width = readInner(r);
+            } else if (tag == QStringLiteral("DetuneSpread")) {
+                modifier.detune_spread = readInner(r);
+            } else if (tag == QStringLiteral("DetuneDirection")) {
+                modifier.detune_direction = readInner(r);
+            } else if (tag == QStringLiteral("DetuneVelocity")) {
+                modifier.detune_velocity = readInner(r);
+            } else if (tag == QStringLiteral("GroupName")) {
+                modifier.group_name = readInner(r);
+            } else if (tag == QStringLiteral("PartialResultString")) {
+                modifier.partialresult_string = readInner(r);
+            } else if (tag == QStringLiteral("Usage")) {
+                parseModifierUsage(r, modifier);
+            } else {
+                // A future field must not shift the interpretation of any
+                // legacy sibling.
+                r.skipCurrentElement();
+            }
+        }
+
+        if (modifier.instance_id.trimmed().isEmpty()) {
+            modifier.instance_id =
+                QUuid::createUuid().toString(QUuid::WithoutBraces);
+        }
         return modifier;
     }
 
@@ -166,8 +282,12 @@ namespace QtParser {
     }
 
     inline void parseModifiers(QXmlStreamReader& r, QList<Modifier>& out) {
-        while (r.readNextStartElement())
-            out.append(parseModifier(r));
+        while (r.readNextStartElement()) {
+            if (r.name() == QStringView(u"Modifier"))
+                out.append(parseModifier(r));
+            else
+                r.skipCurrentElement();
+        }
     }
 
     /// @brief Parse the shared "HEvent core" children of `<Event>`: from `<EventName>`
@@ -206,6 +326,10 @@ namespace QtParser {
         // projects written before <Phase> existed keep all following fields
         // aligned. Unknown future fields are ignored safely as well.
         info.phase = QStringLiteral("0");
+        // Marker absence is the discriminator for legacy Bottom events,
+        // despite new in-memory ExtraInfo objects defaulting to Modifier Usage.
+        info.modifier_usage_enabled = false;
+        info.modifier_sampling_scope = ModifierSamplingScope::PerSound;
         while (r.readNextStartElement()) {
             const QString tag = r.name().toString();
 
@@ -228,6 +352,18 @@ namespace QtParser {
                 info.filter = readInner(r);
             } else if (tag == QStringLiteral("ModifierGroup")) {
                 info.modifier_group = readInner(r);
+            } else if (tag == QStringLiteral("ModifierUsage")) {
+                info.modifier_usage_enabled = true;
+                const QString scope = r.attributes()
+                    .value(QStringLiteral("samplingScope"))
+                    .toString()
+                    .trimmed()
+                    .toLower();
+                info.modifier_sampling_scope =
+                    scope == QStringLiteral("per-bottom")
+                    ? ModifierSamplingScope::PerBottom
+                    : ModifierSamplingScope::PerSound;
+                r.skipCurrentElement();
             } else if (tag == QStringLiteral("Modifiers")) {
                 parseModifiers(r, info.modifiers);
             } else {

@@ -12,6 +12,7 @@
 
 #include <QList>
 #include <QString>
+#include <QUuid>
 
 typedef enum {
     none,
@@ -189,8 +190,30 @@ struct FreqInfo {
     QString entry_2;
 };
 
+enum class ModifierSamplingScope {
+    PerSound,
+    PerBottom
+};
+
+struct ModifierCondition {
+    QString modifier_id;
+    bool required_on = true;
+};
+
+struct ModifierChanceRule {
+    QList<ModifierCondition> conditions;
+    QString on_chance;
+};
+
 typedef struct Modifier Modifier;
 struct Modifier {
+    // Stable identity for conditional rules. Copies intentionally retain it;
+    // newly constructed modifiers receive a new identity.
+    QString instance_id =
+        QUuid::createUuid().toString(QUuid::WithoutBraces);
+    QString default_on_chance = QStringLiteral("1");
+    QList<ModifierChanceRule> rules;
+
     unsigned type = 0;
     bool applyhow_flag = false; // false == SOUND, true == PARTIAL
     QString probability;
@@ -215,6 +238,11 @@ struct ExtraInfo {
     QString filter;
     QString modifier_group;
     QList<Modifier> modifiers;
+    // New Bottom events use Modifier Usage. The XML parser explicitly changes
+    // this to false when an older file has no <ModifierUsage> marker.
+    bool modifier_usage_enabled = true;
+    ModifierSamplingScope modifier_sampling_scope =
+        ModifierSamplingScope::PerSound;
 };
 
 /* HEvents are Top, High, Mid, or Low events */

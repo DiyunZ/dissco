@@ -22,6 +22,7 @@ target_link_libraries(CMOD PUBLIC PUGIXML)
 # add_subdirectory(${CMAKE_SOURCE_DIR}/external-libs/muParser)
 target_link_libraries(CMOD PUBLIC MUPARSER)
 target_link_libraries(CMOD PUBLIC LASS)
+target_link_libraries(CMOD PUBLIC DISSCO::ModifierUsage)
 message(STATUS "libsndfile, pugixml, muParser, and LASS includes linked with target!")
 
 # heavy libraries that won't change much from compile to compile in this project

@@ -7,10 +7,12 @@
 #include <QString>
 #include <QDir>
 #include <QFileInfo>
+#include <QHash>
 #include <QIODevice>
 #include <QXmlStreamWriter>
 #include <QDebug>
 #include <QTextStream>
+#include <QUuid>
 
 #include <QDialog>
 #include <QVBoxLayout>
@@ -57,6 +59,27 @@ namespace PVCHelper {
         nameItem->setData(type, Qt::UserRole + 1);
         nameItem->setData(name, Qt::UserRole + 2);
         return {typeItem, nameItem};
+    }
+
+    void renewModifierIds(QList<Modifier>& modifiers) {
+        QHash<QString, QString> replacementByOldId;
+        for (Modifier& modifier : modifiers) {
+            const QString oldId = modifier.instance_id;
+            modifier.instance_id =
+                QUuid::createUuid().toString(QUuid::WithoutBraces);
+            replacementByOldId.insert(oldId, modifier.instance_id);
+        }
+
+        for (Modifier& modifier : modifiers) {
+            for (ModifierChanceRule& rule : modifier.rules) {
+                for (ModifierCondition& condition : rule.conditions) {
+                    const auto replacement =
+                        replacementByOldId.constFind(condition.modifier_id);
+                    if (replacement != replacementByOldId.cend())
+                        condition.modifier_id = replacement.value();
+                }
+            }
+        }
     }
 }
 /* ProjectView constructor initializing values for XML file*/
@@ -1229,17 +1252,24 @@ if (nameExists(newName)) {
 
     switch (etype) {
         case high:
-            dup(pm->highevents()); 
+            dup(pm->highevents());
+            PVCHelper::renewModifierIds(
+                pm->highevents().last().modifiers);
             break;
         case mid: 
             dup(pm->midevents());
+            PVCHelper::renewModifierIds(
+                pm->midevents().last().modifiers);
             break;
         case low: 
             dup(pm->lowevents());
+            PVCHelper::renewModifierIds(
+                pm->lowevents().last().modifiers);
             break;
         case bottom: {
             BottomEvent copy = pm->bottomevents()[index];
             copy.event.name = newName;
+            PVCHelper::renewModifierIds(copy.extra_info.modifiers);
             pm->bottomevents().append(copy);
             break;
         } case sound:

@@ -151,6 +151,8 @@ private slots:
     void addNewLayerButtonClicked();
     void addModifierButtonClicked();
     void addPartialButtonClicked();
+    void modifierModeChanged(int index);
+    void modifierSamplingScopeChanged(int index);
 
     // // tempo controls
     void tempoAsNoteValueButtonClicked();
@@ -186,6 +188,15 @@ private:
     void addLayerBoxUI(int layerIndex);
     void addPartialsUI(int partialIndex);
     void addModifiersUI(int modifierIndex);
+    QList<Modifier>* currentModifierList();
+    ExtraInfo* currentBottomExtraInfo();
+    void rebuildModifierRows();
+    void updateModifierModeUi();
+    void updateModifierUsageSummary();
+    void deleteModifierRow(Modifiers* row);
+    void moveModifierRow(Modifiers* row, int offset);
+    bool modifierOrderIsValid(const QList<Modifier>& modifiers,
+                              QString* explanation = nullptr) const;
     void insertFunctionString(FunctionButton fn);
     void fixStackedWidgetLayout(QWidget* currPage);
 };

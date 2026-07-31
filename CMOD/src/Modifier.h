@@ -139,6 +139,12 @@ class Modifier {
     **/
     bool willOccur(double checkPoint);
 
+    /**
+     * Set the event-relative checkpoint used by parameter envelopes when
+     * occurrence has already been decided by Modifier Usage.
+     */
+    void setCheckPoint(double checkPoint);
+
    /**
      *  Apply the modifier to a sound
      *  \param snd pointer to the sound to add this modifier to

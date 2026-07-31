@@ -43,6 +43,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #include "Random.h"
 #include "Piece.h"
 #include "Patter.h"
+#include <memory>
 #include "ProbabilityEnvelope.h" // consider moving this into LASS.h
 #include <string>
 #include <stdlib.h>
@@ -89,6 +90,15 @@ class Bottom : public Event {
        in Bottom events, so this element doesn't appear in Event.h */
     pugi::xml_node modifierGroupElement;
     pugi::xml_node ancestorModifiersElement;
+
+    /**
+     * New conditional Modifier Usage is deliberately opaque here.  Its
+     * implementation owns the validated shared Program and its PerBottom
+     * cache; a null pointer means that this Bottom uses the exact legacy
+     * ModifierGroup path.
+     */
+    struct ModifierUsageRuntime;
+    std::unique_ptr<ModifierUsageRuntime> modifierUsageRuntime;
 
     //Current partial during the processing of the event
     int currPartialNum;
@@ -479,6 +489,8 @@ class Bottom : public Event {
     *  each of them.
     **/
     void applyModifiers(Sound *s, int numPartials);
+    void initializeModifierUsage(pugi::xml_node modifierUsageElement);
+    void applyModifierUsage(Sound *s, int numPartials);
 
     /**
      *  Apply modifiers for a note.

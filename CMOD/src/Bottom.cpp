@@ -25,10 +25,46 @@
 //----------------------------------------------------------------------------//
 
 #include "Bottom.h"
+#include "ModifierUsage.hpp"
 #include "Random.h"
 #include "Output.h"
+#include <cerrno>
+#include <cctype>
 #include <cmath>
+#include <cstdlib>
+#include <exception>
+#include <limits>
+#include <memory>
+#include <optional>
+#include <unordered_map>
+#include <utility>
+
 static int test=0;
+
+struct Bottom::ModifierUsageRuntime {
+  std::optional<dissco::modifier_usage::Program> program;
+};
+
+namespace {
+
+bool parseStrictDouble(const char* text, double& value) {
+  if (text == NULL || *text == '\0') {
+    return false;
+  }
+
+  errno = 0;
+  char* end = NULL;
+  value = std::strtod(text, &end);
+  if (end == text || errno == ERANGE) {
+    return false;
+  }
+  while (*end != '\0' && std::isspace(static_cast<unsigned char>(*end))) {
+    ++end;
+  }
+  return *end == '\0';
+}
+
+} // namespace
 
 
 //----------------------------------------------------------------------------//
@@ -97,6 +133,13 @@ Bottom::Bottom(pugi::xml_node _element,
   /* ZIYUAN CHEN, July 2023 */
   modifierGroupElement = extraInfo.child("ModifierGroup");
   modifiersElement = extraInfo.child("Modifiers");
+
+  // The marker is the compatibility switch. Its absence must leave the
+  // historical ModifierGroup implementation (including its RNG calls) intact.
+  pugi::xml_node modifierUsageElement = extraInfo.child("ModifierUsage");
+  if (modifierUsageElement) {
+    initializeModifierUsage(modifierUsageElement);
+  }
 
 }
 
@@ -1282,7 +1325,409 @@ Reverb* Bottom::computeReverberationAdvanced(pugi::xml_node percentElement,
 
 //-----------------------------------------------------------------------------/
 
+void Bottom::initializeModifierUsage(pugi::xml_node modifierUsageElement) {
+  using namespace dissco::modifier_usage;
+
+  // A non-null runtime records that the opt-in marker was present even when
+  // validation fails. applyModifiers() must then apply nothing rather than
+  // silently falling back to legacy Modifier Groups.
+  modifierUsageRuntime = std::make_unique<ModifierUsageRuntime>();
+
+  vector<string> adapterDiagnostics;
+  Config config;
+
+  const string version = modifierUsageElement.attribute("version").value();
+  if (version != "1") {
+    adapterDiagnostics.push_back(
+        "unsupported or missing ModifierUsage version '" + version + "'.");
+  }
+
+  const string samplingScope =
+      modifierUsageElement.attribute("samplingScope").value();
+  if (samplingScope == "per-sound") {
+    config.scope = SamplingScope::PerSound;
+  } else if (samplingScope == "per-bottom") {
+    config.scope = SamplingScope::PerBottom;
+  } else {
+    config.scope = static_cast<SamplingScope>(-1);
+    adapterDiagnostics.push_back(
+        "samplingScope must be 'per-sound' or 'per-bottom'.");
+  }
+
+  pugi::xml_document mergedModifiersDoc;
+  pugi::xml_node mergedModifiers =
+      mergedModifiersDoc.append_child("Modifiers");
+  if (modifiersElement) {
+    for (auto modifier = GFEC(modifiersElement); modifier;
+         modifier = GNES(modifier)) {
+      mergedModifiers.append_copy(modifier);
+    }
+  }
+  if (ancestorModifiersElement) {
+    for (auto modifier = GFEC(ancestorModifiersElement); modifier;
+         modifier = GNES(modifier)) {
+      mergedModifiers.append_copy(modifier);
+    }
+  }
+
+  int modifierPosition = 0;
+  for (auto modifierElement = mergedModifiers.child("Modifier");
+       modifierElement;
+       modifierElement = modifierElement.next_sibling("Modifier")) {
+    ++modifierPosition;
+    Entry entry;
+    pugi::xml_node usageElement = modifierElement.child("Usage");
+    if (!usageElement) {
+      adapterDiagnostics.push_back(
+          "modifier #" + std::to_string(modifierPosition)
+          + " has no appended <Usage> metadata.");
+      // Keep one invalid entry in the configured order so the shared compiler
+      // can also report the empty identity.
+      entry.defaultOnChance = std::numeric_limits<double>::quiet_NaN();
+      config.orderedModifiers.push_back(std::move(entry));
+      continue;
+    }
+
+    entry.id = usageElement.attribute("id").value();
+    if (!parseStrictDouble(usageElement.attribute("defaultOn").value(),
+                           entry.defaultOnChance)) {
+      entry.defaultOnChance = std::numeric_limits<double>::quiet_NaN();
+      adapterDiagnostics.push_back(
+          "modifier '" + entry.id + "' has an invalid defaultOn value.");
+    }
+
+    pugi::xml_node exceptionsElement = usageElement.child("Exceptions");
+    for (auto exceptionElement = exceptionsElement.child("Exception");
+         exceptionElement;
+         exceptionElement = exceptionElement.next_sibling("Exception")) {
+      Rule rule;
+      if (!parseStrictDouble(exceptionElement.attribute("onChance").value(),
+                             rule.onChance)) {
+        rule.onChance = std::numeric_limits<double>::quiet_NaN();
+        adapterDiagnostics.push_back(
+            "modifier '" + entry.id
+            + "' has an exception with an invalid onChance value.");
+      }
+
+      for (auto whenElement = exceptionElement.child("When");
+           whenElement;
+           whenElement = whenElement.next_sibling("When")) {
+        Predicate predicate;
+        predicate.modifierId =
+            whenElement.attribute("modifierId").value();
+        const string state = whenElement.attribute("state").value();
+        if (state == "on") {
+          predicate.requiredOn = true;
+        } else if (state == "off") {
+          predicate.requiredOn = false;
+        } else {
+          adapterDiagnostics.push_back(
+              "modifier '" + entry.id
+              + "' has a condition whose state is not 'on' or 'off'.");
+        }
+        if (predicate.modifierId.empty()) {
+          adapterDiagnostics.push_back(
+              "modifier '" + entry.id
+              + "' has a condition with no modifierId.");
+        }
+        rule.when.push_back(std::move(predicate));
+      }
+      entry.rules.push_back(std::move(rule));
+    }
+    config.orderedModifiers.push_back(std::move(entry));
+  }
+
+  CompileResult compiled = compile(std::move(config));
+  for (const string& diagnostic : adapterDiagnostics) {
+    cerr << "Bottom::ModifierUsage configuration error in " << name
+         << ": " << diagnostic << endl;
+  }
+  for (const Diagnostic& diagnostic : compiled.diagnostics) {
+    cerr << "Bottom::ModifierUsage configuration error in " << name
+         << ": " << diagnostic.message << endl;
+  }
+
+  if (adapterDiagnostics.empty() && compiled.program.has_value()) {
+    modifierUsageRuntime->program.emplace(
+        std::move(*compiled.program));
+  }
+}
+
+//-----------------------------------------------------------------------------/
+
+void Bottom::applyModifierUsage(Sound *s, int numPartials) {
+  using dissco::modifier_usage::ModifierId;
+  using dissco::modifier_usage::Selection;
+
+  if (!modifierUsageRuntime->program.has_value()) {
+    // Diagnostics were emitted once when this Bottom was constructed.
+    return;
+  }
+
+  struct RuntimeModifier {
+    std::unique_ptr<Modifier> effect;
+    bool applyByPartial = false;
+  };
+
+  std::unordered_map<ModifierId, vector<RuntimeModifier>> modifiersById;
+  bool runtimeValid = true;
+  auto runtimeError = [this, &runtimeValid](const string& message) {
+    runtimeValid = false;
+    cerr << "Bottom::ModifierUsage runtime error in " << name
+         << ": " << message << endl;
+  };
+
+  pugi::xml_document mergedModifiersDoc;
+  pugi::xml_node mergedModifiers =
+      mergedModifiersDoc.append_child("Modifiers");
+  if (modifiersElement) {
+    for (auto modifier = GFEC(modifiersElement); modifier;
+         modifier = GNES(modifier)) {
+      mergedModifiers.append_copy(modifier);
+    }
+  }
+  if (ancestorModifiersElement) {
+    for (auto modifier = GFEC(ancestorModifiersElement); modifier;
+         modifier = GNES(modifier)) {
+      mergedModifiers.append_copy(modifier);
+    }
+  }
+
+  for (auto modifierElement = mergedModifiers.child("Modifier");
+       modifierElement;
+       modifierElement = modifierElement.next_sibling("Modifier")) {
+    const pugi::xml_node usageElement = modifierElement.child("Usage");
+    const ModifierId usageId = usageElement.attribute("id").value();
+    if (!usageElement || usageId.empty()) {
+      runtimeError("a modifier has no usable <Usage id>.");
+      continue;
+    }
+
+    const int modTypeCode = static_cast<int>(
+        utilities->evaluate(XMLTC(modifierElement.child("Type")), this));
+    string modType;
+    switch (modTypeCode) {
+      case 0: modType = "TREMOLO"; break;
+      case 1: modType = "VIBRATO"; break;
+      case 2: modType = "GLISSANDO"; break;
+      case 3: modType = "DETUNE"; break;
+      case 4: modType = "AMPTRANS"; break;
+      case 5: modType = "FREQTRANS"; break;
+      case 6: modType = "WAVE_TYPE"; break;
+      case 7: modType = "PHASE_MOD"; break;
+      default:
+        runtimeError("modifier '" + usageId
+                     + "' has an unknown Type value.");
+        continue;
+    }
+
+    const int applyHowCode = static_cast<int>(
+        utilities->evaluate(XMLTC(modifierElement.child("ApplyHow")), this));
+    if (applyHowCode != 0 && applyHowCode != 1) {
+      runtimeError("modifier '" + usageId
+                   + "' has an invalid ApplyHow value.");
+      continue;
+    }
+    const bool applyByPartial = applyHowCode == 1;
+
+    const string ampStr = XMLTC(modifierElement.child("Amplitude"));
+    const string rateStr = XMLTC(modifierElement.child("Rate"));
+    const string widthStr = XMLTC(modifierElement.child("Width"));
+    const string spreadStr = XMLTC(modifierElement.child("DetuneSpread"));
+    const string directionStr = XMLTC(modifierElement.child("DetuneDirection"));
+    const string velocityStr = XMLTC(modifierElement.child("DetuneVelocity"));
+
+    auto addEnvelope = [this, &runtimeError, &usageId](
+                           Modifier& modifier,
+                           const string& value,
+                           const char* fieldName) {
+      if (value.empty() || value == "N/A") {
+        return false;
+      }
+      Envelope* envelope = static_cast<Envelope*>(
+          utilities->evaluateObject(value, this, eventEnv));
+      if (envelope == NULL) {
+        runtimeError("modifier '" + usageId + "' has an invalid "
+                     + fieldName + " envelope.");
+        return false;
+      }
+      modifier.addValueEnv(envelope);
+      delete envelope;
+      return true;
+    };
+
+    if (!applyByPartial) {
+      auto effect = std::make_unique<Modifier>(modType, nullptr, "SOUND");
+      int envelopeCount = 0;
+      envelopeCount += addEnvelope(*effect, ampStr, "Amplitude") ? 1 : 0;
+      if (!spreadStr.empty()) {
+        effect->addSpread(atof(spreadStr.c_str()));
+      }
+      if (!directionStr.empty()) {
+        effect->addDirection(atof(directionStr.c_str()));
+      }
+      if (!velocityStr.empty()) {
+        effect->addVelocity(atof(velocityStr.c_str()));
+      }
+      envelopeCount += addEnvelope(*effect, rateStr, "Rate") ? 1 : 0;
+      envelopeCount += addEnvelope(*effect, widthStr, "Width") ? 1 : 0;
+
+      int requiredEnvelopeCount = 0;
+      if (modType == "TREMOLO" || modType == "VIBRATO"
+          || modType == "PHASE_MOD") {
+        requiredEnvelopeCount = 2;
+      } else if (modType == "GLISSANDO" || modType == "WAVE_TYPE") {
+        requiredEnvelopeCount = 1;
+      } else if (modType == "AMPTRANS" || modType == "FREQTRANS") {
+        requiredEnvelopeCount = 3;
+      }
+      if (envelopeCount < requiredEnvelopeCount) {
+        runtimeError("modifier '" + usageId
+                     + "' is missing a required parameter envelope.");
+        continue;
+      }
+      if (modType == "DETUNE"
+          && (spreadStr.empty() || directionStr.empty()
+              || velocityStr.empty())) {
+        runtimeError("DETUNE modifier '" + usageId
+                     + "' requires spread, direction, and velocity.");
+        continue;
+      }
+
+      modifiersById[usageId].push_back(
+          RuntimeModifier{std::move(effect), false});
+      continue;
+    }
+
+    const string partialResultStr =
+        XMLTC(modifierElement.child("PartialResultString"));
+    pugi::xml_document partialResultDoc;
+    const pugi::xml_parse_result parseResult =
+        partialResultDoc.load_string(partialResultStr.c_str());
+    const pugi::xml_node root = partialResultDoc.document_element();
+    pugi::xml_node envelopeElement =
+        root.child("Envelopes").child("Envelope");
+    if (!parseResult || !root || !envelopeElement) {
+      runtimeError("PARTIAL modifier '" + usageId
+                   + "' has an invalid PartialResultString.");
+      continue;
+    }
+
+    for (int partialIndex = 0; partialIndex < numPartials; ++partialIndex) {
+      pugi::xml_node probabilityElement = envelopeElement;
+      pugi::xml_node amplitudeElement =
+          probabilityElement.next_sibling("Envelope");
+      pugi::xml_node widthElement =
+          amplitudeElement.next_sibling("Envelope");
+      pugi::xml_node rateElement =
+          widthElement.next_sibling("Envelope");
+      if (!probabilityElement || !amplitudeElement
+          || !widthElement || !rateElement) {
+        runtimeError("PARTIAL modifier '" + usageId
+                     + "' contains fewer than four envelopes per partial.");
+        break;
+      }
+
+      Envelope* probabilityEnvelope = NULL;
+      const string probabilityStr = XMLTC(probabilityElement);
+      if (!probabilityStr.empty() && probabilityStr != "N/A") {
+        probabilityEnvelope = static_cast<Envelope*>(
+            utilities->evaluateObject(probabilityStr, this, eventEnv));
+        if (probabilityEnvelope == NULL) {
+          runtimeError("PARTIAL modifier '" + usageId
+                       + "' has an invalid Probability envelope.");
+        }
+      }
+
+      auto effect = std::make_unique<Modifier>(
+          modType, probabilityEnvelope, "PARTIAL", partialIndex);
+      delete probabilityEnvelope;
+
+      int envelopeCount = 0;
+      envelopeCount += addEnvelope(
+          *effect, XMLTC(amplitudeElement), "partial Amplitude") ? 1 : 0;
+      if (modType != "PHASE_MOD") {
+        envelopeCount += addEnvelope(
+            *effect, XMLTC(widthElement), "partial Width") ? 1 : 0;
+      }
+      envelopeCount += addEnvelope(
+          *effect, XMLTC(rateElement), "partial Rate") ? 1 : 0;
+
+      int requiredEnvelopeCount = 0;
+      if (modType == "TREMOLO" || modType == "VIBRATO"
+          || modType == "PHASE_MOD") {
+        requiredEnvelopeCount = 2;
+      } else if (modType == "GLISSANDO" || modType == "DETUNE"
+                 || modType == "WAVE_TYPE") {
+        requiredEnvelopeCount = 1;
+      } else if (modType == "AMPTRANS" || modType == "FREQTRANS") {
+        requiredEnvelopeCount = 3;
+      }
+      if (envelopeCount < requiredEnvelopeCount) {
+        runtimeError("PARTIAL modifier '" + usageId
+                     + "' is missing a required parameter envelope.");
+        break;
+      }
+
+      modifiersById[usageId].push_back(
+          RuntimeModifier{std::move(effect), true});
+      envelopeElement = rateElement.next_sibling("Envelope");
+    }
+  }
+
+  // Program compilation and runtime effect parsing must describe the same
+  // ordered logical modifiers. Check this before drawing or applying anything.
+  for (const auto& usage : modifierUsageRuntime->program->overallUsage()) {
+    const auto found = modifiersById.find(usage.id);
+    if (found == modifiersById.end() || found->second.empty()) {
+      runtimeError("compiled modifier '" + usage.id
+                   + "' has no runtime effect.");
+    }
+  }
+  if (!runtimeValid) {
+    return;
+  }
+
+  Selection selection;
+  try {
+    selection = modifierUsageRuntime->program->select(
+        []() { return Random::Rand(); });
+  } catch (const std::exception& error) {
+    runtimeError(error.what());
+    return;
+  }
+
+  // Selection IDs are already in Program order. A selected PARTIAL logical
+  // modifier still uses its existing per-partial Probability envelope as a
+  // second-stage gate.
+  for (const ModifierId& selectedId : selection.orderedOnIds) {
+    auto found = modifiersById.find(selectedId);
+    if (found == modifiersById.end()) {
+      runtimeError("selection returned unknown modifier '" + selectedId + "'.");
+      return;
+    }
+    for (RuntimeModifier& runtimeModifier : found->second) {
+      Modifier& effect = *runtimeModifier.effect;
+      if (runtimeModifier.applyByPartial) {
+        if (effect.willOccur(checkPoint)) {
+          effect.applyModifier(s);
+        }
+      } else {
+        effect.setCheckPoint(checkPoint);
+        effect.applyModifier(s);
+      }
+    }
+  }
+}
+
+//-----------------------------------------------------------------------------/
+
 void Bottom::applyModifiers(Sound *s, int numPartials) {
+  if (modifierUsageRuntime) {
+    applyModifierUsage(s, numPartials);
+    return;
+  }
+
   map<string, vector<Modifier> > modGroups; // ZIYUAN CHEN, July 2023 - map group names to the mods
 
 

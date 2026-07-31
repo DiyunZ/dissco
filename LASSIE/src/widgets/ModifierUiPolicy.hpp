@@ -1,9 +1,26 @@
 #ifndef MODIFIERUIPOLICY_HPP
 #define MODIFIERUIPOLICY_HPP
 
+#include <QString>
+
 namespace ModifierUiPolicy {
 
 inline constexpr int fieldCount = 8;
+
+inline QString displayName(int modifierType)
+{
+    switch (modifierType) {
+    case 0: return QStringLiteral("Tremolo");
+    case 1: return QStringLiteral("Vibrato");
+    case 2: return QStringLiteral("Glissando");
+    case 3: return QStringLiteral("Detune");
+    case 4: return QStringLiteral("Amplitude Transient");
+    case 5: return QStringLiteral("Frequency Transient");
+    case 6: return QStringLiteral("Wave Type");
+    case 7: return QStringLiteral("Phase Modulation");
+    default: return QStringLiteral("Unknown Modifier");
+    }
+}
 
 // Fields: probability, magnitude, rate, width, spread, direction, velocity,
 // partial-result string.
@@ -16,7 +33,7 @@ inline bool fieldEnabled(int modifierType, int field, bool applyByPartial)
         /* DETUNE    */ { true, false, false, false, true,  true,  true  },
         /* AMPTRANS  */ { true, true,  true,  true,  false, false, false },
         /* FREQTRANS */ { true, true,  true,  true,  false, false, false },
-        /* WAVE_TYPE */ { true, true,  true,  false, false, false, false },
+        /* WAVE_TYPE */ { false, true, false, false, false, false, false },
         /* PHASE_MOD */ { true, true,  true,  false, false, false, false },
     };
     if (modifierType < 0 || modifierType >= 8 || field < 0 || field >= fieldCount)
