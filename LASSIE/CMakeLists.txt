@@ -87,13 +87,12 @@ target_link_libraries(LASSIE PRIVATE
     LASS
     DISSCO::ModifierUsage
 )
-# Note: LASSIE invokes CMOD as a subprocess (see CMOD_BINARY below and the
-# QProcess::start call in MainWindow::runProject). No symbols are shared, so
-# CMOD is intentionally NOT in the link list. Linking against an executable
-# target requires an import library on Windows, which CMOD doesn't produce
-# (no dllexport / WINDOWS_EXPORT_ALL_SYMBOLS), and the dependency was never
-# load-bearing anyway. LASS, which LASSIE was previously pulling in
-# transitively through CMOD's PUBLIC interface, is now linked directly.
+# Note: LASSIE invokes the CMOD executable as a subprocess (see CMOD_BINARY
+# below and the QProcess::start call in MainWindow::runProject), so the
+# executable itself is intentionally NOT in the link list. Both executables
+# instead share the Qt-free DISSCO::ModifierUsage library defined by CMOD.
+# LASS, which LASSIE was previously pulling in transitively through CMOD's
+# PUBLIC interface, is now linked directly.
 # LASSIE does its own XML handling with Qt's QtXml (QDomDocument), so it
 # needs no separate XML library.
 

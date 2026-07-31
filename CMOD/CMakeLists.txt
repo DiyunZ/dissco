@@ -10,6 +10,22 @@ file(GLOB_RECURSE CMOD_SRC
     "${PROJECT_SOURCE_DIR}/src/*.h"
 )
 
+list(REMOVE_ITEM CMOD_SRC
+    "${PROJECT_SOURCE_DIR}/src/ModifierUsage.cpp"
+    "${PROJECT_SOURCE_DIR}/src/ModifierUsage.hpp"
+)
+
+add_library(ModifierUsage STATIC
+    src/ModifierUsage.cpp
+    src/ModifierUsage.hpp
+)
+add_library(DISSCO::ModifierUsage ALIAS ModifierUsage)
+
+target_include_directories(ModifierUsage PUBLIC
+    "${PROJECT_SOURCE_DIR}/src"
+)
+target_compile_features(ModifierUsage PUBLIC cxx_std_20)
+
 add_executable(CMOD ${CMOD_SRC})
 # CMOD is consumed by LASSIE as a standalone subprocess (QProcess::start),
 # not linked into it. No ENABLE_EXPORTS / WINDOWS_EXPORT_ALL_SYMBOLS is

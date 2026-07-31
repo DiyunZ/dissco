@@ -45,7 +45,6 @@ endif()
 
 add_subdirectory(${CMAKE_SOURCE_DIR}/LASS)
 add_subdirectory(${CMAKE_SOURCE_DIR}/external-libs)
-add_subdirectory(${CMAKE_SOURCE_DIR}/ModifierUsage)
 add_subdirectory(${CMAKE_SOURCE_DIR}/CMOD) # if successful, will set a CMOD_BINARY_DIR variable in the scope of _this_ file
 add_subdirectory(${CMAKE_SOURCE_DIR}/LASSIE)
 
