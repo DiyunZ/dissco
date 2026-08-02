@@ -25,7 +25,6 @@ public:
     ~Modifiers() override;
 
     void setModifierIndex(int modifierIndex);
-    void setUsageMode(bool enabled);
     void saveModifierToBackend();
 
 signals:
@@ -46,7 +45,6 @@ private:
     Eventtype m_eventType;
     unsigned m_eventIndex;
     int m_modifierIndex;
-    bool m_usageMode = true;
 };
 
 #endif // MODIFIERS_HPP

@@ -1,6 +1,10 @@
 #include "ModifierUsageQtAdapter.hpp"
 
+#include "../dialogs/PartialModifierFormat.hpp"
+
 #include <ModifierUsage.hpp>
+
+#include <QObject>
 
 #include <limits>
 #include <utility>
@@ -20,6 +24,69 @@ std::string utf8(const QString& text)
     return text.toUtf8().toStdString();
 }
 
+bool hasConfiguredValue(const QString& value)
+{
+    const QString normalized = value.trimmed();
+    return !normalized.isEmpty()
+        && normalized.compare(QStringLiteral("N/A"), Qt::CaseInsensitive) != 0;
+}
+
+void validateEffectParameters(const Modifier& modifier,
+                              int oneBasedPosition,
+                              QStringList& diagnostics)
+{
+    const auto require = [&](const QString& value, const QString& field) {
+        if (!hasConfiguredValue(value)) {
+            diagnostics.append(
+                QObject::tr("Modifier %1 is missing %2.")
+                    .arg(oneBasedPosition)
+                    .arg(field));
+        }
+    };
+
+    if (modifier.applyhow_flag) {
+        const QString error = PartialModifierFormat::validationError(
+            static_cast<int>(modifier.type),
+            modifier.partialresult_string);
+        if (!error.isEmpty()) {
+            diagnostics.append(
+                QObject::tr("Modifier %1: %2")
+                    .arg(oneBasedPosition)
+                    .arg(error));
+        }
+        return;
+    }
+
+    switch (modifier.type) {
+    case 0: // Tremolo
+    case 1: // Vibrato
+    case 7: // Phase Modulation
+        require(modifier.amplitude, QObject::tr("Magnitude"));
+        require(modifier.rate, QObject::tr("Rate"));
+        break;
+    case 2: // Glissando
+    case 6: // Wave Type
+        require(modifier.amplitude, QObject::tr("Magnitude"));
+        break;
+    case 3: // Detune
+        require(modifier.detune_spread, QObject::tr("Detune Spread"));
+        require(modifier.detune_direction, QObject::tr("Detune Direction"));
+        require(modifier.detune_velocity, QObject::tr("Detune Velocity"));
+        break;
+    case 4: // Amplitude Transient
+    case 5: // Frequency Transient
+        require(modifier.amplitude, QObject::tr("Magnitude"));
+        require(modifier.rate, QObject::tr("Rate"));
+        require(modifier.width, QObject::tr("Width"));
+        break;
+    default:
+        diagnostics.append(
+            QObject::tr("Modifier %1 has an unknown type.")
+                .arg(oneBasedPosition));
+        break;
+    }
+}
+
 } // namespace
 
 ModifierUsageAnalysis analyzeModifierUsage(
@@ -28,6 +95,7 @@ ModifierUsageAnalysis analyzeModifierUsage(
 {
     using namespace dissco::modifier_usage;
 
+    ModifierUsageAnalysis analysis;
     Config config;
     config.scope = scope == ModifierSamplingScope::PerBottom
         ? SamplingScope::PerBottom
@@ -35,7 +103,12 @@ ModifierUsageAnalysis analyzeModifierUsage(
     config.orderedModifiers.reserve(
         static_cast<std::size_t>(modifiers.size()));
 
-    for (const Modifier& modifier : modifiers) {
+    for (int modifierIndex = 0;
+         modifierIndex < modifiers.size();
+         ++modifierIndex) {
+        const Modifier& modifier = modifiers[modifierIndex];
+        validateEffectParameters(
+            modifier, modifierIndex + 1, analysis.diagnostics);
         Entry entry;
         entry.id = utf8(modifier.instance_id);
         entry.defaultOnChance =
@@ -60,8 +133,13 @@ ModifierUsageAnalysis analyzeModifierUsage(
         config.orderedModifiers.push_back(std::move(entry));
     }
 
-    CompileResult compiled = compile(std::move(config));
-    ModifierUsageAnalysis analysis;
+    analysis.overall_usage_available =
+        modifiers.size() <= modifierUsageExactPreviewLimit;
+    CompileOptions options;
+    options.overallUsageMode = analysis.overall_usage_available
+        ? OverallUsageMode::Exact
+        : OverallUsageMode::Skip;
+    CompileResult compiled = compile(std::move(config), options);
     for (const Diagnostic& diagnostic : compiled.diagnostics)
         analysis.diagnostics.append(
             QString::fromStdString(diagnostic.message));

@@ -106,8 +106,7 @@ EventAttributesViewController::EventAttributesViewController(ProjectView* projec
             this, &EventAttributesViewController::BSReverbButtonClicked);
     connect(ui->BSFilterButton, &QPushButton::clicked,
             this, &EventAttributesViewController::BSFilterButtonClicked);
-*/    connect(ui->BSModifierGroupButton, &QPushButton::clicked,
-            this, &EventAttributesViewController::BSModifierGroupButtonClicked);
+*/
 
     ui->BSWellTemperedPage->setSizePolicy(QSizePolicy::Ignored, QSizePolicy::Ignored);
     ui->BSFundamentalPage->setSizePolicy(QSizePolicy::Ignored, QSizePolicy::Ignored);
@@ -137,9 +136,6 @@ EventAttributesViewController::EventAttributesViewController(ProjectView* projec
             this, &EventAttributesViewController::addModifierButtonClicked);
     connect(ui->addPartialButton, &QPushButton::clicked,
             this, &EventAttributesViewController::addPartialButtonClicked);
-    connect(ui->modifierModeCombo,
-            QOverload<int>::of(&QComboBox::currentIndexChanged),
-            this, &EventAttributesViewController::modifierModeChanged);
     connect(ui->modifierSamplingScopeCombo,
             QOverload<int>::of(&QComboBox::currentIndexChanged),
             this,
@@ -392,9 +388,6 @@ void EventAttributesViewController::saveCurrentShownEventData() {
         extra_info.spa = ui->spaEntry->text();
         extra_info.reverb = ui->revEntry->text();
         extra_info.filter = ui->filEntry->text();
-        extra_info.modifier_group = ui->modifierGroupEntry->text();
-        extra_info.modifier_usage_enabled =
-            (ui->modifierModeCombo->currentIndex() == 0);
         extra_info.modifier_sampling_scope =
             ui->modifierSamplingScopeCombo->currentIndex() == 1
             ? ModifierSamplingScope::PerBottom
@@ -607,10 +600,9 @@ void EventAttributesViewController::showCurrentEventData() {
                 ui->loudnessContainer->setVisible(false);
                 ui->phaseContainer->setVisible(false);
             }
-            // The exact modifier mode is applied after the event data and rows
-            // have been loaded.
+            // Modifier Usage visibility is applied after the event data and
+            // rows have been loaded; sampling scope remains Bottom-only.
             ui->modifierUsageControls->setVisible(false);
-            ui->modGroupContainer->setVisible(false);
             fixStackedWidgetLayout(ui->standardPage);
             break;
         case sound:
@@ -681,14 +673,9 @@ void EventAttributesViewController::showCurrentEventData() {
             ui->spaEntry->setText(extra_info.spa);
             ui->revEntry->setText(extra_info.reverb);
             ui->filEntry->setText(extra_info.filter);
-            ui->modifierGroupEntry->setText(extra_info.modifier_group);
-
             {
-                const QSignalBlocker modeBlocker(ui->modifierModeCombo);
                 const QSignalBlocker scopeBlocker(
                     ui->modifierSamplingScopeCombo);
-                ui->modifierModeCombo->setCurrentIndex(
-                    extra_info.modifier_usage_enabled ? 0 : 1);
                 ui->modifierSamplingScopeCombo->setCurrentIndex(
                     extra_info.modifier_sampling_scope
                             == ModifierSamplingScope::PerBottom
@@ -792,7 +779,7 @@ void EventAttributesViewController::showCurrentEventData() {
             ui->filEntry->setText(event.filter);
         }
 
-        updateModifierModeUi();
+        updateModifierUsageUi();
 
         // Rebuild LayerBoxes for the newly shown event
         for (int i = 0; i < event.event_layers.size(); ++i) {
@@ -1060,11 +1047,6 @@ void EventAttributesViewController::BSFilterButtonClicked() {
     insertFunctionString(spectrumGenerateFunButton);
 }
 */
-void EventAttributesViewController::BSModifierGroupButtonClicked() {
-    // if (m_currentlyShownEvent->getEventExtraInfo()->getChildTypeFlag() != 0) return;
-    insertFunctionString(BSModGroupFunButton);
-}
-
 void EventAttributesViewController::BSWellTemperedButtonClicked() {
     insertFunctionString(BSWellTemperedFunButton);
 }
@@ -1161,10 +1143,6 @@ void EventAttributesViewController::insertFunctionString(FunctionButton button) 
     case BSPhaseFunButton:
         target = ui->phaseEntry;
         gen = new FunctionGenerator(nullptr, functionReturnFloat, target->text());
-        break;
-    case BSModGroupFunButton:
-        target = ui->modifierGroupEntry;
-        gen = new FunctionGenerator(nullptr, functionReturnSPE, target->text());
         break;
     case BSWellTemperedFunButton:
         target = ui->wellTemperedEntry;
@@ -1347,7 +1325,7 @@ void EventAttributesViewController::rebuildModifierRows()
             addModifiersUI(index);
     }
 
-    updateModifierModeUi();
+    updateModifierUsageUi();
     fixStackedWidgetLayout(ui->standardPage);
 }
 
@@ -1362,23 +1340,39 @@ void EventAttributesViewController::updateModifierUsageSummary()
     }
 
     const ExtraInfo* extraInfo = currentBottomExtraInfo();
-    if (extraInfo && !extraInfo->modifier_usage_enabled) {
-        ui->modifierUsageSummaryLabel->setText(
-            tr("Legacy Modifier Groups is active. Conditional chances are "
-               "stored but are not used until Conditional Modifier Usage is "
-               "selected."));
-        return;
+    bool hasMissingUsageMetadata = false;
+    if (modifiers) {
+        for (const Modifier& modifier : *modifiers) {
+            hasMissingUsageMetadata = hasMissingUsageMetadata
+                || modifier.usage_metadata_needs_review;
+        }
     }
+    QString importNotice;
+    if (extraInfo && extraInfo->modifier_usage_needs_review) {
+        importNotice =
+            tr("Compatibility import needs review: this Bottom had no "
+               "supported Modifier Usage marker. Effect parameters and any "
+               "Usage data were kept, but legacy group selection cannot be "
+               "converted exactly. Review this list before synthesis.\n");
+    } else if (hasMissingUsageMetadata) {
+        importNotice =
+            tr("Compatibility import needs review: one or more modifiers had "
+               "missing or invalid Usage metadata. Review their stable IDs "
+               "and default chances before synthesis.\n");
+    }
+    const auto showSummary = [this, &importNotice](const QString& text) {
+        ui->modifierUsageSummaryLabel->setText(importNotice + text);
+    };
 
-    const QString scopeDescription =
-        extraInfo
-            && extraInfo->modifier_sampling_scope
-                   == ModifierSamplingScope::PerBottom
-        ? tr("one selection is shared by the whole Bottom event")
-        : tr("each generated sound receives its own selection");
+    const QString scopeDescription = !extraInfo
+        ? tr("sampling scope is chosen on each Bottom event")
+        : extraInfo->modifier_sampling_scope
+                  == ModifierSamplingScope::PerBottom
+            ? tr("one selection is shared by the whole Bottom event")
+            : tr("each generated sound receives its own selection");
 
     if (!modifiers || modifiers->isEmpty()) {
-        ui->modifierUsageSummaryLabel->setText(
+        showSummary(
             tr("No modifiers yet. Add one below; %1.")
                 .arg(scopeDescription));
         return;
@@ -1390,7 +1384,7 @@ void EventAttributesViewController::updateModifierUsageSummary()
     const ModifierUsageAnalysis analysis =
         analyzeModifierUsage(*modifiers, scope);
     if (!analysis.isValid()) {
-        ui->modifierUsageSummaryLabel->setText(
+        showSummary(
             tr("Configuration needs attention: %1")
                 .arg(analysis.diagnostics.constFirst()));
         return;
@@ -1398,12 +1392,13 @@ void EventAttributesViewController::updateModifierUsageSummary()
 
     QStringList usages;
     bool hasPartialModifier = false;
-    for (int index = 0;
-         index < modifiers->size()
-             && index < analysis.overall_on_chances.size();
-         ++index) {
+    for (int index = 0; index < modifiers->size(); ++index) {
         hasPartialModifier =
             hasPartialModifier || modifiers->at(index).applyhow_flag;
+        if (!analysis.overall_usage_available
+            || index >= analysis.overall_on_chances.size()) {
+            continue;
+        }
         usages.append(
             tr("%1. %2: %3%")
                 .arg(index + 1)
@@ -1413,6 +1408,12 @@ void EventAttributesViewController::updateModifierUsageSummary()
                      0, 'f', 1));
     }
 
+    const QString overallDescription = analysis.overall_usage_available
+        ? usages.join(QStringLiteral(" | "))
+        : tr("not calculated above %1 modifiers; CMOD direct sampling "
+             "remains linear")
+              .arg(modifierUsageExactPreviewLimit);
+
     QString summary =
         tr("Default ON is the fallback when no exception matches.\n"
            "%1 modifier(s), %2 exception(s). Selection follows the numbered "
@@ -1421,67 +1422,26 @@ void EventAttributesViewController::updateModifierUsageSummary()
             .arg(modifierCount)
             .arg(ruleCount)
             .arg(scopeDescription)
-            .arg(usages.join(QStringLiteral(" | ")));
+            .arg(overallDescription);
     if (hasPartialModifier) {
         summary += tr("\nA PARTIAL modifier that is selected still uses its "
                       "per-partial Probability Envelope.");
     }
-    ui->modifierUsageSummaryLabel->setText(summary);
+    showSummary(summary);
 }
 
-void EventAttributesViewController::updateModifierModeUi()
+void EventAttributesViewController::updateModifierUsageUi()
 {
-    const bool isBottom = (m_curreventtype == bottom);
-    ExtraInfo* extraInfo = currentBottomExtraInfo();
-    const bool usageEnabled =
-        !isBottom || (extraInfo && extraInfo->modifier_usage_enabled);
-
-    ui->modifierUsageControls->setVisible(isBottom);
-    ui->modGroupContainer->setVisible(isBottom && !usageEnabled);
-    ui->modifierSamplingScopeLabel->setEnabled(usageEnabled);
-    ui->modifierSamplingScopeCombo->setEnabled(usageEnabled);
-
-    for (Modifiers* modifier : m_modifiers)
-        modifier->setUsageMode(usageEnabled);
+    ui->modifierUsageControls->setVisible(
+        ModifierUiPolicy::usageSummaryVisible(m_curreventtype));
+    const bool showSamplingScope =
+        ModifierUiPolicy::samplingScopeVisible(m_curreventtype);
+    ui->modifierSamplingScopeLabel->setVisible(showSamplingScope);
+    ui->modifierSamplingScopeCombo->setVisible(showSamplingScope);
 
     updateModifierUsageSummary();
     if (ui->stackedWidget->currentWidget() == ui->standardPage)
         fixStackedWidgetLayout(ui->standardPage);
-}
-
-void EventAttributesViewController::modifierModeChanged(int index)
-{
-    ExtraInfo* extraInfo = currentBottomExtraInfo();
-    if (!extraInfo)
-        return;
-
-    const bool enableUsage = (index == 0);
-    if (enableUsage && !extraInfo->modifier_usage_enabled) {
-        const QMessageBox::StandardButton response = QMessageBox::warning(
-            this,
-            tr("Switch to Conditional Modifier Usage?"),
-            tr("Legacy Modifier Group selection cannot be converted "
-               "automatically. Existing synthesis parameters will be kept, "
-               "and legacy modifiers without Modifier Usage settings will "
-               "start with a 100% default ON chance. Review every chance and "
-               "exception before running CMOD."),
-            QMessageBox::Ok | QMessageBox::Cancel,
-            QMessageBox::Cancel);
-        if (response != QMessageBox::Ok) {
-            const QSignalBlocker blocker(ui->modifierModeCombo);
-            ui->modifierModeCombo->setCurrentIndex(1);
-            return;
-        }
-
-        for (Modifier& modifier : extraInfo->modifiers) {
-            if (modifier.default_on_chance.trimmed().isEmpty())
-                modifier.default_on_chance = QStringLiteral("1");
-        }
-    }
-
-    extraInfo->modifier_usage_enabled = enableUsage;
-    updateModifierModeUi();
-    MUtilities::modified();
 }
 
 void EventAttributesViewController::modifierSamplingScopeChanged(int index)
@@ -1672,10 +1632,6 @@ void EventAttributesViewController::addModifiersUI(int modifierIndex) {
 
     m_modifiers.append(mod);
     ui->modifiersLayout->addWidget(mod);
-    const ExtraInfo* extraInfo = currentBottomExtraInfo();
-    mod->setUsageMode(
-        m_curreventtype != bottom
-        || (extraInfo && extraInfo->modifier_usage_enabled));
 }
 
 void EventAttributesViewController::addModifierButtonClicked() {
@@ -1687,7 +1643,7 @@ void EventAttributesViewController::addModifierButtonClicked() {
 
     modifiers->append(Modifier());
     addModifiersUI(modifiers->size() - 1);
-    updateModifierModeUi();
+    updateModifierUsageUi();
     MUtilities::modified();
 }
 

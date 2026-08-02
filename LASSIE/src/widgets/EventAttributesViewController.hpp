@@ -43,7 +43,6 @@ typedef enum {
     attributesFilBuilderFunButton,
     BSLoudnessFunButton,
     BSPhaseFunButton,
-    BSModGroupFunButton,
     BSWellTemperedFunButton,
     BSFunFreq1FunButton,
     BSFunFreq2FunButton,
@@ -137,8 +136,6 @@ private slots:
     // void BSSpatializationButtonClicked();
     // void BSReverbButtonClicked();
     // void BSFilterButtonClicked();
-    void BSModifierGroupButtonClicked();
-
     void wellTemperedRadioButtonClicked();
     void fundamentalRadioButtonClicked();
     void continuumRadioButtonClicked();
@@ -151,7 +148,6 @@ private slots:
     void addNewLayerButtonClicked();
     void addModifierButtonClicked();
     void addPartialButtonClicked();
-    void modifierModeChanged(int index);
     void modifierSamplingScopeChanged(int index);
 
     // // tempo controls
@@ -191,7 +187,7 @@ private:
     QList<Modifier>* currentModifierList();
     ExtraInfo* currentBottomExtraInfo();
     void rebuildModifierRows();
-    void updateModifierModeUi();
+    void updateModifierUsageUi();
     void updateModifierUsageSummary();
     void deleteModifierRow(Modifiers* row);
     void moveModifierRow(Modifiers* row, int offset);

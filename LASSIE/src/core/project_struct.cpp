@@ -161,16 +161,19 @@ namespace QtParser {
         return rule;
     }
 
-    inline void parseModifierUsage(QXmlStreamReader& r, Modifier& modifier) {
+    inline bool parseModifierUsage(QXmlStreamReader& r, Modifier& modifier) {
         // r at <Usage>.
         const auto attributes = r.attributes();
         const QString id =
             attributes.value(QStringLiteral("id")).toString().trimmed();
+        const bool hasDefaultOn =
+            attributes.hasAttribute(QStringLiteral("defaultOn"));
+        const QString defaultOn =
+            attributes.value(QStringLiteral("defaultOn")).toString();
         if (!id.isEmpty())
             modifier.instance_id = id;
-        if (attributes.hasAttribute(QStringLiteral("defaultOn")))
-            modifier.default_on_chance =
-                attributes.value(QStringLiteral("defaultOn")).toString();
+        if (hasDefaultOn)
+            modifier.default_on_chance = defaultOn;
 
         modifier.rules.clear();
         while (r.readNextStartElement()) {
@@ -186,10 +189,14 @@ namespace QtParser {
                     r.skipCurrentElement();
             }
         }
+
+        return ModifierUsageImportPolicy::hasCompleteMetadata(
+            id, hasDefaultOn, defaultOn);
     }
 
     inline Modifier parseModifier(QXmlStreamReader& r) {
         Modifier modifier;
+        bool hasCompleteUsageMetadata = false;
         while (r.readNextStartElement()) {
             const QString tag = r.name().toString();
 
@@ -212,7 +219,8 @@ namespace QtParser {
                     modifier.applyhow_flag = false;
                 }
             } else if (tag == QStringLiteral("Probability")) {
-                modifier.probability = readInner(r);
+                // Consumed only for one-way import of pre-Modifier-Usage files.
+                r.skipCurrentElement();
             } else if (tag == QStringLiteral("Amplitude")) {
                 modifier.amplitude = readInner(r);
             } else if (tag == QStringLiteral("Rate")) {
@@ -226,11 +234,12 @@ namespace QtParser {
             } else if (tag == QStringLiteral("DetuneVelocity")) {
                 modifier.detune_velocity = readInner(r);
             } else if (tag == QStringLiteral("GroupName")) {
-                modifier.group_name = readInner(r);
+                // Legacy group membership has no equivalent in the new model.
+                r.skipCurrentElement();
             } else if (tag == QStringLiteral("PartialResultString")) {
                 modifier.partialresult_string = readInner(r);
             } else if (tag == QStringLiteral("Usage")) {
-                parseModifierUsage(r, modifier);
+                hasCompleteUsageMetadata = parseModifierUsage(r, modifier);
             } else {
                 // A future field must not shift the interpretation of any
                 // legacy sibling.
@@ -242,6 +251,7 @@ namespace QtParser {
             modifier.instance_id =
                 QUuid::createUuid().toString(QUuid::WithoutBraces);
         }
+        modifier.usage_metadata_needs_review = !hasCompleteUsageMetadata;
         return modifier;
     }
 
@@ -326,9 +336,7 @@ namespace QtParser {
         // projects written before <Phase> existed keep all following fields
         // aligned. Unknown future fields are ignored safely as well.
         info.phase = QStringLiteral("0");
-        // Marker absence is the discriminator for legacy Bottom events,
-        // despite new in-memory ExtraInfo objects defaulting to Modifier Usage.
-        info.modifier_usage_enabled = false;
+        bool modifierUsageMarkerSupported = false;
         info.modifier_sampling_scope = ModifierSamplingScope::PerSound;
         while (r.readNextStartElement()) {
             const QString tag = r.name().toString();
@@ -351,14 +359,23 @@ namespace QtParser {
             } else if (tag == QStringLiteral("Filter")) {
                 info.filter = readInner(r);
             } else if (tag == QStringLiteral("ModifierGroup")) {
-                info.modifier_group = readInner(r);
+                // Consume the old selector without keeping a second model.
+                r.skipCurrentElement();
             } else if (tag == QStringLiteral("ModifierUsage")) {
-                info.modifier_usage_enabled = true;
+                const QString version = r.attributes()
+                    .value(QStringLiteral("version"))
+                    .toString()
+                    .trimmed();
                 const QString scope = r.attributes()
                     .value(QStringLiteral("samplingScope"))
                     .toString()
                     .trimmed()
                     .toLower();
+                const bool scopeSupported =
+                    scope == QStringLiteral("per-sound")
+                    || scope == QStringLiteral("per-bottom");
+                modifierUsageMarkerSupported =
+                    version == QStringLiteral("1") && scopeSupported;
                 info.modifier_sampling_scope =
                     scope == QStringLiteral("per-bottom")
                     ? ModifierSamplingScope::PerBottom
@@ -370,6 +387,7 @@ namespace QtParser {
                 r.skipCurrentElement();
             }
         }
+        info.modifier_usage_needs_review = !modifierUsageMarkerSupported;
     }
 
     inline void parseBottomEventChildren(QXmlStreamReader& r, BottomEvent& bev) {

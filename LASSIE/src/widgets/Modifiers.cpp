@@ -71,6 +71,7 @@ Modifiers::Modifiers(Eventtype eventType, unsigned eventIndex,
             this, [this](double value) {
                 backendModifier().default_on_chance =
                     normalizedChance(value);
+                backendModifier().usage_metadata_needs_review = false;
                 emit dataChanged();
             });
 
@@ -106,12 +107,6 @@ int Modifiers::currentModifierType() const
 void Modifiers::setModifierIndex(int modifierIndex)
 {
     m_modifierIndex = modifierIndex;
-    updateRow();
-}
-
-void Modifiers::setUsageMode(bool enabled)
-{
-    m_usageMode = enabled;
     updateRow();
 }
 
@@ -155,27 +150,17 @@ void Modifiers::updateRow()
                   .arg(ruleCount)
                   .arg(ruleCount == 1 ? QString() : QStringLiteral("s")));
 
-    ui->defaultChanceLabel->setVisible(m_usageMode);
-    ui->defaultChanceSpin->setVisible(m_usageMode);
-    ui->rulesButton->setVisible(m_usageMode);
-    ui->orderLabel->setVisible(m_usageMode);
-    ui->moveUpButton->setVisible(m_usageMode);
-    ui->moveDownButton->setVisible(m_usageMode);
-    ui->parametersButton->setText(
-        m_usageMode ? tr("Parameters...") : tr("Edit modifier..."));
+    ui->parametersButton->setText(tr("Parameters..."));
     ui->parametersButton->setToolTip(
-        tr("Edit Apply To, Magnitude, Rate, Width, Detune, partial values, "
-           "and legacy fields for %1.")
+        tr("Edit Apply To, Magnitude, Rate, Width, Detune, and partial "
+           "values for %1.")
             .arg(ModifierUiPolicy::displayName(
                 static_cast<int>(modifier.type))));
 }
 
 void Modifiers::openParameters()
 {
-    const bool showLegacyFields =
-        !m_usageMode || m_eventType != bottom;
-    ModifierDetailsDialog dialog(
-        backendModifier(), m_usageMode, showLegacyFields, this);
+    ModifierDetailsDialog dialog(backendModifier(), this);
     if (dialog.exec() != QDialog::Accepted)
         return;
 
@@ -196,6 +181,7 @@ void Modifiers::openRules()
         return;
 
     backendModifier().rules = dialog.resultRules();
+    backendModifier().usage_metadata_needs_review = false;
     updateRow();
     emit dataChanged();
 }

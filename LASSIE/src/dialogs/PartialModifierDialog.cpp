@@ -10,23 +10,76 @@
 #include <QPlainTextEdit>
 #include <QPushButton>
 #include <QScrollArea>
+#include <QSpinBox>
 #include <QVBoxLayout>
 
 #include <algorithm>
 
-PartialModifierDialog::PartialModifierDialog(QWidget* parent,
-                                             int spectrumPartialCount,
-                                             const QString& originalString)
-    : QDialog(parent)
+namespace {
+
+struct ParameterPresentation {
+    QString magnitudeLabel;
+    QString widthLabel;
+    QString rateLabel;
+    bool usesMagnitude = false;
+    bool usesWidth = false;
+    bool usesRate = false;
+};
+
+ParameterPresentation presentationFor(int modifierType)
 {
-    setWindowTitle(tr("Customize Partials"));
+    switch (modifierType) {
+    case 0:
+        return {QObject::tr("Magnitude (depth):"), QString(),
+                QObject::tr("Rate (Hz):"), true, false, true};
+    case 1:
+        return {QObject::tr("Magnitude (frequency depth):"), QString(),
+                QObject::tr("Rate (Hz):"), true, false, true};
+    case 2:
+        return {QObject::tr("Frequency change:"), QString(), QString(),
+                true, false, false};
+    case 3:
+        return {QObject::tr("Detuning:"), QString(), QString(),
+                true, false, false};
+    case 4:
+    case 5:
+        return {QObject::tr("Magnitude:"), QObject::tr("Width:"),
+                QObject::tr("Rate:"), true, true, true};
+    case 6:
+        return {QObject::tr("Wave type:"), QString(), QString(),
+                true, false, false};
+    case 7:
+        return {QObject::tr("Magnitude (cycle depth):"), QString(),
+                QObject::tr("Rate (Hz):"), true, false, true};
+    default:
+        return {QObject::tr("Magnitude:"), QObject::tr("Width:"),
+                QObject::tr("Rate:"), true, true, true};
+    }
+}
+
+QString unusedLabel(const QString& parameter)
+{
+    return QObject::tr("%1 (not used by this modifier):").arg(parameter);
+}
+
+} // namespace
+
+PartialModifierDialog::PartialModifierDialog(QWidget* parent,
+                                             int modifierType,
+                                             int suggestedPartialCount,
+                                             const QString& originalString)
+    : QDialog(parent),
+      m_modifierType(modifierType)
+{
+    setWindowTitle(tr("Customize Partial Parameters"));
     setModal(true);
     resize(900, 700);
 
     auto* mainLayout = new QVBoxLayout(this);
     auto* explanation = new QLabel(
-        tr("Each partial is stored as probability, magnitude, width, and rate ENV values. "
-           "Use Insert Function to build an envelope; N/A leaves an unused value empty."),
+        tr("Each row controls one spectrum partial. Probability decides whether "
+           "the modifier is applied to that partial. Use Insert Function to build "
+           "each envelope; N/A means that value is not used."),
         this);
     explanation->setWordWrap(true);
     mainLayout->addWidget(explanation);
@@ -38,26 +91,47 @@ PartialModifierDialog::PartialModifierDialog(QWidget* parent,
     QString parseWarning;
     QVector<PartialModifierFormat::Values> values =
         PartialModifierFormat::parse(originalString, &parseWarning);
-    const int requestedRows = std::max(1, spectrumPartialCount);
+    const int requestedRows = std::max(1, suggestedPartialCount);
+    m_suggestedPartialCount = requestedRows;
     const int rowCount = std::max(requestedRows, static_cast<int>(values.size()));
     values.resize(rowCount);
+    m_activeRowCount = rowCount;
 
     if (parseWarning.isEmpty()) {
         m_statusLabel->setText(
-            tr("Editing %1 partial(s), based on the largest Spectrum in this project.")
+            tr("Started with %1 partial(s), based on this value and the largest "
+               "Spectrum in the project.")
                 .arg(rowCount));
     } else {
         m_statusLabel->setText(parseWarning + tr(" Cancel preserves the original value."));
         m_statusLabel->setStyleSheet(QStringLiteral("color: #b06000;"));
     }
 
+    auto* countLayout = new QHBoxLayout;
+    auto* countLabel = new QLabel(tr("Number of partial rows:"), this);
+    m_rowCountSpin = new QSpinBox(this);
+    m_rowCountSpin->setRange(1, std::max(1024, rowCount));
+    m_rowCountSpin->setValue(rowCount);
+    countLayout->addWidget(countLabel);
+    countLayout->addWidget(m_rowCountSpin);
+    countLayout->addStretch();
+    mainLayout->addLayout(countLayout);
+
+    m_countWarningLabel = new QLabel(
+        tr("Partials after the last configured row will not receive this modifier."),
+        this);
+    m_countWarningLabel->setWordWrap(true);
+    m_countWarningLabel->setStyleSheet(QStringLiteral("color: #b06000;"));
+    m_countWarningLabel->setVisible(false);
+    mainLayout->addWidget(m_countWarningLabel);
+
     auto* scrollArea = new QScrollArea(this);
     scrollArea->setWidgetResizable(true);
     auto* rowsWidget = new QWidget(scrollArea);
     m_rowsLayout = new QVBoxLayout(rowsWidget);
+    m_rowsLayout->addStretch();
     for (int i = 0; i < rowCount; ++i)
         addPartialRow(i, values.at(i));
-    m_rowsLayout->addStretch();
     scrollArea->setWidget(rowsWidget);
     mainLayout->addWidget(scrollArea, 1);
 
@@ -75,6 +149,9 @@ PartialModifierDialog::PartialModifierDialog(QWidget* parent,
     connect(buttons, &QDialogButtonBox::rejected, this, &QDialog::reject);
     mainLayout->addWidget(buttons);
 
+    connect(m_rowCountSpin, QOverload<int>::of(&QSpinBox::valueChanged),
+            this, [this](int count) { setPartialRowCount(count); });
+
     updatePreview();
 }
 
@@ -83,20 +160,32 @@ void PartialModifierDialog::addPartialRow(
 {
     auto* group = new QGroupBox(tr("Partial %1").arg(partialIndex + 1), this);
     auto* layout = new QVBoxLayout(group);
+    const ParameterPresentation presentation = presentationFor(m_modifierType);
 
     PartialRow row;
+    row.group = group;
     addEnvelopeEntry(layout, tr("Probability:"), values.probability, true, &row.probability);
 
-    addEnvelopeEntry(layout, tr("Magnitude (cycle depth):"), values.magnitude,
-                     true, &row.magnitude);
+    addEnvelopeEntry(
+        layout,
+        presentation.usesMagnitude
+            ? presentation.magnitudeLabel : unusedLabel(tr("Magnitude")),
+        values.magnitude, presentation.usesMagnitude, &row.magnitude);
 
-    addEnvelopeEntry(layout, tr("Width (unused by Phase Modulation):"),
-                     values.width, false, &row.width);
+    addEnvelopeEntry(
+        layout,
+        presentation.usesWidth
+            ? presentation.widthLabel : unusedLabel(tr("Width")),
+        values.width, presentation.usesWidth, &row.width);
 
-    addEnvelopeEntry(layout, tr("Rate (Hz):"), values.rate, true, &row.rate);
+    addEnvelopeEntry(
+        layout,
+        presentation.usesRate
+            ? presentation.rateLabel : unusedLabel(tr("Rate")),
+        values.rate, presentation.usesRate, &row.rate);
 
     m_rows.append(row);
-    m_rowsLayout->addWidget(group);
+    m_rowsLayout->insertWidget(m_rowsLayout->count() - 1, group);
 }
 
 void PartialModifierDialog::addEnvelopeEntry(QVBoxLayout* layout,
@@ -145,11 +234,24 @@ void PartialModifierDialog::openEnvelopeGenerator(QLineEdit* entry)
     }
 }
 
+void PartialModifierDialog::setPartialRowCount(int count)
+{
+    while (m_rows.size() < count)
+        addPartialRow(m_rows.size(), PartialModifierFormat::Values{});
+
+    m_activeRowCount = count;
+    for (int index = 0; index < m_rows.size(); ++index)
+        m_rows[index].group->setVisible(index < m_activeRowCount);
+    m_countWarningLabel->setVisible(count < m_suggestedPartialCount);
+    updatePreview();
+}
+
 QString PartialModifierDialog::resultString() const
 {
     QVector<PartialModifierFormat::Values> values;
-    values.reserve(m_rows.size());
-    for (const PartialRow& row : m_rows) {
+    values.reserve(m_activeRowCount);
+    for (int index = 0; index < m_activeRowCount; ++index) {
+        const PartialRow& row = m_rows[index];
         PartialModifierFormat::Values value;
         value.probability = row.probability->text();
         value.magnitude = row.magnitude->text();

@@ -38,6 +38,15 @@ struct Config {
     std::vector<Entry> orderedModifiers;
 };
 
+enum class OverallUsageMode {
+    Exact,
+    Skip
+};
+
+struct CompileOptions {
+    OverallUsageMode overallUsageMode = OverallUsageMode::Exact;
+};
+
 enum class DiagnosticCode {
     InvalidSamplingScope,
     EmptyId,
@@ -97,7 +106,10 @@ public:
      */
     Selection select(const UnitRandom& nextUnit);
 
-    /** Exact marginal ON probability for every modifier, in configured order. */
+    /**
+     * Exact marginal ON probability for every modifier, in configured order.
+     * Empty when compilation explicitly skipped the exponential preview.
+     */
     const std::vector<OverallUsage>& overallUsage() const noexcept;
 
 private:
@@ -106,7 +118,7 @@ private:
 
     std::unique_ptr<Impl> m_impl;
 
-    friend CompileResult compile(Config config);
+    friend CompileResult compile(Config config, CompileOptions options);
 };
 
 struct CompileResult {
@@ -123,9 +135,9 @@ struct CompileResult {
  *
  * Exact overall-usage calculation is exponential in the number of modifiers
  * in the worst case, as required for arbitrary dependencies on earlier
- * decisions.
+ * decisions. Runtime callers should select OverallUsageMode::Skip.
  */
-CompileResult compile(Config config);
+CompileResult compile(Config config, CompileOptions options = {});
 
 } // namespace dissco::modifier_usage
 

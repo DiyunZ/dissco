@@ -205,7 +205,7 @@ const std::vector<OverallUsage>& Program::overallUsage() const noexcept
     return m_impl ? m_impl->overall : empty;
 }
 
-CompileResult compile(Config config)
+CompileResult compile(Config config, CompileOptions options)
 {
     CompileResult result;
 
@@ -392,7 +392,8 @@ CompileResult compile(Config config)
     auto impl = std::make_unique<Program::Impl>();
     impl->scope = config.scope;
     impl->entries = std::move(compiledEntries);
-    impl->overall = calculateOverallUsage(impl->entries);
+    if (options.overallUsageMode == OverallUsageMode::Exact)
+        impl->overall = calculateOverallUsage(impl->entries);
     result.program.emplace(Program(std::move(impl)));
     return result;
 }

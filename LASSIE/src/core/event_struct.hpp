@@ -14,6 +14,8 @@
 #include <QString>
 #include <QUuid>
 
+#include <cmath>
+
 typedef enum {
     none,
     dotted,
@@ -195,6 +197,24 @@ enum class ModifierSamplingScope {
     PerBottom
 };
 
+namespace ModifierUsageImportPolicy {
+
+inline bool hasCompleteMetadata(const QString& stableId,
+                                bool hasDefaultOnAttribute,
+                                const QString& defaultOn)
+{
+    bool isNumber = false;
+    const double chance = defaultOn.trimmed().toDouble(&isNumber);
+    return !stableId.trimmed().isEmpty()
+        && hasDefaultOnAttribute
+        && isNumber
+        && std::isfinite(chance)
+        && chance >= 0.0
+        && chance <= 1.0;
+}
+
+} // namespace ModifierUsageImportPolicy
+
 struct ModifierCondition {
     QString modifier_id;
     bool required_on = true;
@@ -213,17 +233,19 @@ struct Modifier {
         QUuid::createUuid().toString(QUuid::WithoutBraces);
     QString default_on_chance = QStringLiteral("1");
     QList<ModifierChanceRule> rules;
+    // True only while importing a Modifier whose <Usage> metadata was absent
+    // or incomplete.
+    // The writer always emits Usage and deliberately never serializes this.
+    bool usage_metadata_needs_review = false;
 
     unsigned type = 0;
     bool applyhow_flag = false; // false == SOUND, true == PARTIAL
-    QString probability;
     QString amplitude;
     QString rate;
     QString width;
     QString detune_spread;
     QString detune_direction;
     QString detune_velocity;
-    QString group_name;
     QString partialresult_string;
 };
 
@@ -236,13 +258,12 @@ struct ExtraInfo {
     QString spa;
     QString reverb;
     QString filter;
-    QString modifier_group;
     QList<Modifier> modifiers;
-    // New Bottom events use Modifier Usage. The XML parser explicitly changes
-    // this to false when an older file has no <ModifierUsage> marker.
-    bool modifier_usage_enabled = true;
     ModifierSamplingScope modifier_sampling_scope =
         ModifierSamplingScope::PerSound;
+    // Transient import warning. It is true only while an older file without a
+    // <ModifierUsage> marker is open and is deliberately never serialized.
+    bool modifier_usage_needs_review = false;
 };
 
 /* HEvents are Top, High, Mid, or Low events */

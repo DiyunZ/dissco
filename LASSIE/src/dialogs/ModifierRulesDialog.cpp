@@ -45,8 +45,8 @@ public:
 
         auto* root = new QVBoxLayout(this);
         auto* explanation = new QLabel(
-            tr("Choose the state of every modifier evaluated earlier. "
-               "When this complete context occurs, the target uses the "
+            tr("Choose only the earlier states that matter; Any ignores that "
+               "modifier. When the selected context occurs, the target uses the "
                "ON chance below instead of its default."),
             this);
         explanation->setWordWrap(true);
@@ -56,13 +56,14 @@ public:
         for (int index = 0; index < earlierModifiers.size(); ++index) {
             const Modifier& modifier = earlierModifiers[index];
             auto* state = new QComboBox(this);
+            state->addItem(tr("Any"));
             state->addItem(tr("ON"), true);
             state->addItem(tr("OFF"), false);
 
             if (existing) {
                 for (const ModifierCondition& condition : existing->conditions) {
                     if (condition.modifier_id == modifier.instance_id) {
-                        state->setCurrentIndex(condition.required_on ? 0 : 1);
+                        state->setCurrentIndex(condition.required_on ? 1 : 2);
                         break;
                     }
                 }
@@ -98,6 +99,8 @@ public:
         ModifierChanceRule rule;
         rule.on_chance = normalizedChance(m_chanceSpin->value());
         for (int index = 0; index < m_earlierModifiers.size(); ++index) {
+            if (m_stateCombos[index]->currentIndex() == 0)
+                continue;
             ModifierCondition condition;
             condition.modifier_id =
                 m_earlierModifiers[index].instance_id;
@@ -106,6 +109,20 @@ public:
             rule.conditions.append(condition);
         }
         return rule;
+    }
+
+protected:
+    void accept() override
+    {
+        for (QComboBox* state : m_stateCombos) {
+            if (state->currentIndex() != 0) {
+                QDialog::accept();
+                return;
+            }
+        }
+        QMessageBox::warning(
+            this, tr("Condition required"),
+            tr("Choose ON or OFF for at least one earlier modifier."));
     }
 
 private:
@@ -193,6 +210,28 @@ ModifierRulesDialog::ModifierRulesDialog(
     rebuildTable();
 }
 
+void ModifierRulesDialog::accept()
+{
+    for (int index = 0; index < m_rules.size(); ++index) {
+        if (m_rules[index].conditions.isEmpty()) {
+            QMessageBox::warning(
+                this, tr("Condition required"),
+                tr("Every exception must depend on at least one earlier "
+                   "modifier."));
+            return;
+        }
+        if (hasDuplicateContext(m_rules[index], index)
+            || hasAmbiguousContext(m_rules[index], index)) {
+            QMessageBox::warning(
+                this, tr("Overlapping exceptions"),
+                tr("Two exceptions can match the same earlier state with "
+                   "equal specificity. Edit or remove one before saving."));
+            return;
+        }
+    }
+    QDialog::accept();
+}
+
 void ModifierRulesDialog::rebuildTable()
 {
     m_table->setRowCount(m_rules.size());
@@ -222,8 +261,15 @@ void ModifierRulesDialog::addRule()
     if (hasDuplicateContext(rule)) {
         QMessageBox::warning(
             this, tr("Duplicate context"),
-            tr("An exception already exists for this complete earlier "
-               "modifier context."));
+            tr("An exception already exists for this earlier modifier context."));
+        return;
+    }
+    if (hasAmbiguousContext(rule)) {
+        QMessageBox::warning(
+            this, tr("Overlapping context"),
+            tr("This exception can match at the same time as another "
+               "exception with the same number of conditions. Add another "
+               "ON/OFF condition so only one of them can match."));
         return;
     }
     m_rules.append(rule);
@@ -245,8 +291,15 @@ void ModifierRulesDialog::editSelectedRule()
     if (hasDuplicateContext(rule, row)) {
         QMessageBox::warning(
             this, tr("Duplicate context"),
-            tr("An exception already exists for this complete earlier "
-               "modifier context."));
+            tr("An exception already exists for this earlier modifier context."));
+        return;
+    }
+    if (hasAmbiguousContext(rule, row)) {
+        QMessageBox::warning(
+            this, tr("Overlapping context"),
+            tr("This exception can match at the same time as another "
+               "exception with the same number of conditions. Add another "
+               "ON/OFF condition so only one of them can match."));
         return;
     }
     m_rules[row] = rule;
@@ -308,6 +361,39 @@ bool ModifierRulesDialog::hasDuplicateContext(
     const QString key = contextKey(candidate);
     for (int index = 0; index < m_rules.size(); ++index) {
         if (index != ignoredIndex && contextKey(m_rules[index]) == key)
+            return true;
+    }
+    return false;
+}
+
+bool ModifierRulesDialog::hasAmbiguousContext(
+    const ModifierChanceRule& candidate,
+    int ignoredIndex) const
+{
+    for (int index = 0; index < m_rules.size(); ++index) {
+        if (index == ignoredIndex
+            || m_rules[index].conditions.size()
+                   != candidate.conditions.size()) {
+            continue;
+        }
+
+        bool canOverlap = true;
+        for (const ModifierCondition& candidateCondition
+             : candidate.conditions) {
+            for (const ModifierCondition& existingCondition
+                 : m_rules[index].conditions) {
+                if (candidateCondition.modifier_id
+                        == existingCondition.modifier_id
+                    && candidateCondition.required_on
+                        != existingCondition.required_on) {
+                    canOverlap = false;
+                    break;
+                }
+            }
+            if (!canOverlap)
+                break;
+        }
+        if (canOverlap)
             return true;
     }
     return false;

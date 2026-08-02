@@ -60,8 +60,8 @@ class MainWindow : public QMainWindow
         // File operations
         void newFile();
         void openFile();
-        void saveFile();
-        void saveFileAs();
+        bool saveFile();
+        bool saveFileAs();
 
         // Edit operations
          /* TODO: implement undo /edo */
@@ -99,7 +99,7 @@ class MainWindow : public QMainWindow
         void showFile();
         void openProjectPath(const QString &path);
 
-        // Returns false if the user cancelled, true otherwise.
+        // Returns false if the user cancelled or the requested save failed.
         // Prompts to save unsaved changes when a project is already open.
         bool maybeSaveBeforeClose();
         // Tears down the current project view and project data, resetting UI state.

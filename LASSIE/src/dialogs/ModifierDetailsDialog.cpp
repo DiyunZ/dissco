@@ -8,11 +8,11 @@
 #include <QComboBox>
 #include <QDialogButtonBox>
 #include <QDoubleValidator>
-#include <QFormLayout>
 #include <QGridLayout>
 #include <QGroupBox>
 #include <QLabel>
 #include <QLineEdit>
+#include <QMessageBox>
 #include <QPushButton>
 #include <QVBoxLayout>
 
@@ -21,8 +21,6 @@
 using enum FunctionReturnType;
 
 ModifierDetailsDialog::ModifierDetailsDialog(const Modifier& modifier,
-                                             bool modifierUsageEnabled,
-                                             bool showLegacyFields,
                                              QWidget* parent)
     : QDialog(parent),
       m_modifier(modifier)
@@ -34,23 +32,11 @@ ModifierDetailsDialog::ModifierDetailsDialog(const Modifier& modifier,
 
     auto* root = new QVBoxLayout(this);
 
-    QString explanationText;
-    if (!modifierUsageEnabled) {
-        explanationText =
-            tr("This Bottom uses Legacy Modifier Groups. Probability Envelope "
-               "and Group Name remain active selection fields.");
-    } else if (showLegacyFields) {
-        explanationText =
-            tr("Default ON chance and exceptions are edited in the main list. "
-               "Legacy fields remain available because an inherited modifier "
-               "can also reach a Bottom using Legacy Modifier Groups.");
-    } else {
-        explanationText =
-            tr("Default ON chance and conditional exceptions are edited in the "
-               "main Modifier Usage list. This window controls what the selected "
-               "modifier does.");
-    }
-    auto* explanation = new QLabel(explanationText, this);
+    auto* explanation = new QLabel(
+        tr("Default ON chance and conditional exceptions are edited in the "
+           "main Modifier Usage list. This window controls what the selected "
+           "modifier does."),
+        this);
     explanation->setWordWrap(true);
     root->addWidget(explanation);
 
@@ -70,25 +56,8 @@ ModifierDetailsDialog::ModifierDetailsDialog(const Modifier& modifier,
     addFieldRow(effectLayout, 4, Spread, tr("Detune Spread:"));
     addFieldRow(effectLayout, 5, Direction, tr("Detune Direction:"));
     addFieldRow(effectLayout, 6, Velocity, tr("Detune Velocity:"));
-    addFieldRow(effectLayout, 7, PartialResult, tr("Partial Result String:"));
+    addFieldRow(effectLayout, 7, PartialResult, tr("Partial Parameters:"));
     root->addWidget(effectGroup);
-
-    auto* legacyGroup = new QGroupBox(tr("Legacy compatibility"), this);
-    auto* legacyLayout = new QGridLayout(legacyGroup);
-    addFieldRow(legacyLayout, 0, Probability,
-                modifierUsageEnabled
-                    ? tr("Legacy Probability Envelope:")
-                    : tr("Probability Envelope:"));
-    auto* groupLabel = new QLabel(
-        modifierUsageEnabled ? tr("Legacy Group Name:") : tr("Group Name:"),
-        legacyGroup);
-    m_groupNameEdit = new QLineEdit(m_modifier.group_name, legacyGroup);
-    legacyLayout->addWidget(groupLabel, 1, 0);
-    legacyLayout->addWidget(m_groupNameEdit, 1, 1, 1, 2);
-    // Keep legacy values in the draft and write them back unchanged, but do
-    // not burden the new workflow with controls that have no effect there.
-    legacyGroup->setVisible(showLegacyFields);
-    root->addWidget(legacyGroup);
 
     auto* buttons = new QDialogButtonBox(
         QDialogButtonBox::Ok | QDialogButtonBox::Cancel, this);
@@ -168,9 +137,10 @@ void ModifierDetailsDialog::editField(Field field)
     if (!widgets)
         return;
 
-    if (field == PartialResult && m_modifier.type == 7) {
+    if (field == PartialResult) {
         PartialModifierDialog dialog(
-            this, std::max(1, maximumSpectrumPartialCount()),
+            this, static_cast<int>(m_modifier.type),
+            std::max(1, maximumSpectrumPartialCount()),
             widgets->edit->text());
         if (dialog.exec() == QDialog::Accepted)
             widgets->edit->setText(dialog.resultString());
@@ -187,7 +157,6 @@ void ModifierDetailsDialog::editField(Field field)
 QString ModifierDetailsDialog::valueFor(Field field) const
 {
     switch (field) {
-    case Probability: return m_modifier.probability;
     case Magnitude: return m_modifier.amplitude;
     case Rate: return m_modifier.rate;
     case Width: return m_modifier.width;
@@ -202,7 +171,6 @@ QString ModifierDetailsDialog::valueFor(Field field) const
 void ModifierDetailsDialog::setValue(Field field, const QString& value)
 {
     switch (field) {
-    case Probability: m_modifier.probability = value; break;
     case Magnitude: m_modifier.amplitude = value; break;
     case Rate: m_modifier.rate = value; break;
     case Width: m_modifier.width = value; break;
@@ -236,8 +204,49 @@ int ModifierDetailsDialog::maximumSpectrumPartialCount() const
 
 void ModifierDetailsDialog::accept()
 {
-    m_modifier.applyhow_flag = (m_applyCombo->currentIndex() == 1);
-    m_modifier.group_name = m_groupNameEdit->text();
+    const bool applyByPartial = (m_applyCombo->currentIndex() == 1);
+    for (const FieldWidgets& widgets : m_fields) {
+        if (!ModifierUiPolicy::fieldEnabled(
+                static_cast<int>(m_modifier.type),
+                static_cast<int>(widgets.field), applyByPartial)) {
+            continue;
+        }
+
+        const QString value = widgets.edit->text().trimmed();
+        if (widgets.field == PartialResult) {
+            const QString error = PartialModifierFormat::validationError(
+                static_cast<int>(m_modifier.type), value);
+            if (!error.isEmpty()) {
+                QMessageBox::warning(
+                    this, tr("Invalid partial parameters"), error);
+                widgets.edit->setFocus();
+                return;
+            }
+            continue;
+        }
+        if (value.isEmpty()
+            || value.compare(
+                   QStringLiteral("N/A"), Qt::CaseInsensitive) == 0) {
+            QMessageBox::warning(
+                this, tr("Missing modifier parameter"),
+                tr("Enter or generate every parameter shown for this "
+                   "modifier before saving."));
+            widgets.edit->setFocus();
+            return;
+        }
+        if ((widgets.field == Spread
+             || widgets.field == Direction
+             || widgets.field == Velocity)
+            && !widgets.edit->hasAcceptableInput()) {
+            QMessageBox::warning(
+                this, tr("Invalid modifier parameter"),
+                tr("Enter a valid number for every Detune parameter."));
+            widgets.edit->setFocus();
+            return;
+        }
+    }
+
+    m_modifier.applyhow_flag = applyByPartial;
     for (const FieldWidgets& widgets : m_fields)
         setValue(widgets.field, widgets.edit->text());
     QDialog::accept();

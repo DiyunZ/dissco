@@ -4,6 +4,7 @@
  * Copyright (c) 2025, DISSCO authors */
 
 #include <QFile>
+#include <QSaveFile>
 #include <QString>
 #include <QDir>
 #include <QFileInfo>
@@ -129,13 +130,65 @@ void ProjectView::writeInlineXml(QXmlStreamWriter& xmlWriter, const QString& xml
 }
 
 /* Function that creates and saves the xml .dissco file */
-void ProjectView::save(){
+bool ProjectView::save(){
     qDebug() << "In Project View Save Function";
 
     eventAttributesView->saveCurrentShownEventData();
 
     ProjectManager *pm = Inst::get_project_manager();
-    modifiedButNotSaved = false; // changes bool value because file is being saved
+    const auto modifierListNeedsReview = [](const QList<Modifier>& modifiers) {
+        for (const Modifier& modifier : modifiers) {
+            if (modifier.usage_metadata_needs_review)
+                return true;
+        }
+        return false;
+    };
+    bool needsCompatibilityBackup = false;
+    needsCompatibilityBackup =
+        modifierListNeedsReview(pm->topevent().modifiers);
+    for (const HEvent& event : pm->highevents())
+        needsCompatibilityBackup = needsCompatibilityBackup
+            || modifierListNeedsReview(event.modifiers);
+    for (const HEvent& event : pm->midevents())
+        needsCompatibilityBackup = needsCompatibilityBackup
+            || modifierListNeedsReview(event.modifiers);
+    for (const HEvent& event : pm->lowevents())
+        needsCompatibilityBackup = needsCompatibilityBackup
+            || modifierListNeedsReview(event.modifiers);
+    for (const BottomEvent& bottomEvent : pm->bottomevents()) {
+        needsCompatibilityBackup = needsCompatibilityBackup
+            || bottomEvent.extra_info.modifier_usage_needs_review
+            || modifierListNeedsReview(bottomEvent.extra_info.modifiers);
+    }
+
+    const QFileInfo originalFileInfo = pm->fileinfo();
+    if (needsCompatibilityBackup && originalFileInfo.exists()) {
+        const QString backupName =
+            originalFileInfo.completeBaseName()
+            + QStringLiteral(".pre-modifier-usage.")
+            + QUuid::createUuid().toString(QUuid::WithoutBraces)
+            + QStringLiteral(".dissco");
+        const QString backupPath =
+            originalFileInfo.absoluteDir().filePath(backupName);
+        // QFile::copy refuses to overwrite an existing file. Combined with a
+        // fresh UUID, every conversion save preserves the exact current input
+        // instead of silently reusing a stale backup from an earlier save.
+        if (!QFile::copy(originalFileInfo.absoluteFilePath(), backupPath)) {
+            QMessageBox::critical(
+                mainWindow, tr("Could not create compatibility backup"),
+                tr("The project was not saved because LASSIE could not "
+                   "preserve the original Modifier Group file at:\n%1")
+                    .arg(backupPath));
+            return false;
+        }
+        QMessageBox::information(
+                mainWindow, tr("Compatibility backup created"),
+                tr("This project contains legacy or incomplete Modifier "
+                   "Usage data. The original file was preserved at:\n%1\n\n"
+                   "The saved project will use only the new Modifier Usage "
+                   "format.")
+                    .arg(backupPath));
+    }
 
     // ensure directory exists before creating file
     QFileInfo fileInfo = pm->fileinfo();
@@ -143,16 +196,26 @@ void ProjectView::save(){
     if (!dir.exists()) {
         if (!dir.mkpath(".")) {
             qDebug() << "Failed to create directory:" << dir.absolutePath();
-            return;
+            QMessageBox::critical(
+                mainWindow, tr("Could not save project"),
+                tr("LASSIE could not create the project directory:\n%1")
+                    .arg(dir.absolutePath()));
+            return false;
         }
     }
 
-    // creates the file with the specified /path/name.dissco
-    QFile file(pm->fileinfo().absoluteFilePath());
+    // QSaveFile writes beside the destination and atomically replaces it only
+    // after the complete XML document has been written successfully.
+    QSaveFile file(pm->fileinfo().absoluteFilePath());
     if (!file.open(QIODevice::WriteOnly | QIODevice::Text)) {
         qDebug() << "Failed to open file:" << file.fileName();
         qDebug() << "Error reason:" << file.errorString();
-        return;
+        QMessageBox::critical(
+            mainWindow, tr("Could not save project"),
+            tr("LASSIE could not open the project file for writing:\n%1\n\n%2")
+                .arg(QDir::toNativeSeparators(file.fileName()),
+                     file.errorString()));
+        return false;
     }
     
     // QXmlStreamWriter class writes to the XML file
@@ -740,7 +803,47 @@ void ProjectView::save(){
 
         xmlWriter.writeEndElement();
     xmlWriter.writeEndElement();
-    file.close();
+    xmlWriter.writeEndDocument();
+
+    if (xmlWriter.hasError()) {
+        const QString error = file.errorString();
+        file.cancelWriting();
+        QMessageBox::critical(
+            mainWindow, tr("Could not save project"),
+            tr("An error occurred while writing the project file:\n%1\n\n%2")
+                .arg(QDir::toNativeSeparators(file.fileName()), error));
+        return false;
+    }
+    if (!file.commit()) {
+        QMessageBox::critical(
+            mainWindow, tr("Could not save project"),
+            tr("LASSIE could not replace the project file:\n%1\n\n%2")
+                .arg(QDir::toNativeSeparators(file.fileName()),
+                     file.errorString()));
+        return false;
+    }
+
+    // A successful migration save is the user's confirmation of the new
+    // format. Clear the transient review markers only after the file commit;
+    // otherwise a later normal save would back up the already-migrated XML.
+    const auto clearModifierReviewFlags = [](QList<Modifier>& modifiers) {
+        for (Modifier& modifier : modifiers)
+            modifier.usage_metadata_needs_review = false;
+    };
+    clearModifierReviewFlags(pm->topevent().modifiers);
+    for (HEvent& event : pm->highevents())
+        clearModifierReviewFlags(event.modifiers);
+    for (HEvent& event : pm->midevents())
+        clearModifierReviewFlags(event.modifiers);
+    for (HEvent& event : pm->lowevents())
+        clearModifierReviewFlags(event.modifiers);
+    for (BottomEvent& bottomEvent : pm->bottomevents()) {
+        bottomEvent.extra_info.modifier_usage_needs_review = false;
+        clearModifierReviewFlags(bottomEvent.extra_info.modifiers);
+    }
+
+    modifiedButNotSaved = false;
+    return true;
 }
 
 void ProjectView::setProperties() {

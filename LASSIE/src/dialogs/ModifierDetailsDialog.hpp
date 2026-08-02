@@ -15,14 +15,12 @@ class QPushButton;
  * Edits the synthesis parameters of one Modifier as an atomic draft.
  *
  * The compact Modifier row owns activation probability and conditional rules.
- * This dialog intentionally owns only effect parameters and legacy fields.
+ * This dialog intentionally owns only effect parameters.
  */
 class ModifierDetailsDialog : public QDialog
 {
 public:
     explicit ModifierDetailsDialog(const Modifier& modifier,
-                                   bool modifierUsageEnabled,
-                                   bool showLegacyFields,
                                    QWidget* parent = nullptr);
 
     Modifier resultModifier() const { return m_modifier; }
@@ -32,8 +30,7 @@ protected:
 
 private:
     enum Field {
-        Probability = 0,
-        Magnitude,
+        Magnitude = 0,
         Rate,
         Width,
         Spread,
@@ -59,7 +56,6 @@ private:
 
     Modifier m_modifier;
     QComboBox* m_applyCombo = nullptr;
-    QLineEdit* m_groupNameEdit = nullptr;
     QVector<FieldWidgets> m_fields;
 };
 

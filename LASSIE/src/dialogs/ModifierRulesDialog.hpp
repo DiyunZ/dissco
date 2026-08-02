@@ -13,8 +13,8 @@ class QTableWidget;
 /**
  * Edits a target modifier's conditional exceptions as one atomic draft.
  *
- * Every rule created here describes the complete ON/OFF state of all earlier
- * modifiers. That keeps contexts disjoint and makes rule order irrelevant.
+ * Each rule mentions only the earlier states that matter. Equal-specificity
+ * overlapping contexts are rejected so declaration order stays irrelevant.
  */
 class ModifierRulesDialog : public QDialog
 {
@@ -25,6 +25,9 @@ public:
 
     QList<ModifierChanceRule> resultRules() const { return m_rules; }
 
+protected:
+    void accept() override;
+
 private:
     void rebuildTable();
     void addRule();
@@ -33,6 +36,8 @@ private:
     QString conditionSummary(const ModifierChanceRule& rule) const;
     QString contextKey(const ModifierChanceRule& rule) const;
     bool hasDuplicateContext(const ModifierChanceRule& candidate,
+                             int ignoredIndex = -1) const;
+    bool hasAmbiguousContext(const ModifierChanceRule& candidate,
                              int ignoredIndex = -1) const;
     int selectedRuleIndex() const;
 
