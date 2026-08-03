@@ -793,6 +793,7 @@ void EventAttributesViewController::showCurrentEventData() {
             ui->spectrumNumPartialEntry->setText(event.num_partials);
             ui->spectrumNumPartialEntry->setEnabled(false); //gray out number of partials
             ui->spectrumDeviationEntry->setText(event.deviation);
+            ui->spectrumGenEntry->setText(event.generate_spectrum);
             ui->spectrumGenEntry->setEnabled(false);
 
             // Clear all existing Partials widgets so the panel reflects the new event
@@ -1243,15 +1244,14 @@ void EventAttributesViewController::addPartialsUI(int partialIndex) {
             m_partials[i]->setPartialIndex(i);
         }
         fixStackedWidgetLayout(ui->soundPage);
-        ui->spectrumNumPartialEntry->setText(QString::number(partials2.size()));
+        ui->spectrumNumPartialEntry->setText(
+            ModifierUiPolicy::partialCountAfterExplicitListChange(
+                ui->spectrumNumPartialEntry->text(), partials2.size()));
     });
     m_partials.append(par);
     ui->partialsLayout->addWidget(par);
     fixStackedWidgetLayout(ui->soundPage);
 
-    ProjectManager *pm = Inst::get_project_manager();
-    Spectrum* sevent = &pm->spectrumevents()[m_curreventindex].spectrum;
-    ui->spectrumNumPartialEntry->setText(QString::number(sevent->partials.size()));
 }
 
 
@@ -1264,6 +1264,9 @@ void EventAttributesViewController::addPartialButtonClicked() {
     sevent->partials.append("");
 
     addPartialsUI(sevent->partials.size()-1);
+    ui->spectrumNumPartialEntry->setText(
+        ModifierUiPolicy::partialCountAfterExplicitListChange(
+            ui->spectrumNumPartialEntry->text(), sevent->partials.size()));
 }
 
 QList<Modifier>* EventAttributesViewController::currentModifierList()

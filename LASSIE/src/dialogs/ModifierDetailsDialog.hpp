@@ -11,6 +11,10 @@ class QLabel;
 class QLineEdit;
 class QPushButton;
 
+namespace ModifierUiPolicy {
+struct PartialRowConstraint;
+}
+
 /**
  * Edits the synthesis parameters of one Modifier as an atomic draft.
  *
@@ -21,6 +25,8 @@ class ModifierDetailsDialog : public QDialog
 {
 public:
     explicit ModifierDetailsDialog(const Modifier& modifier,
+                                   Eventtype eventType,
+                                   unsigned eventIndex,
                                    QWidget* parent = nullptr);
 
     Modifier resultModifier() const { return m_modifier; }
@@ -52,9 +58,11 @@ private:
     void editField(Field field);
     QString valueFor(Field field) const;
     void setValue(Field field, const QString& value);
-    int maximumSpectrumPartialCount() const;
+    ModifierUiPolicy::PartialRowConstraint partialRowConstraint() const;
 
     Modifier m_modifier;
+    Eventtype m_eventType = bottom;
+    unsigned m_eventIndex = 0;
     QComboBox* m_applyCombo = nullptr;
     QVector<FieldWidgets> m_fields;
 };

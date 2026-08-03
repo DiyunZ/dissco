@@ -160,7 +160,8 @@ void Modifiers::updateRow()
 
 void Modifiers::openParameters()
 {
-    ModifierDetailsDialog dialog(backendModifier(), this);
+    ModifierDetailsDialog dialog(
+        backendModifier(), m_eventType, m_eventIndex, this);
     if (dialog.exec() != QDialog::Accepted)
         return;
 
