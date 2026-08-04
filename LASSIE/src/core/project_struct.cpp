@@ -4,6 +4,7 @@ in the associated window (currently, the project view).
 */
 #include "project_struct.hpp"
 #include "event_struct.hpp"
+#include "ProjectXmlWriter.hpp"
 
 #include "../../LASS/src/LASS.h"
 #include "EnvelopeLibraryEntry.hpp"
@@ -898,31 +899,8 @@ void ProjectManager::addEvent(Eventtype newEvent, QString eventName) {
 }
 
 void ProjectManager::writeSeedEntry(const QString& seed) const {
-    QString filepath = curr_project_->fileinfo.absoluteFilePath();
-
-    QFile file(filepath);
-    if (!file.open(QIODevice::ReadOnly | QIODevice::Text))
-        return;
-    QDomDocument doc;
-    doc.setContent(&file);
-    file.close();
-
-    QDomElement seedEl = doc.documentElement()
-        .firstChildElement("ProjectConfiguration")
-        .firstChildElement("Seed");
-
-    if (!seedEl.isNull()) {
-        QDomNode text = seedEl.firstChild();
-        if (!text.isNull())
-            seedEl.removeChild(text);
-        seedEl.appendChild(doc.createTextNode(seed));
-    }
-
-    if (!file.open(QIODevice::WriteOnly | QIODevice::Text))
-        return;
-    QTextStream out(&file);
-    out << doc.toString();
-    file.close();
+    ProjectXmlWriter::updateProjectSeed(
+        curr_project_->fileinfo.absoluteFilePath(), seed);
 }
 
 void ProjectManager::markModified() {

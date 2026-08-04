@@ -1,6 +1,9 @@
 #include "ProjectXmlWriter.hpp"
 
 #include <QDomDocument>
+#include <QFile>
+#include <QSaveFile>
+#include <QTextStream>
 #include <QXmlStreamWriter>
 
 namespace {
@@ -166,4 +169,40 @@ void ProjectXmlWriter::writeBottomExtraInfo(QXmlStreamWriter& writer,
         writeModifier(writer, modifier);
     writer.writeEndElement();
     writer.writeEndElement();
+}
+
+bool ProjectXmlWriter::updateProjectSeed(const QString& filePath,
+                                         const QString& seed)
+{
+    QFile input(filePath);
+    if (!input.open(QIODevice::ReadOnly | QIODevice::Text))
+        return false;
+
+    QDomDocument document;
+    if (!document.setContent(&input))
+        return false;
+    input.close();
+
+    QDomElement seedElement = document.documentElement()
+        .firstChildElement(QStringLiteral("ProjectConfiguration"))
+        .firstChildElement(QStringLiteral("Seed"));
+    if (seedElement.isNull())
+        return false;
+
+    while (!seedElement.firstChild().isNull())
+        seedElement.removeChild(seedElement.firstChild());
+    seedElement.appendChild(document.createTextNode(seed));
+
+    QSaveFile output(filePath);
+    if (!output.open(QIODevice::WriteOnly | QIODevice::Text))
+        return false;
+
+    QTextStream stream(&output);
+    stream << document.toString();
+    stream.flush();
+    if (stream.status() != QTextStream::Ok) {
+        output.cancelWriting();
+        return false;
+    }
+    return output.commit();
 }

@@ -89,13 +89,14 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 
 /**
 *	\var SoundStaticParam DETUNE_DIRECTION
-*		- -1.0 means do detuning (divergence)
-*		- +1.0 means do tuning (convergence)
+*		- Negative values mean detuning (divergence)
+*		- Positive values mean tuning (convergence)
+*		- Sound::setDetune() stores the direction canonically as -1.0 or +1.0
 **/
 
 /**
 *	\var SoundStaticParam DETUNE_VELOCITY
-*		- Values over [0.0, 1.0]
+*		- Values over [-1.0, 1.0]
 *		- For VELOCITY=0.5, the transition will be linear from start
 *		  to end.  For any other value, the transition will be 
 *		  exponentially interpolated.

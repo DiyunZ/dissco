@@ -20,6 +20,10 @@ void writeModifier(QXmlStreamWriter& writer, const Modifier& modifier);
 // phase and any modifiers.
 void writeBottomExtraInfo(QXmlStreamWriter& writer, const ExtraInfo& extraInfo);
 
+// Update a project's seed without risking truncation when its XML cannot be
+// parsed or the replacement file cannot be written completely.
+bool updateProjectSeed(const QString& filePath, const QString& seed);
+
 } // namespace ProjectXmlWriter
 
 #endif // PROJECTXMLWRITER_HPP

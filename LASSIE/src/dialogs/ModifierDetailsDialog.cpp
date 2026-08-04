@@ -12,6 +12,7 @@
 #include <QGroupBox>
 #include <QLabel>
 #include <QLineEdit>
+#include <QLocale>
 #include <QMessageBox>
 #include <QPushButton>
 #include <QSet>
@@ -92,9 +93,20 @@ void ModifierDetailsDialog::addFieldRow(QGridLayout* layout, int row,
     auto* button = new QPushButton(
         field == PartialResult ? tr("Customize...") : tr("Insert Function"), this);
     if (field == Spread || field == Direction || field == Velocity) {
-        edit->setPlaceholderText(tr("Numeric value"));
+        edit->setPlaceholderText(
+            field == Direction
+                ? tr("Negative = detune; positive = tune")
+                : tr("Numeric value"));
         auto* validator = new QDoubleValidator(edit);
         validator->setNotation(QDoubleValidator::StandardNotation);
+        validator->setLocale(QLocale::c());
+        if (field == Spread) {
+            validator->setBottom(0.0);
+            validator->setTop(1.0);
+        } else if (field == Velocity) {
+            validator->setBottom(-1.0);
+            validator->setTop(1.0);
+        }
         edit->setValidator(validator);
         button->setVisible(false);
     }
@@ -462,10 +474,34 @@ void ModifierDetailsDialog::accept()
             widgets.edit->setFocus();
             return;
         }
+        if (widgets.field == Direction) {
+            bool validDirection = false;
+            const double direction = value.toDouble(&validDirection);
+            if (!validDirection || !std::isfinite(direction)
+                || direction == 0.0) {
+                QMessageBox::warning(
+                    this, tr("Invalid Detune direction"),
+                    tr("Enter a negative value to detune or a positive "
+                       "value to tune. Direction cannot be zero."));
+                widgets.edit->setFocus();
+                return;
+            }
+        }
     }
 
     m_modifier.applyhow_flag = applyByPartial;
-    for (const FieldWidgets& widgets : m_fields)
-        setValue(widgets.field, widgets.edit->text());
+    for (const FieldWidgets& widgets : m_fields) {
+        if (widgets.field == Direction
+            && ModifierUiPolicy::fieldEnabled(
+                static_cast<int>(m_modifier.type),
+                static_cast<int>(widgets.field), applyByPartial)) {
+            const double direction = widgets.edit->text().toDouble();
+            setValue(widgets.field,
+                     direction < 0.0 ? QStringLiteral("-1")
+                                     : QStringLiteral("1"));
+        } else {
+            setValue(widgets.field, widgets.edit->text());
+        }
+    }
     QDialog::accept();
 }

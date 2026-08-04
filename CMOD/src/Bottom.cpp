@@ -1616,6 +1616,43 @@ void Bottom::applyModifierUsage(Sound *s, int numPartials) {
     const string directionStr = XMLTC(modifierElement.child("DetuneDirection"));
     const string velocityStr = XMLTC(modifierElement.child("DetuneVelocity"));
 
+    double detuneSpread = 0.0;
+    double detuneDirection = 0.0;
+    double detuneVelocity = 0.0;
+    if (!applyByPartial && modType == "DETUNE") {
+      if (isUnavailable(spreadStr) || isUnavailable(directionStr)
+          || isUnavailable(velocityStr)) {
+        runtimeError("DETUNE modifier '" + usageId
+                     + "' requires spread, direction, and velocity.");
+        continue;
+      }
+      if (!parseStrictDouble(spreadStr.c_str(), detuneSpread)
+          || !std::isfinite(detuneSpread)
+          || detuneSpread < 0.0 || detuneSpread > 1.0) {
+        runtimeError("DETUNE modifier '" + usageId
+                     + "' has an invalid spread; expected a finite value "
+                       "between 0 and 1.");
+        continue;
+      }
+      if (!parseStrictDouble(directionStr.c_str(), detuneDirection)
+          || !std::isfinite(detuneDirection)
+          || detuneDirection == 0.0) {
+        runtimeError("DETUNE modifier '" + usageId
+                     + "' has an invalid direction; expected a finite, "
+                       "non-zero value.");
+        continue;
+      }
+      if (!parseStrictDouble(velocityStr.c_str(), detuneVelocity)
+          || !std::isfinite(detuneVelocity)
+          || detuneVelocity < -1.0 || detuneVelocity > 1.0) {
+        runtimeError("DETUNE modifier '" + usageId
+                     + "' has an invalid velocity; expected a finite value "
+                       "between -1 and 1.");
+        continue;
+      }
+      detuneDirection = detuneDirection < 0.0 ? -1.0 : 1.0;
+    }
+
     auto addEnvelope = [this, &runtimeError, &usageId](
                            Modifier& modifier,
                            const string& value,
@@ -1639,14 +1676,10 @@ void Bottom::applyModifierUsage(Sound *s, int numPartials) {
       auto effect = std::make_unique<Modifier>(modType, nullptr, "SOUND");
       int envelopeCount = 0;
       envelopeCount += addEnvelope(*effect, ampStr, "Amplitude") ? 1 : 0;
-      if (!isUnavailable(spreadStr)) {
-        effect->addSpread(atof(spreadStr.c_str()));
-      }
-      if (!isUnavailable(directionStr)) {
-        effect->addDirection(atof(directionStr.c_str()));
-      }
-      if (!isUnavailable(velocityStr)) {
-        effect->addVelocity(atof(velocityStr.c_str()));
+      if (modType == "DETUNE") {
+        effect->addSpread(detuneSpread);
+        effect->addDirection(detuneDirection);
+        effect->addVelocity(detuneVelocity);
       }
       envelopeCount += addEnvelope(*effect, rateStr, "Rate") ? 1 : 0;
       envelopeCount += addEnvelope(*effect, widthStr, "Width") ? 1 : 0;
@@ -1665,14 +1698,6 @@ void Bottom::applyModifierUsage(Sound *s, int numPartials) {
                      + "' is missing a required parameter envelope.");
         continue;
       }
-      if (modType == "DETUNE"
-          && (isUnavailable(spreadStr) || isUnavailable(directionStr)
-              || isUnavailable(velocityStr))) {
-        runtimeError("DETUNE modifier '" + usageId
-                     + "' requires spread, direction, and velocity.");
-        continue;
-      }
-
       modifiersById[usageId].push_back(
           RuntimeModifier{std::move(effect), false});
       continue;

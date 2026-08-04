@@ -6,6 +6,7 @@
 
 #include <QObject>
 
+#include <cmath>
 #include <limits>
 #include <utility>
 
@@ -43,6 +44,41 @@ void validateEffectParameters(const Modifier& modifier,
                     .arg(field));
         }
     };
+    const auto requireRange = [&](const QString& value,
+                                  const QString& field,
+                                  double minimum,
+                                  double maximum) {
+        if (!hasConfiguredValue(value)) {
+            require(value, field);
+            return;
+        }
+        bool valid = false;
+        const double number = value.trimmed().toDouble(&valid);
+        if (!valid || !std::isfinite(number)
+            || number < minimum || number > maximum) {
+            diagnostics.append(
+                QObject::tr("Modifier %1: %2 must be between %3 and %4.")
+                    .arg(oneBasedPosition)
+                    .arg(field)
+                    .arg(minimum)
+                    .arg(maximum));
+        }
+    };
+    const auto requireDirection = [&](const QString& value) {
+        const QString field = QObject::tr("Detune Direction");
+        if (!hasConfiguredValue(value)) {
+            require(value, field);
+            return;
+        }
+        bool valid = false;
+        const double direction = value.trimmed().toDouble(&valid);
+        if (!valid || !std::isfinite(direction) || direction == 0.0) {
+            diagnostics.append(
+                QObject::tr("Modifier %1: Detune Direction must be a "
+                            "finite, non-zero number.")
+                    .arg(oneBasedPosition));
+        }
+    };
 
     if (modifier.applyhow_flag) {
         const QString error = PartialModifierFormat::validationError(
@@ -69,9 +105,11 @@ void validateEffectParameters(const Modifier& modifier,
         require(modifier.amplitude, QObject::tr("Magnitude"));
         break;
     case 3: // Detune
-        require(modifier.detune_spread, QObject::tr("Detune Spread"));
-        require(modifier.detune_direction, QObject::tr("Detune Direction"));
-        require(modifier.detune_velocity, QObject::tr("Detune Velocity"));
+        requireRange(modifier.detune_spread,
+                     QObject::tr("Detune Spread"), 0.0, 1.0);
+        requireDirection(modifier.detune_direction);
+        requireRange(modifier.detune_velocity,
+                     QObject::tr("Detune Velocity"), -1.0, 1.0);
         break;
     case 4: // Amplitude Transient
     case 5: // Frequency Transient
