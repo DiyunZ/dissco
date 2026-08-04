@@ -23,8 +23,8 @@ class ProjectView : public QObject {
         ProjectView(MainWindow* _mainWindow, QString _pathAndName);
         ~ProjectView() override;
 
-        /* function to write to the xml .dissco file */
-        void save();
+        /* Write the XML .dissco file; false means nothing was committed. */
+        bool save();
         void writeInlineXml(QXmlStreamWriter& xmlWriter, const QString& xmlString);
 
         /* set properties pop up function */

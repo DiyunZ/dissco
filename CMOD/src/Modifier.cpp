@@ -193,6 +193,12 @@ bool Modifier::willOccur(double checkPoint) {
 
 //----------------------------------------------------------------------------//
 
+void Modifier::setCheckPoint(double checkPoint) {
+  checkPt = checkPoint;
+}
+
+//----------------------------------------------------------------------------//
+
 void Modifier::applyModifier(Sound* snd) {
   if (applyHow == "SOUND") {
     applyModSound(snd);

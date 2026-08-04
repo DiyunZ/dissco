@@ -39,6 +39,22 @@ QString translated(const char* source)
     return QCoreApplication::translate("PartialModifierDialog", source);
 }
 
+bool hasConfiguredValue(const QString& value)
+{
+    const QString normalized = value.trimmed();
+    return !normalized.isEmpty()
+        && normalized.compare(QStringLiteral("N/A"), Qt::CaseInsensitive) != 0;
+}
+
+QString missingEffectError(int zeroBasedRow, const QString& effect)
+{
+    return QCoreApplication::translate(
+               "PartialModifierDialog",
+               "Partial %1 is enabled but has no %2 envelope.")
+        .arg(zeroBasedRow + 1)
+        .arg(effect);
+}
+
 } // namespace
 
 QString PartialModifierFormat::normalizedValue(const QString& value, bool enabled)
@@ -46,7 +62,11 @@ QString PartialModifierFormat::normalizedValue(const QString& value, bool enable
     if (!enabled)
         return QStringLiteral("N/A");
     const QString trimmed = value.trimmed();
-    return trimmed.isEmpty() ? QStringLiteral("N/A") : trimmed;
+    if (trimmed.isEmpty()
+        || trimmed.compare(QStringLiteral("N/A"), Qt::CaseInsensitive) == 0) {
+        return QStringLiteral("N/A");
+    }
+    return trimmed;
 }
 
 QVector<PartialModifierFormat::Values>
@@ -114,11 +134,65 @@ QString PartialModifierFormat::serialize(const QVector<Values>& partials)
     for (const Values& row : partials) {
         result += envelopeXml(normalizedValue(row.probability, true));
         result += envelopeXml(normalizedValue(row.magnitude, true));
-        // CMOD's legacy PARTIAL wire format always has four slots. PHASE_MOD
-        // does not consume width, so keep the placeholder explicit.
-        result += envelopeXml(QStringLiteral("N/A"));
+        // Keep all four legacy slots. The editor supplies N/A for a field the
+        // selected modifier type does not consume; transient modifiers retain
+        // their real Width envelope here.
+        result += envelopeXml(normalizedValue(row.width, true));
         result += envelopeXml(normalizedValue(row.rate, true));
     }
     result += QStringLiteral("</Envelopes></Fun>");
     return result;
+}
+
+QString PartialModifierFormat::validationError(int modifierType,
+                                               const QString& source)
+{
+    QString warning;
+    const QVector<Values> values = parse(source, &warning);
+    if (!warning.isEmpty())
+        return warning;
+    if (values.isEmpty())
+        return translated("Configure at least one partial row.");
+
+    for (int row = 0; row < values.size(); ++row) {
+        const Values& value = values[row];
+        if (!hasConfiguredValue(value.probability))
+            continue;
+
+        const auto require = [&](const QString& effectValue,
+                                 const char* effectName) -> QString {
+            return hasConfiguredValue(effectValue)
+                ? QString()
+                : missingEffectError(row, translated(effectName));
+        };
+
+        QString error;
+        switch (modifierType) {
+        case 0: // Tremolo
+        case 1: // Vibrato
+        case 7: // Phase Modulation
+            error = require(value.magnitude, "Magnitude");
+            if (error.isEmpty())
+                error = require(value.rate, "Rate");
+            break;
+        case 2: // Glissando
+        case 3: // Detune
+        case 6: // Wave Type
+            error = require(value.magnitude, "Magnitude");
+            break;
+        case 4: // Amplitude Transient
+        case 5: // Frequency Transient
+            error = require(value.magnitude, "Magnitude");
+            if (error.isEmpty())
+                error = require(value.width, "Width");
+            if (error.isEmpty())
+                error = require(value.rate, "Rate");
+            break;
+        default:
+            return translated("The selected modifier type is not supported.");
+        }
+        if (!error.isEmpty())
+            return error;
+    }
+    return {};
 }

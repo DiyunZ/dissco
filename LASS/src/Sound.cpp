@@ -31,6 +31,8 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #include "Score.h"
 #include "Loudness.h"
 
+#include <cmath>
+
 //----------------------------------------------------------------------------//
 Sound::Sound()
 {
@@ -45,6 +47,7 @@ Sound::Sound()
     filterObj = NULL;
     reverbObj = NULL;
     spatializer_ = new Spatializer();
+    spa_modified_ = false;
 }
   
 //----------------------------------------------------------------------------//
@@ -141,26 +144,31 @@ void Sound::setPartialParam(PartialDynamicParam p, m_value_type v)
 //----------------------------------------------------------------------------//
 void Sound::setDetune(double direction, double spread, double velocity){
 
-  if ( !(direction != -1 || direction != 1 )){
-    cerr << "ERROR: Sound: out of range for DETUNE_DIRECTION." << endl;
+  // Preserve the historical all-zero sentinel as an explicit no-op.
+  if (spread == 0.0 && direction == 0.0 && velocity == 0.0){
 		return;
   }
 
-  if (spread < 0 or spread > 1){ 		
-    cerr << "ERROR: Sound: out of range DETUNE_SPREAD.Should be a percent" << endl;
+  if (!std::isfinite(direction) || direction == 0.0){
+    cerr << "ERROR: Sound: DETUNE_DIRECTION must be a finite, non-zero value."
+         << endl;
 		return;
   }
 
-  if ( velocity < -1 or velocity > 1 ){
-    cerr << "ERROR: Sound: out of range for DETUNE_VELOCITY" << endl;
+  if (!std::isfinite(spread) || spread < 0.0 || spread > 1.0){
+    cerr << "ERROR: Sound: DETUNE_SPREAD must be between 0 and 1." << endl;
 		return;
   }
 
-  if (spread == 0 and direction == 0 and velocity == 0){
+  if (!std::isfinite(velocity) || velocity < -1.0 || velocity > 1.0){
+    cerr << "ERROR: Sound: DETUNE_VELOCITY must be between -1 and 1." << endl;
 		return;
   }
 
-  setParam(DETUNE_DIRECTION,direction);
+  // Direction is a sign, not a magnitude. Canonicalizing here keeps the
+  // renderer's two envelope branches compatible with legacy positive and
+  // negative values such as 0.5 and -0.5.
+  setParam(DETUNE_DIRECTION, direction < 0.0 ? -1.0 : 1.0);
   setParam(DETUNE_SPREAD,spread);
   setParam(DETUNE_VELOCITY, velocity);
 //   setParam(DETUNE_FUNDAMENTAL, 1);
@@ -419,7 +427,7 @@ cout << 	"Final spread= " << spread << endl;
   y[1] += 1.0;
   y[2] += 1.0;
 	
-  if(getParam(DETUNE_DIRECTION) == -1.0) // divergence (detuning)
+  if(getParam(DETUNE_DIRECTION) < 0.0) // divergence (detuning)
   {
 //cout << "		diverging (detuning)" << endl;
   detuning_env->addEntry(x[0], y[2]);
@@ -431,7 +439,7 @@ cout << "  x1=" << x[1] << " y1=" << y[1] << endl;
 cout << "  x2=" << x[2] << " y0=" << y[0] << endl;
 //int sever; cin >> sever;
 */
-  } else if(getParam(DETUNE_DIRECTION) == 1.0) {      // convergence (tuning)
+  } else if(getParam(DETUNE_DIRECTION) > 0.0) {      // convergence (tuning)
 //cout << "		 converging (tuning)" << endl;
   detuning_env->addEntry(x[0], y[0]);
   detuning_env->addEntry(x[1], y[1]);
@@ -486,7 +494,7 @@ cout <<         "Final spread= " << spread << endl;
   y[1] += 1.0;
   y[2] += 1.0;
 
-  if(getParam(DETUNE_DIRECTION) == -1.0) // divergence (detuning)
+  if(getParam(DETUNE_DIRECTION) < 0.0) // divergence (detuning)
   {
 //cout << "			divergence (detuning)" << endl;
   detuning_env->addEntry(x[0], y[2]);
@@ -497,7 +505,7 @@ cout << "  x0=" << x[0] << " y2=" << y[2] << endl;
 cout << "  x1=" << x[1] << " y1=" << y[1] << endl;
 cout << "  x2=" << x[2] << " y0=" << y[0] << endl;
 */
-  } else if(getParam(DETUNE_DIRECTION) == 1.0) {      // convergence (tuning)
+  } else if(getParam(DETUNE_DIRECTION) > 0.0) {      // convergence (tuning)
   
 //cout << "			convergence (tuning)" << endl;
   detuning_env->addEntry(x[0], y[0]);
@@ -590,12 +598,24 @@ void Sound::xml_read(XmlReader::xmltag* soundtag, DISSCO_HASHMAP<long, Reverb *>
 		setParam(LOUDNESS, atof(value));
 	if((value = soundtag->findChildParamValue("loudness_rate","value")) != 0)
 		setParam(LOUDNESS_RATE, atof(value));
-	if((value = soundtag->findChildParamValue("detune_spread","value")) != 0)
-		setParam(DETUNE_SPREAD, atof(value));
-	if((value = soundtag->findChildParamValue("detune_direction","value")) != 0)
-		setParam(DETUNE_DIRECTION, atof(value));
-	if((value = soundtag->findChildParamValue("detune_velocity","value")) != 0)
-		setParam(DETUNE_VELOCITY, atof(value));
+	double detuneSpread = getParam(DETUNE_SPREAD);
+	double detuneDirection = getParam(DETUNE_DIRECTION);
+	double detuneVelocity = getParam(DETUNE_VELOCITY);
+	bool hasDetuneParameters = false;
+	if((value = soundtag->findChildParamValue("detune_spread","value")) != 0) {
+		detuneSpread = atof(value);
+		hasDetuneParameters = true;
+	}
+	if((value = soundtag->findChildParamValue("detune_direction","value")) != 0) {
+		detuneDirection = atof(value);
+		hasDetuneParameters = true;
+	}
+	if((value = soundtag->findChildParamValue("detune_velocity","value")) != 0) {
+		detuneVelocity = atof(value);
+		hasDetuneParameters = true;
+	}
+	if(hasDetuneParameters)
+		setDetune(detuneDirection, detuneSpread, detuneVelocity);
 	if((value = soundtag->findChildParamValue("detune_fundamental","value")) != 0)
 		setParam(DETUNE_FUNDAMENTAL, atof(value));
 	

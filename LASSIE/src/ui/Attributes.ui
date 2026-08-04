@@ -908,24 +908,50 @@
                         </layout>
                         </item>
                         <item>
-                        <widget class="QWidget" name="modGroupContainer">
-                        <layout class="QHBoxLayout" name="modGroupLayout">
-                            <item>
-                                <widget class="QLabel" name="modGroupLabel">
-                                <property name="text"><string>Modifier Group(Optional):</string></property>
-                                </widget>
-                            </item>
-                            <item>
-                                <widget class="QLineEdit" name="modifierGroupEntry"/>
-                            </item>
-                            <item>
-                                <widget class="QPushButton" name="BSModifierGroupButton">
-                                <property name="text">
-                                    <string>Insert Function</string>
-                                </property>
-                                </widget>
-                            </item>
-                        </layout>
+                        <widget class="QGroupBox" name="modifierUsageControls">
+                            <property name="title">
+                                <string>Modifier selection</string>
+                            </property>
+                            <layout class="QVBoxLayout" name="modifierUsageControlsLayout">
+                                <item>
+                                <layout class="QHBoxLayout" name="modifierSamplingScopeLayout">
+                                    <item>
+                                        <widget class="QLabel" name="modifierSamplingScopeLabel">
+                                            <property name="text">
+                                                <string>Sampling scope:</string>
+                                            </property>
+                                        </widget>
+                                    </item>
+                                    <item>
+                                        <widget class="QComboBox" name="modifierSamplingScopeCombo">
+                                            <property name="toolTip">
+                                                <string>Choose whether each sound gets its own modifier selection or every sound in this Bottom event shares one selection.</string>
+                                            </property>
+                                            <item>
+                                                <property name="text">
+                                                    <string>Per sound</string>
+                                                </property>
+                                            </item>
+                                            <item>
+                                                <property name="text">
+                                                    <string>Once per Bottom event</string>
+                                                </property>
+                                            </item>
+                                        </widget>
+                                    </item>
+                                </layout>
+                                </item>
+                                <item>
+                                    <widget class="QLabel" name="modifierUsageSummaryLabel">
+                                        <property name="text">
+                                            <string>Modifiers are evaluated in list order. Add an exception only when an earlier result changes a modifier's chance.</string>
+                                        </property>
+                                        <property name="wordWrap">
+                                            <bool>true</bool>
+                                        </property>
+                                    </widget>
+                                </item>
+                            </layout>
                         </widget>
                         </item>
                         <item>

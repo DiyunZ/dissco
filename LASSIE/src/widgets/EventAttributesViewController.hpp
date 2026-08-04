@@ -43,7 +43,6 @@ typedef enum {
     attributesFilBuilderFunButton,
     BSLoudnessFunButton,
     BSPhaseFunButton,
-    BSModGroupFunButton,
     BSWellTemperedFunButton,
     BSFunFreq1FunButton,
     BSFunFreq2FunButton,
@@ -137,8 +136,6 @@ private slots:
     // void BSSpatializationButtonClicked();
     // void BSReverbButtonClicked();
     // void BSFilterButtonClicked();
-    void BSModifierGroupButtonClicked();
-
     void wellTemperedRadioButtonClicked();
     void fundamentalRadioButtonClicked();
     void continuumRadioButtonClicked();
@@ -151,6 +148,7 @@ private slots:
     void addNewLayerButtonClicked();
     void addModifierButtonClicked();
     void addPartialButtonClicked();
+    void modifierSamplingScopeChanged(int index);
 
     // // tempo controls
     void tempoAsNoteValueButtonClicked();
@@ -186,6 +184,15 @@ private:
     void addLayerBoxUI(int layerIndex);
     void addPartialsUI(int partialIndex);
     void addModifiersUI(int modifierIndex);
+    QList<Modifier>* currentModifierList();
+    ExtraInfo* currentBottomExtraInfo();
+    void rebuildModifierRows();
+    void updateModifierUsageUi();
+    void updateModifierUsageSummary();
+    void deleteModifierRow(Modifiers* row);
+    void moveModifierRow(Modifiers* row, int offset);
+    bool modifierOrderIsValid(const QList<Modifier>& modifiers,
+                              QString* explanation = nullptr) const;
     void insertFunctionString(FunctionButton fn);
     void fixStackedWidgetLayout(QWidget* currPage);
 };

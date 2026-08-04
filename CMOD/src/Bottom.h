@@ -43,6 +43,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #include "Random.h"
 #include "Piece.h"
 #include "Patter.h"
+#include <memory>
 #include "ProbabilityEnvelope.h" // consider moving this into LASS.h
 #include <string>
 #include <stdlib.h>
@@ -64,7 +65,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
  * @brief Concrete leaf @ref Event that produces Sounds and Notes.
  *
  * Bottom keeps the XML element handles for the per-event attribute blocks
- * (frequency, loudness, modifiers, modifier group, ancestor modifiers) and
+ * (frequency, loudness, modifiers, and ancestor modifiers) and
  * recomputes them for every child it emits — the same Bottom can produce
  * different frequencies / loudnesses on successive children when the
  * driving expressions contain randomness.
@@ -85,10 +86,15 @@ class Bottom : public Event {
     /** Fixed carrier phase offset, expressed in normalized cycles. */
     pugi::xml_node phaseElement;
     pugi::xml_node modifiersElement;
-    /* ZIYUAN CHEN, July 2023 - The "Modifier Group" is only present
-       in Bottom events, so this element doesn't appear in Event.h */
-    pugi::xml_node modifierGroupElement;
     pugi::xml_node ancestorModifiersElement;
+
+    /**
+     * Conditional Modifier Usage is deliberately opaque here. Its
+     * implementation owns the validated shared Program, the resolved IDs
+     * used by the XML adapter, and the PerBottom selection cache.
+     */
+    struct ModifierUsageRuntime;
+    std::unique_ptr<ModifierUsageRuntime> modifierUsageRuntime;
 
     //Current partial during the processing of the event
     int currPartialNum;
@@ -470,22 +476,16 @@ class Bottom : public Event {
                                string applyHow,
                                int numPartials);
 
-    /**
-    *  Use of modifiers: tremolo, vibrato, transients. Makes 3 lists/maps -
-    *  one for modifiers with no dependencies, one for modifiers grouped
-    *  together, and one for modifiers with direct dependencies on other
-    *  modifiers. It goes through each list (in the order mentioned) to
-    *  find which modifiers to use and their respective values and applies
-    *  each of them.
-    **/
+    /** Select and apply modifiers using conditional Modifier Usage. */
     void applyModifiers(Sound *s, int numPartials);
+    void initializeModifierUsage(pugi::xml_node modifierUsageElement);
+    void applyModifierUsage(Sound *s, int numPartials);
 
     /**
-     *  Apply modifiers for a note.
-     **/
+    *  Apply modifiers for a note.
+    **/
     //  vector<string> applyNoteModifiers();
     vector<string> applyNoteModifiers(pugi::xml_node _playingMethods);
-    vector<string> applyNoteModifiersOld();
     // multistaffs
     /**
      *  Apply staff for a note.

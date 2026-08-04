@@ -1,65 +1,50 @@
 #ifndef MODIFIERS_HPP
 #define MODIFIERS_HPP
 
-#include <QWidget>
-#include <QString>
 #include <QFrame>
 
 #include "../core/event_struct.hpp"
-
-typedef enum {
-    modProbabilityChanged,
-    modMagnitudeChanged,
-    modRateChanged,
-    modWidthChanged,
-    modPartialChanged,
-    modSpreadChanged,
-    modDirChanged,
-    modVelChanged,
-    modNameChanged
-} ModChanged;
-
-
-class EventAttributesViewController;
 
 namespace Ui {
 class Modifiers;
 }
 
+/**
+ * Compact ordered row for one configured Modifier instance.
+ *
+ * Activation settings stay visible in the list. Detailed synthesis fields and
+ * conditional exceptions are edited atomically in dialogs.
+ */
 class Modifiers : public QFrame
 {
     Q_OBJECT
 
 public:
-    /*Constructor to create the modifier*/
-    Modifiers(Eventtype eventType, unsigned eventIndex, int modifierIndex, QWidget *parent = nullptr);
-    /*Destructor to delete the UI*/
+    Modifiers(Eventtype eventType, unsigned eventIndex, int modifierIndex,
+              QWidget* parent = nullptr);
     ~Modifiers() override;
-    void setModifierIndex(int modifierIndex) {  m_modifierIndex = modifierIndex; }
+
+    void setModifierIndex(int modifierIndex);
     void saveModifierToBackend();
-    void setModifierData(Modifier& modData);
-    
-    Ui::Modifiers *ui;
 
 signals:
     void deleteRequested(Modifiers* self);
-
-private slots:
-    void modFunctionButtonClicked(ModChanged type);
-    void modRemoveButtonClicked();
-    void modTextChanged(ModChanged type);
+    void moveUpRequested(Modifiers* self);
+    void moveDownRequested(Modifiers* self);
+    void dataChanged();
 
 private:
-    void setupUi();
-    void updateModState();
+    Modifier& backendModifier();
+    QList<Modifier>& backendModifierList();
+    int currentModifierType() const;
+    void updateRow();
+    void openParameters();
+    void openRules();
 
-    Modifier& getBackendLayer();
-
+    Ui::Modifiers* ui;
     Eventtype m_eventType;
-    unsigned  m_eventIndex;
-    int       m_modifierIndex;
-
-
+    unsigned m_eventIndex;
+    int m_modifierIndex;
 };
 
 #endif // MODIFIERS_HPP

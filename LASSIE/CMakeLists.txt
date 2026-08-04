@@ -19,8 +19,11 @@ qt_add_executable(LASSIE
     src/widgets/EnvLibDrawingArea.cpp src/widgets/EnvLibDrawingArea.hpp 
     src/core/EnvelopeLibraryEntry.cpp src/core/EnvelopeLibraryEntry.hpp
     src/core/ProjectXmlWriter.cpp src/core/ProjectXmlWriter.hpp
+    src/core/ModifierUsageQtAdapter.cpp src/core/ModifierUsageQtAdapter.hpp
     src/dialogs/FunctionGenerator.cpp src/dialogs/FunctionGenerator.hpp src/ui/FunctionGenerator.ui
     src/dialogs/PartialModifierDialog.cpp src/dialogs/PartialModifierDialog.hpp
+    src/dialogs/ModifierDetailsDialog.cpp src/dialogs/ModifierDetailsDialog.hpp
+    src/dialogs/ModifierRulesDialog.cpp src/dialogs/ModifierRulesDialog.hpp
     src/dialogs/PartialModifierFormat.cpp src/dialogs/PartialModifierFormat.hpp
     src/dialogs/functions/FunctionWidget.cpp src/dialogs/functions/FunctionWidget.hpp
     src/dialogs/functions/FunctionRegistry.cpp src/dialogs/functions/FunctionRegistry.hpp
@@ -82,14 +85,14 @@ target_link_libraries(LASSIE PRIVATE
     Qt6::Xml
     Qt6::Network
     LASS
+    DISSCO::ModifierUsage
 )
-# Note: LASSIE invokes CMOD as a subprocess (see CMOD_BINARY below and the
-# QProcess::start call in MainWindow::runProject). No symbols are shared, so
-# CMOD is intentionally NOT in the link list. Linking against an executable
-# target requires an import library on Windows, which CMOD doesn't produce
-# (no dllexport / WINDOWS_EXPORT_ALL_SYMBOLS), and the dependency was never
-# load-bearing anyway. LASS, which LASSIE was previously pulling in
-# transitively through CMOD's PUBLIC interface, is now linked directly.
+# Note: LASSIE invokes the CMOD executable as a subprocess (see CMOD_BINARY
+# below and the QProcess::start call in MainWindow::runProject), so the
+# executable itself is intentionally NOT in the link list. Both executables
+# instead share the Qt-free DISSCO::ModifierUsage library defined by CMOD.
+# LASS, which LASSIE was previously pulling in transitively through CMOD's
+# PUBLIC interface, is now linked directly.
 # LASSIE does its own XML handling with Qt's QtXml (QDomDocument), so it
 # needs no separate XML library.
 

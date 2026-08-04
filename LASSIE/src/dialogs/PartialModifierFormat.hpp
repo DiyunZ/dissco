@@ -15,6 +15,7 @@ struct Values {
 
 QVector<Values> parse(const QString& source, QString* warning = nullptr);
 QString serialize(const QVector<Values>& partials);
+QString validationError(int modifierType, const QString& source);
 
 QString normalizedValue(const QString& value, bool enabled);
 

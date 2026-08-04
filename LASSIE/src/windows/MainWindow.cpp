@@ -158,6 +158,10 @@ MainWindow::~MainWindow() {
 
 void MainWindow::closeEvent(QCloseEvent *event)
 {
+    if (!maybeSaveBeforeClose()) {
+        event->ignore();
+        return;
+    }
     writeSettings();
     event->accept();
 }
@@ -165,6 +169,8 @@ void MainWindow::closeEvent(QCloseEvent *event)
 bool MainWindow::maybeSaveBeforeClose()
 {
     if (!projectView)
+        return true;
+    if (!Inst::get_project_manager()->modified())
         return true;
 
     const QMessageBox::StandardButton reply = QMessageBox::question(
@@ -175,9 +181,8 @@ bool MainWindow::maybeSaveBeforeClose()
     );
 
     if (reply == QMessageBox::Yes)
-        saveFile();
-
-    return reply != QMessageBox::Cancel;
+        return saveFile();
+    return reply == QMessageBox::No;
 }
 
 void MainWindow::closeCurrentProject()
@@ -274,8 +279,11 @@ void MainWindow::openProjectPath(const QString &path)
     showFile();
 }
 
-void MainWindow::saveFile()
-{    
+bool MainWindow::saveFile()
+{
+    if (!projectView || currentFile.isEmpty())
+        return false;
+
     //nhi: ensure directory exists before saving
     const QFileInfo fileInfo(currentFile);
     if (const QDir dir = fileInfo.absoluteDir(); !dir.exists()) {
@@ -283,30 +291,43 @@ void MainWindow::saveFile()
             QMessageBox::critical(this, tr("Error"),
                                 tr("Failed to create directory:\n%1")
                                 .arg(dir.absolutePath()));
-            return;
+            return false;
         }
     }
     
-    projectView->save();
+    if (!projectView->save())
+        return false;
 
     //nhi: update window title and status after successful save
-    Inst::get_project_manager()->modified() = false;
-    setWindowModified(false);
+    ProjectManager *pm = Inst::get_project_manager();
+    pm->modified() = false;
+    setCurrentFile(pm->fileinfo().absoluteFilePath(), false);
     statusBar()->showMessage(tr("File saved"), 2000);
+    return true;
 }
 
-void MainWindow::saveFileAs()
+bool MainWindow::saveFileAs()
 {
     const QString fileName = QFileDialog::getSaveFileName(this, tr("Save As"),
                                                   currentFile,
                                                   tr("DISSCO Files (*.dissco);;All Files (*)"));
-    if (!fileName.isEmpty()){
-        currentFile = fileName;
-        ProjectManager *pm = Inst::get_project_manager();
-        pm->fileinfo() = QFileInfo(currentFile);
-        saveFile();
-        addToRecentProjects(currentFile);
+    if (fileName.isEmpty())
+        return false;
+
+    ProjectManager *pm = Inst::get_project_manager();
+    const QString previousCurrentFile = currentFile;
+    const QFileInfo previousFileInfo = pm->fileinfo();
+
+    currentFile = fileName;
+    pm->fileinfo() = QFileInfo(currentFile);
+    if (!saveFile()) {
+        currentFile = previousCurrentFile;
+        pm->fileinfo() = previousFileInfo;
+        return false;
     }
+
+    addToRecentProjects(currentFile);
+    return true;
 }
 
 void MainWindow::showEnvelopeLibraryWindow() const {
@@ -358,7 +379,8 @@ void MainWindow::runProject()
 
         switch(msgbox.exec()) {
             case QMessageBox::Save:
-                saveFile();
+                if (!saveFile())
+                    return;
                 break;
             case QMessageBox::Ignore:
                 break;

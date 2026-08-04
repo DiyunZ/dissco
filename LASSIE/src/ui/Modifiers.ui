@@ -2,219 +2,91 @@
 <ui version="4.0">
  <class>Modifiers</class>
  <widget class="QFrame" name="Modifier">
-    <layout class="QVBoxLayout" name="modifierGroupLayout">
-    <item>
-    <widget class="QGroupBox" name="modifierGroup">
-    <layout class="QVBoxLayout" name="modifierLayout">
-        <item>
-        <layout class="QHBoxLayout" name="modifierRemoveLayout">
-            <item>
-                <widget class="QComboBox" name="modifierType">
-                    <item><property name="text"><string>TREMOLO</string></property></item>
-                    <item><property name="text"><string>VIBRATO</string></property></item>
-                    <item><property name="text"><string>GLISSANDO</string></property></item>
-                    <item><property name="text"><string>DETUNE</string></property></item>
-                    <item><property name="text"><string>PHASE_MOD</string></property></item>
-                    <item><property name="text"><string>AMPTRANS</string></property></item>
-                    <item><property name="text"><string>FREQTRANS</string></property></item>
-                    <item><property name="text"><string>WAVE_TYPE</string></property></item>
-                </widget>
-            </item>
-            <item>
-            <widget class="QPushButton" name="modifierRemoveButton">
-                <property name="text">
-                    <string>Remove This Modifier</string>
-                </property>
-            </widget>
-            </item>
-        </layout>
-        </item>
-        <item>
-        <layout class="QHBoxLayout" name="modifierNameLayout">
-            <item>
-                <widget class="QComboBox" name="modifierApply">
-                    <item><property name="text"><string>SOUND</string></property></item>
-                    <item><property name="text"><string>PARTIAL</string></property></item>
-                </widget>
-            </item>
-            <item>
-                <widget class="QLabel" name="modifierNameLabel">
-                    <property name="text">
-                    <string>Group Name:</string>
-                    </property>
-                </widget>
-            </item>
-            <item>
-                <widget class="QLineEdit" name="modifierNameEdit"/>
-            </item>
-        </layout>
-        </item>
-        <item>
-        <layout class="QHBoxLayout" name="modifierProbLayout">
-            <item>
-                <widget class="QLabel" name="modifierProbLabel">
-                    <property name="text">
-                    <string>Probability Envelope:</string>
-                    </property>
-                </widget>
-            </item>
-            <item>
-                <widget class="QLineEdit" name="modifierProbEdit"/>
-            </item>
-            <item>
-                <widget class="QPushButton" name="modifierProbFunButton">
-                    <property name="text">
-                    <string>Insert Function</string>
-                    </property>
-                </widget>
-            </item>
-        </layout>
-        </item>
-        <item>
-        <layout class="QHBoxLayout" name="modifierMagLayout">
-            <item>
-                <widget class="QLabel" name="modifierMagLabel">
-                    <property name="text">
-                    <string>Magnitude Envelope:</string>
-                    </property>
-                </widget>
-            </item>
-            <item>
-                <widget class="QLineEdit" name="modifierMagEdit"/>
-            </item>
-            <item>
-                <widget class="QPushButton" name="modifierMagFunButton">
-                    <property name="text">
-                    <string>Insert Function</string>
-                    </property>
-                </widget>
-            </item>
-        </layout>
-        </item>
-        <item>
-        <layout class="QHBoxLayout" name="modifierRateLayout">
-            <item>
-                <widget class="QLabel" name="modifierRateLabel">
-                    <property name="text">
-                    <string>Rate Value Envelope:</string>
-                    </property>
-                </widget>
-            </item>
-            <item>
-                <widget class="QLineEdit" name="modifierRateEdit"/>
-            </item>
-            <item>
-                <widget class="QPushButton" name="modifierRateFunButton">
-                    <property name="text">
-                    <string>Insert Function</string>
-                    </property>
-                </widget>
-            </item>
-        </layout>
-        </item>
-        <item>
-        <layout class="QHBoxLayout" name="modifierWidthLayout">
-            <item>
-                <widget class="QLabel" name="modifierWidthLabel">
-                    <property name="text">
-                    <string>Width Envelope:</string>
-                    </property>
-                </widget>
-            </item>
-            <item>
-                <widget class="QLineEdit" name="modifierWidthEdit"/>
-            </item>
-            <item>
-                <widget class="QPushButton" name="modifierWidthFunButton">
-                    <property name="text">
-                    <string>Insert Function</string>
-                    </property>
-                </widget>
-            </item>
-        </layout>
-        </item>
-        <item>
-        <layout class="QHBoxLayout" name="modifierDetuneLayout">
-            <item>
-                <widget class="QLabel" name="modifierSpreadLabel">
-                    <property name="text">
-                    <string>Detune Spread:</string>
-                    </property>
-                    <property name="wordWrap"><bool>true</bool></property>
-                </widget>
-            </item>
-            <item>
-                <widget class="QLineEdit" name="modifierSpreadEdit"/>
-            </item>
-            <item>
-                <widget class="QPushButton" name="modifierSpreadFunButton">
-                    <property name="text">
-                    <string>Fn.</string>
-                    </property>
-                </widget>
-            </item>
-            <item>
-                <widget class="QLabel" name="modifierDirLabel">
-                    <property name="text">
-                    <string>Detune Direction:</string>
-                    </property>
-                    <property name="wordWrap"><bool>true</bool></property>
-                </widget>
-            </item>
-            <item>
-                <widget class="QLineEdit" name="modifierDirEdit"/>
-            </item>
-            <item>
-                <widget class="QPushButton" name="modifierDirFunButton">
-                    <property name="text">
-                    <string>Fn.</string>
-                    </property>
-                </widget>
-            </item>
-            <item>
-                <widget class="QLabel" name="modifierVelLabel">
-                    <property name="text">
-                    <string>Detune Velocity:</string>
-                    </property>
-                    <property name="wordWrap"><bool>true</bool></property>
-                </widget>
-            </item>
-            <item>
-                <widget class="QLineEdit" name="modifierVelEdit"/>
-            </item>
-            <item>
-                <widget class="QPushButton" name="modifierVelFunButton">
-                    <property name="text">
-                    <string>Fn.</string>
-                    </property>
-                </widget>
-            </item>
-        </layout>
-        </item>
-        <item>
-        <layout class="QHBoxLayout" name="modifierResLayout">
-            <item>
-                <widget class="QLabel" name="modifierResLabel">
-                    <property name="text">
-                    <string>Partial Result String:</string>
-                    </property>
-                </widget>
-            </item>
-            <item>
-                <widget class="QLineEdit" name="modifierResEdit"/>
-            </item>
-            <item>
-                <widget class="QPushButton" name="modifierResFunButton">
-                    <property name="text">
-                    <string>Insert Function</string>
-                    </property>
-                </widget>
-            </item>
-        </layout>
-        </item>
-    </layout>
+  <property name="frameShape">
+   <enum>QFrame::StyledPanel</enum>
+  </property>
+  <layout class="QHBoxLayout" name="modifierRowLayout">
+   <property name="leftMargin"><number>8</number></property>
+   <property name="topMargin"><number>6</number></property>
+   <property name="rightMargin"><number>8</number></property>
+   <property name="bottomMargin"><number>6</number></property>
+   <property name="spacing"><number>6</number></property>
+   <item>
+    <widget class="QLabel" name="orderLabel">
+     <property name="minimumSize"><size><width>24</width><height>0</height></size></property>
+     <property name="text"><string>1.</string></property>
+     <property name="alignment"><set>Qt::AlignCenter</set></property>
     </widget>
-    </item>
-    </layout>
+   </item>
+   <item>
+    <widget class="QPushButton" name="moveUpButton">
+     <property name="maximumSize"><size><width>30</width><height>16777215</height></size></property>
+     <property name="toolTip"><string>Move earlier in the selection order</string></property>
+     <property name="text"><string>↑</string></property>
+    </widget>
+   </item>
+   <item>
+    <widget class="QPushButton" name="moveDownButton">
+     <property name="maximumSize"><size><width>30</width><height>16777215</height></size></property>
+     <property name="toolTip"><string>Move later in the selection order</string></property>
+     <property name="text"><string>↓</string></property>
+    </widget>
+   </item>
+   <item>
+    <widget class="QComboBox" name="modifierType">
+     <property name="minimumSize"><size><width>170</width><height>0</height></size></property>
+     <item><property name="text"><string>TREMOLO</string></property></item>
+     <item><property name="text"><string>VIBRATO</string></property></item>
+     <item><property name="text"><string>GLISSANDO</string></property></item>
+     <item><property name="text"><string>DETUNE</string></property></item>
+     <item><property name="text"><string>PHASE_MOD</string></property></item>
+     <item><property name="text"><string>AMPTRANS</string></property></item>
+     <item><property name="text"><string>FREQTRANS</string></property></item>
+     <item><property name="text"><string>WAVE_TYPE</string></property></item>
+    </widget>
+   </item>
+   <item>
+    <spacer name="modifierSpacer">
+     <property name="orientation"><enum>Qt::Horizontal</enum></property>
+     <property name="sizeHint" stdset="0"><size><width>10</width><height>20</height></size></property>
+    </spacer>
+   </item>
+   <item>
+    <widget class="QLabel" name="defaultChanceLabel">
+     <property name="toolTip"><string>Fallback ON chance used when no conditional exception matches. This is not necessarily the final overall usage.</string></property>
+     <property name="text"><string>Default ON:</string></property>
+    </widget>
+   </item>
+   <item>
+    <widget class="QDoubleSpinBox" name="defaultChanceSpin">
+     <property name="toolTip"><string>Fallback ON chance used when no conditional exception matches. The exact overall usage is shown below the list.</string></property>
+     <property name="minimumSize"><size><width>90</width><height>0</height></size></property>
+     <property name="decimals"><number>1</number></property>
+     <property name="maximum"><double>100.000000000000000</double></property>
+     <property name="singleStep"><double>1.000000000000000</double></property>
+     <property name="suffix"><string>%</string></property>
+    </widget>
+   </item>
+   <item>
+    <widget class="QPushButton" name="rulesButton">
+     <property name="toolTip"><string>Add exceptions for meaningful states of modifiers evaluated earlier.</string></property>
+     <property name="minimumSize"><size><width>110</width><height>0</height></size></property>
+     <property name="text"><string>No exceptions</string></property>
+    </widget>
+   </item>
+   <item>
+    <widget class="QPushButton" name="parametersButton">
+     <property name="toolTip"><string>Edit Apply To, Magnitude, Rate, Width, Detune, partial values, and legacy fields</string></property>
+     <property name="text"><string>Parameters…</string></property>
+    </widget>
+   </item>
+   <item>
+    <widget class="QPushButton" name="modifierRemoveButton">
+     <property name="text"><string>Remove</string></property>
+    </widget>
+   </item>
+  </layout>
  </widget>
+ <resources/>
+ <connections/>
 </ui>

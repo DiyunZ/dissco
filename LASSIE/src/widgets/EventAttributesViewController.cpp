@@ -4,18 +4,22 @@
 #include "../inst.hpp"
 #include "../utilities.hpp"
 #include "../core/event_struct.hpp"
+#include "../core/ModifierUsageQtAdapter.hpp"
 #include "../dialogs/FunctionGenerator.hpp"
 #include "ProjectViewController.hpp"
 #include "../widgets/LayerBox.hpp"
 #include "../widgets/Partials.hpp"
 #include "../widgets/Modifiers.hpp"
+#include "../widgets/ModifierUiPolicy.hpp"
 #include "NoteModifierSelection.hpp"
 #include "../ui/ui_Modifiers.h"
 
 #include <QMessageBox>
 #include <QKeyEvent>
 #include <QCheckBox>
+#include <QHash>
 #include <QScrollBar>
+#include <QSignalBlocker>
 #include <QTimer>
 #include <QMetaObject>
 
@@ -102,8 +106,7 @@ EventAttributesViewController::EventAttributesViewController(ProjectView* projec
             this, &EventAttributesViewController::BSReverbButtonClicked);
     connect(ui->BSFilterButton, &QPushButton::clicked,
             this, &EventAttributesViewController::BSFilterButtonClicked);
-*/    connect(ui->BSModifierGroupButton, &QPushButton::clicked,
-            this, &EventAttributesViewController::BSModifierGroupButtonClicked);
+*/
 
     ui->BSWellTemperedPage->setSizePolicy(QSizePolicy::Ignored, QSizePolicy::Ignored);
     ui->BSFundamentalPage->setSizePolicy(QSizePolicy::Ignored, QSizePolicy::Ignored);
@@ -133,6 +136,10 @@ EventAttributesViewController::EventAttributesViewController(ProjectView* projec
             this, &EventAttributesViewController::addModifierButtonClicked);
     connect(ui->addPartialButton, &QPushButton::clicked,
             this, &EventAttributesViewController::addPartialButtonClicked);
+    connect(ui->modifierSamplingScopeCombo,
+            QOverload<int>::of(&QComboBox::currentIndexChanged),
+            this,
+            &EventAttributesViewController::modifierSamplingScopeChanged);
 
     // --- tempo controls ---
     ui->tempoValuePage->setSizePolicy(QSizePolicy::Ignored, QSizePolicy::Ignored);
@@ -381,7 +388,10 @@ void EventAttributesViewController::saveCurrentShownEventData() {
         extra_info.spa = ui->spaEntry->text();
         extra_info.reverb = ui->revEntry->text();
         extra_info.filter = ui->filEntry->text();
-        extra_info.modifier_group = ui->modifierGroupEntry->text();
+        extra_info.modifier_sampling_scope =
+            ui->modifierSamplingScopeCombo->currentIndex() == 1
+            ? ModifierSamplingScope::PerBottom
+            : ModifierSamplingScope::PerSound;
         
     }
 
@@ -585,13 +595,14 @@ void EventAttributesViewController::showCurrentEventData() {
                 ui->frequencyContainer->setVisible(true);
                 ui->loudnessContainer->setVisible(true);
                 ui->phaseContainer->setVisible(true);
-                ui->modGroupContainer->setVisible(true);
             } else {
                 ui->frequencyContainer->setVisible(false);
                 ui->loudnessContainer->setVisible(false);
                 ui->phaseContainer->setVisible(false);
-                ui->modGroupContainer->setVisible(false);
             }
+            // Modifier Usage visibility is applied after the event data and
+            // rows have been loaded; sampling scope remains Bottom-only.
+            ui->modifierUsageControls->setVisible(false);
             fixStackedWidgetLayout(ui->standardPage);
             break;
         case sound:
@@ -662,20 +673,17 @@ void EventAttributesViewController::showCurrentEventData() {
             ui->spaEntry->setText(extra_info.spa);
             ui->revEntry->setText(extra_info.reverb);
             ui->filEntry->setText(extra_info.filter);
-            ui->modifierGroupEntry->setText(extra_info.modifier_group);
-
-            // clear existing Modifiers widgets
-            for (Modifiers* mod : m_modifiers) {
-                ui->modifiersLayout->removeWidget(mod);
-                mod->deleteLater();
+            {
+                const QSignalBlocker scopeBlocker(
+                    ui->modifierSamplingScopeCombo);
+                ui->modifierSamplingScopeCombo->setCurrentIndex(
+                    extra_info.modifier_sampling_scope
+                            == ModifierSamplingScope::PerBottom
+                        ? 1
+                        : 0);
             }
-            m_modifiers.clear();
 
-            // rebuild buttom Modifiers
-            for (int i = 0; i < extra_info.modifiers.size(); ++i) {
-                addModifiersUI(i);
-                m_modifiers[i]->setModifierData(extra_info.modifiers[i]);
-            }
+            rebuildModifierRows();
             
             event = bottom_event.event;
         }else if(type == top){
@@ -762,19 +770,7 @@ void EventAttributesViewController::showCurrentEventData() {
 
         // clear and rebuild hevent modifier widgets
         if (type != bottom) {
-            // clear existing Modifiers widgets
-            for (Modifiers* mod : m_modifiers) {
-                ui->modifiersLayout->removeWidget(mod);
-                mod->deleteLater();
-            }
-            m_modifiers.clear();
-
-            // rebuild Modifiers
-            for (int i = 0; i < event.modifiers.size(); ++i) {
-                addModifiersUI(i);
-                m_modifiers[i]->setModifierData(event.modifiers[i]);
-            }
- 
+            rebuildModifierRows();
         }
         // environment
         if (type != bottom) {
@@ -782,6 +778,8 @@ void EventAttributesViewController::showCurrentEventData() {
             ui->revEntry->setText(event.reverb);
             ui->filEntry->setText(event.filter);
         }
+
+        updateModifierUsageUi();
 
         // Rebuild LayerBoxes for the newly shown event
         for (int i = 0; i < event.event_layers.size(); ++i) {
@@ -795,6 +793,7 @@ void EventAttributesViewController::showCurrentEventData() {
             ui->spectrumNumPartialEntry->setText(event.num_partials);
             ui->spectrumNumPartialEntry->setEnabled(false); //gray out number of partials
             ui->spectrumDeviationEntry->setText(event.deviation);
+            ui->spectrumGenEntry->setText(event.generate_spectrum);
             ui->spectrumGenEntry->setEnabled(false);
 
             // Clear all existing Partials widgets so the panel reflects the new event
@@ -1049,11 +1048,6 @@ void EventAttributesViewController::BSFilterButtonClicked() {
     insertFunctionString(spectrumGenerateFunButton);
 }
 */
-void EventAttributesViewController::BSModifierGroupButtonClicked() {
-    // if (m_currentlyShownEvent->getEventExtraInfo()->getChildTypeFlag() != 0) return;
-    insertFunctionString(BSModGroupFunButton);
-}
-
 void EventAttributesViewController::BSWellTemperedButtonClicked() {
     insertFunctionString(BSWellTemperedFunButton);
 }
@@ -1150,10 +1144,6 @@ void EventAttributesViewController::insertFunctionString(FunctionButton button) 
     case BSPhaseFunButton:
         target = ui->phaseEntry;
         gen = new FunctionGenerator(nullptr, functionReturnFloat, target->text());
-        break;
-    case BSModGroupFunButton:
-        target = ui->modifierGroupEntry;
-        gen = new FunctionGenerator(nullptr, functionReturnSPE, target->text());
         break;
     case BSWellTemperedFunButton:
         target = ui->wellTemperedEntry;
@@ -1254,15 +1244,14 @@ void EventAttributesViewController::addPartialsUI(int partialIndex) {
             m_partials[i]->setPartialIndex(i);
         }
         fixStackedWidgetLayout(ui->soundPage);
-        ui->spectrumNumPartialEntry->setText(QString::number(partials2.size()));
+        ui->spectrumNumPartialEntry->setText(
+            ModifierUiPolicy::partialCountAfterExplicitListChange(
+                ui->spectrumNumPartialEntry->text(), partials2.size()));
     });
     m_partials.append(par);
     ui->partialsLayout->addWidget(par);
     fixStackedWidgetLayout(ui->soundPage);
 
-    ProjectManager *pm = Inst::get_project_manager();
-    Spectrum* sevent = &pm->spectrumevents()[m_curreventindex].spectrum;
-    ui->spectrumNumPartialEntry->setText(QString::number(sevent->partials.size()));
 }
 
 
@@ -1275,61 +1264,390 @@ void EventAttributesViewController::addPartialButtonClicked() {
     sevent->partials.append("");
 
     addPartialsUI(sevent->partials.size()-1);
+    ui->spectrumNumPartialEntry->setText(
+        ModifierUiPolicy::partialCountAfterExplicitListChange(
+            ui->spectrumNumPartialEntry->text(), sevent->partials.size()));
+}
+
+QList<Modifier>* EventAttributesViewController::currentModifierList()
+{
+    if (!m_hasCurrentEvent)
+        return nullptr;
+
+    ProjectManager* projectManager = Inst::get_project_manager();
+    if (m_curreventtype == top)
+        return &projectManager->topevent().modifiers;
+    if (m_curreventtype == high
+        && m_curreventindex >= 0
+        && m_curreventindex < projectManager->highevents().size()) {
+        return &projectManager->highevents()[m_curreventindex].modifiers;
+    }
+    if (m_curreventtype == mid
+        && m_curreventindex >= 0
+        && m_curreventindex < projectManager->midevents().size()) {
+        return &projectManager->midevents()[m_curreventindex].modifiers;
+    }
+    if (m_curreventtype == low
+        && m_curreventindex >= 0
+        && m_curreventindex < projectManager->lowevents().size()) {
+        return &projectManager->lowevents()[m_curreventindex].modifiers;
+    }
+    if (m_curreventtype == bottom
+        && m_curreventindex >= 0
+        && m_curreventindex < projectManager->bottomevents().size()) {
+        return &projectManager->bottomevents()[m_curreventindex]
+                    .extra_info.modifiers;
+    }
+    return nullptr;
+}
+
+ExtraInfo* EventAttributesViewController::currentBottomExtraInfo()
+{
+    if (!m_hasCurrentEvent || m_curreventtype != bottom)
+        return nullptr;
+
+    ProjectManager* projectManager = Inst::get_project_manager();
+    if (m_curreventindex < 0
+        || m_curreventindex >= projectManager->bottomevents().size()) {
+        return nullptr;
+    }
+    return &projectManager->bottomevents()[m_curreventindex].extra_info;
+}
+
+void EventAttributesViewController::rebuildModifierRows()
+{
+    for (Modifiers* modifier : m_modifiers) {
+        ui->modifiersLayout->removeWidget(modifier);
+        modifier->deleteLater();
+    }
+    m_modifiers.clear();
+
+    QList<Modifier>* modifiers = currentModifierList();
+    if (modifiers) {
+        for (int index = 0; index < modifiers->size(); ++index)
+            addModifiersUI(index);
+    }
+
+    updateModifierUsageUi();
+    fixStackedWidgetLayout(ui->standardPage);
+}
+
+void EventAttributesViewController::updateModifierUsageSummary()
+{
+    QList<Modifier>* modifiers = currentModifierList();
+    const int modifierCount = modifiers ? modifiers->size() : 0;
+    int ruleCount = 0;
+    if (modifiers) {
+        for (const Modifier& modifier : *modifiers)
+            ruleCount += modifier.rules.size();
+    }
+
+    const ExtraInfo* extraInfo = currentBottomExtraInfo();
+    bool hasMissingUsageMetadata = false;
+    if (modifiers) {
+        for (const Modifier& modifier : *modifiers) {
+            hasMissingUsageMetadata = hasMissingUsageMetadata
+                || modifier.usage_metadata_needs_review;
+        }
+    }
+    QString importNotice;
+    if (extraInfo && extraInfo->modifier_usage_needs_review) {
+        importNotice =
+            tr("Compatibility import needs review: this Bottom had no "
+               "supported Modifier Usage marker. Effect parameters and any "
+               "Usage data were kept, but legacy group selection cannot be "
+               "converted exactly. Review this list before synthesis.\n");
+    } else if (hasMissingUsageMetadata) {
+        importNotice =
+            tr("Compatibility import needs review: one or more modifiers had "
+               "missing or invalid Usage metadata. Review their stable IDs "
+               "and default chances before synthesis.\n");
+    }
+    const auto showSummary = [this, &importNotice](const QString& text) {
+        ui->modifierUsageSummaryLabel->setText(importNotice + text);
+    };
+
+    const QString scopeDescription = !extraInfo
+        ? tr("sampling scope is chosen on each Bottom event")
+        : extraInfo->modifier_sampling_scope
+                  == ModifierSamplingScope::PerBottom
+            ? tr("one selection is shared by the whole Bottom event")
+            : tr("each generated sound receives its own selection");
+
+    if (!modifiers || modifiers->isEmpty()) {
+        showSummary(
+            tr("No modifiers yet. Add one below; %1.")
+                .arg(scopeDescription));
+        return;
+    }
+
+    const ModifierSamplingScope scope = extraInfo
+        ? extraInfo->modifier_sampling_scope
+        : ModifierSamplingScope::PerSound;
+    const ModifierUsageAnalysis analysis =
+        analyzeModifierUsage(*modifiers, scope);
+    if (!analysis.isValid()) {
+        showSummary(
+            tr("Configuration needs attention: %1")
+                .arg(analysis.diagnostics.constFirst()));
+        return;
+    }
+
+    QStringList usages;
+    bool hasPartialModifier = false;
+    for (int index = 0; index < modifiers->size(); ++index) {
+        hasPartialModifier =
+            hasPartialModifier || modifiers->at(index).applyhow_flag;
+        if (!analysis.overall_usage_available
+            || index >= analysis.overall_on_chances.size()) {
+            continue;
+        }
+        usages.append(
+            tr("%1. %2: %3%")
+                .arg(index + 1)
+                .arg(ModifierUiPolicy::displayName(
+                    static_cast<int>(modifiers->at(index).type)))
+                .arg(analysis.overall_on_chances[index] * 100.0,
+                     0, 'f', 1));
+    }
+
+    const QString overallDescription = analysis.overall_usage_available
+        ? usages.join(QStringLiteral(" | "))
+        : tr("not calculated above %1 modifiers; CMOD direct sampling "
+             "remains linear")
+              .arg(modifierUsageExactPreviewLimit);
+
+    QString summary =
+        tr("Default ON is the fallback when no exception matches.\n"
+           "%1 modifier(s), %2 exception(s). Selection follows the numbered "
+           "order; %3.\n"
+           "Estimated overall selection: %4")
+            .arg(modifierCount)
+            .arg(ruleCount)
+            .arg(scopeDescription)
+            .arg(overallDescription);
+    if (hasPartialModifier) {
+        summary += tr("\nA PARTIAL modifier that is selected still uses its "
+                      "per-partial Probability Envelope.");
+    }
+    showSummary(summary);
+}
+
+void EventAttributesViewController::updateModifierUsageUi()
+{
+    ui->modifierUsageControls->setVisible(
+        ModifierUiPolicy::usageSummaryVisible(m_curreventtype));
+    const bool showSamplingScope =
+        ModifierUiPolicy::samplingScopeVisible(m_curreventtype);
+    ui->modifierSamplingScopeLabel->setVisible(showSamplingScope);
+    ui->modifierSamplingScopeCombo->setVisible(showSamplingScope);
+
+    updateModifierUsageSummary();
+    if (ui->stackedWidget->currentWidget() == ui->standardPage)
+        fixStackedWidgetLayout(ui->standardPage);
+}
+
+void EventAttributesViewController::modifierSamplingScopeChanged(int index)
+{
+    ExtraInfo* extraInfo = currentBottomExtraInfo();
+    if (!extraInfo)
+        return;
+
+    extraInfo->modifier_sampling_scope =
+        index == 1 ? ModifierSamplingScope::PerBottom
+                   : ModifierSamplingScope::PerSound;
+    updateModifierUsageSummary();
+    MUtilities::modified();
+}
+
+bool EventAttributesViewController::modifierOrderIsValid(
+    const QList<Modifier>& modifiers, QString* explanation) const
+{
+    QHash<QString, int> positions;
+    for (int index = 0; index < modifiers.size(); ++index) {
+        const QString id = modifiers[index].instance_id.trimmed();
+        if (id.isEmpty()) {
+            if (explanation) {
+                *explanation = tr("Modifier %1 has no stable ID.")
+                                   .arg(index + 1);
+            }
+            return false;
+        }
+        if (positions.contains(id)) {
+            if (explanation) {
+                *explanation =
+                    tr("Modifiers %1 and %2 have the same stable ID.")
+                        .arg(positions.value(id) + 1)
+                        .arg(index + 1);
+            }
+            return false;
+        }
+        positions.insert(id, index);
+    }
+
+    for (int modifierIndex = 0;
+         modifierIndex < modifiers.size();
+         ++modifierIndex) {
+        const Modifier& modifier = modifiers[modifierIndex];
+        for (int ruleIndex = 0; ruleIndex < modifier.rules.size(); ++ruleIndex) {
+            for (const ModifierCondition& condition :
+                 modifier.rules[ruleIndex].conditions) {
+                const auto dependency = positions.constFind(
+                    condition.modifier_id.trimmed());
+                if (dependency == positions.cend()) {
+                    if (explanation) {
+                        *explanation =
+                            tr("Exception %1 of modifier %2 refers to a "
+                               "modifier that no longer exists.")
+                                .arg(ruleIndex + 1)
+                                .arg(modifierIndex + 1);
+                    }
+                    return false;
+                }
+                if (dependency.value() >= modifierIndex) {
+                    if (explanation) {
+                        *explanation =
+                            tr("Exception %1 of modifier %2 would refer to "
+                               "itself or to a later modifier. Conditions may "
+                               "refer only to earlier modifiers.")
+                                .arg(ruleIndex + 1)
+                                .arg(modifierIndex + 1);
+                    }
+                    return false;
+                }
+            }
+        }
+    }
+    return true;
+}
+
+void EventAttributesViewController::deleteModifierRow(Modifiers* row)
+{
+    QList<Modifier>* modifiers = currentModifierList();
+    const int index = m_modifiers.indexOf(row);
+    if (!modifiers || index < 0 || index >= modifiers->size())
+        return;
+
+    const QString removedId = modifiers->at(index).instance_id.trimmed();
+    int affectedRuleCount = 0;
+    for (int modifierIndex = 0;
+         modifierIndex < modifiers->size();
+         ++modifierIndex) {
+        if (modifierIndex == index)
+            continue;
+        for (const ModifierChanceRule& rule :
+             modifiers->at(modifierIndex).rules) {
+            bool referencesRemovedModifier = false;
+            for (const ModifierCondition& condition : rule.conditions) {
+                if (condition.modifier_id.trimmed() == removedId) {
+                    referencesRemovedModifier = true;
+                    break;
+                }
+            }
+            if (referencesRemovedModifier)
+                ++affectedRuleCount;
+        }
+    }
+
+    if (affectedRuleCount > 0) {
+        const QMessageBox::StandardButton response = QMessageBox::warning(
+            this,
+            tr("Delete referenced modifier?"),
+            tr("%1 conditional exception(s) refer to this modifier. Deleting "
+               "it will also remove each entire affected exception. Continue?")
+                .arg(affectedRuleCount),
+            QMessageBox::Yes | QMessageBox::Cancel,
+            QMessageBox::Cancel);
+        if (response != QMessageBox::Yes)
+            return;
+
+        for (int modifierIndex = 0;
+             modifierIndex < modifiers->size();
+             ++modifierIndex) {
+            if (modifierIndex == index)
+                continue;
+            QList<ModifierChanceRule>& rules =
+                (*modifiers)[modifierIndex].rules;
+            for (int ruleIndex = rules.size() - 1;
+                 ruleIndex >= 0;
+                 --ruleIndex) {
+                bool referencesRemovedModifier = false;
+                for (const ModifierCondition& condition :
+                     rules[ruleIndex].conditions) {
+                    if (condition.modifier_id.trimmed() == removedId) {
+                        referencesRemovedModifier = true;
+                        break;
+                    }
+                }
+                if (referencesRemovedModifier)
+                    rules.removeAt(ruleIndex);
+            }
+        }
+    }
+
+    modifiers->removeAt(index);
+    rebuildModifierRows();
+    MUtilities::modified();
+}
+
+void EventAttributesViewController::moveModifierRow(Modifiers* row, int offset)
+{
+    QList<Modifier>* modifiers = currentModifierList();
+    const int sourceIndex = m_modifiers.indexOf(row);
+    const int destinationIndex = sourceIndex + offset;
+    if (!modifiers
+        || sourceIndex < 0
+        || sourceIndex >= modifiers->size()
+        || destinationIndex < 0
+        || destinationIndex >= modifiers->size()) {
+        return;
+    }
+
+    QList<Modifier> candidate = *modifiers;
+    candidate.move(sourceIndex, destinationIndex);
+    QString explanation;
+    if (!modifierOrderIsValid(candidate, &explanation)) {
+        QMessageBox::warning(
+            this,
+            tr("Cannot reorder modifiers"),
+            explanation + QStringLiteral("\n\n")
+                + tr("Move or remove the dependent exception first."));
+        return;
+    }
+
+    modifiers->move(sourceIndex, destinationIndex);
+    rebuildModifierRows();
+    MUtilities::modified();
 }
 
 void EventAttributesViewController::addModifiersUI(int modifierIndex) {
     Modifiers* mod = new Modifiers(m_curreventtype, m_curreventindex, modifierIndex, this);
-    connect(mod, &Modifiers::deleteRequested, this, [this](Modifiers* m) {
-        ProjectManager* pm2 = Inst::get_project_manager();
-
-        QList<Modifier>* modList = nullptr;
-        if (m_curreventtype != bottom) {
-            if (m_curreventtype == top)        modList = &pm2->topevent().modifiers;
-            else if (m_curreventtype == high)  modList = &pm2->highevents()[m_curreventindex].modifiers;
-            else if (m_curreventtype == mid)   modList = &pm2->midevents()[m_curreventindex].modifiers;
-            else if (m_curreventtype == low)   modList = &pm2->lowevents()[m_curreventindex].modifiers;
-        } else {
-            modList = &pm2->bottomevents()[m_curreventindex].extra_info.modifiers;
-        }
-
-        int idx = m_modifiers.indexOf(m);
-        if (modList && idx >= 0 && idx < modList->size()) {
-            modList->removeAt(idx);
-        }
-
-        m_modifiers.removeOne(m);
-        ui->modifiersLayout->removeWidget(m);
-        m->deleteLater();
-        for (int i = 0; i < m_modifiers.size(); ++i) {
-            m_modifiers[i]->setModifierIndex(i);
-        }
-        fixStackedWidgetLayout(ui->standardPage);
+    connect(mod, &Modifiers::deleteRequested,
+            this, &EventAttributesViewController::deleteModifierRow);
+    connect(mod, &Modifiers::moveUpRequested, this,
+            [this](Modifiers* row) { moveModifierRow(row, -1); });
+    connect(mod, &Modifiers::moveDownRequested, this,
+            [this](Modifiers* row) { moveModifierRow(row, 1); });
+    connect(mod, &Modifiers::dataChanged, this, [this]() {
+        updateModifierUsageSummary();
+        MUtilities::modified();
     });
 
     m_modifiers.append(mod);
     ui->modifiersLayout->addWidget(mod);
-    fixStackedWidgetLayout(ui->standardPage);
-    
 }
 
 void EventAttributesViewController::addModifierButtonClicked() {
     qDebug("add new modifier button clicked");
 
-    ProjectManager *pm = Inst::get_project_manager();
+    QList<Modifier>* modifiers = currentModifierList();
+    if (!modifiers)
+        return;
 
-    if (m_curreventtype != bottom) {
-        HEvent* hevent = nullptr;
-        if (m_curreventtype == top)         hevent = &pm->topevent();
-        else if (m_curreventtype == high)   hevent = &pm->highevents()[m_curreventindex];
-        else if (m_curreventtype == mid)    hevent = &pm->midevents()[m_curreventindex];
-        else if (m_curreventtype == low)    hevent = &pm->lowevents()[m_curreventindex];
-        hevent->modifiers.append(Modifier());
-        addModifiersUI(hevent->modifiers.size() - 1);
-    } else {
-        ExtraInfo* bevent = &pm->bottomevents()[m_curreventindex].extra_info;
-        bevent->modifiers.append(Modifier());
-        addModifiersUI(bevent->modifiers.size() - 1);
-    }
+    modifiers->append(Modifier());
+    addModifiersUI(modifiers->size() - 1);
+    updateModifierUsageUi();
+    MUtilities::modified();
 }
 
 void EventAttributesViewController::tempoAsNoteValueButtonClicked() {

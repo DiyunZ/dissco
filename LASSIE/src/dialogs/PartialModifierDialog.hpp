@@ -6,32 +6,41 @@
 #include <QVector>
 
 #include "PartialModifierFormat.hpp"
+#include "../widgets/ModifierUiPolicy.hpp"
 
 class QLabel;
 class QLineEdit;
 class QPlainTextEdit;
 class QPushButton;
+class QGroupBox;
+class QSpinBox;
+class QScrollArea;
 class QVBoxLayout;
 
 /**
- * Structured editor for a Bottom PHASE_MOD modifier applied by PARTIAL.
+ * Structured editor for any Bottom modifier applied by PARTIAL.
  *
  * CMOD's legacy format stores four adjacent <Envelope> elements for every
  * partial, in probability/magnitude/width/rate order.  This dialog deliberately
- * keeps that wire format while presenting the values as normal ENV function
- * entries instead of asking users to hand-author the XML wrapper.
+ * keeps that wire format while showing only the parameters consumed by the
+ * selected modifier type.
  */
 class PartialModifierDialog : public QDialog
 {
 public:
     explicit PartialModifierDialog(QWidget* parent,
-                                   int spectrumPartialCount,
+                                   int modifierType,
+                                   const ModifierUiPolicy::PartialRowConstraint& constraint,
                                    const QString& originalString = QString());
 
     QString resultString() const;
 
+protected:
+    void accept() override;
+
 private:
     struct PartialRow {
+        QGroupBox* group = nullptr;
         QLineEdit* probability = nullptr;
         QLineEdit* magnitude = nullptr;
         QLineEdit* width = nullptr;
@@ -45,12 +54,25 @@ private:
                           const QString& value,
                           bool enabled,
                           QLineEdit** entry);
+    void setPartialRowCount(int count);
     void openEnvelopeGenerator(QLineEdit* entry);
+    void updateCountControls();
     void updatePreview();
 
+    int m_modifierType = 0;
+    int m_activeRowCount = 0;
+    int m_suggestedPartialCount = 1;
+    int m_savedRowCount = 0;
+    ModifierUiPolicy::PartialRowConstraint m_constraint;
     QVector<PartialRow> m_rows;
     QVBoxLayout* m_rowsLayout = nullptr;
+    QSpinBox* m_rowCountSpin = nullptr;
+    QPushButton* m_addPartialButton = nullptr;
+    QPushButton* m_removePartialButton = nullptr;
+    QScrollArea* m_scrollArea = nullptr;
+    QLabel* m_countWarningLabel = nullptr;
     QLabel* m_statusLabel = nullptr;
+    QString m_statusContext;
     QPlainTextEdit* m_preview = nullptr;
 };
 
