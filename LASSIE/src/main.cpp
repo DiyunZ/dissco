@@ -2,6 +2,7 @@
 
 #include <QApplication>
 #include <QFile>
+#include "widgets/TextOverflowDisplayPolicy.hpp"
 #include "windows/MainWindow.hpp"
 
 void registerAllFunctions();
@@ -16,6 +17,7 @@ int main(int argc, char *argv[])
     QCoreApplication::setApplicationName("LASSIE");
 
     QApplication a(argc, argv);
+    TextOverflowDisplayPolicy textOverflowDisplayPolicy(a);
     registerAllFunctions();
     Inst *m = Inst::instance();
     MainWindow *w = new MainWindow(m);

@@ -74,6 +74,7 @@ qt_add_executable(LASSIE
     src/widgets/Select.cpp src/widgets/Select.hpp
     src/widgets/MakeEnvelopeRow.cpp src/widgets/MakeEnvelopeRow.hpp
     src/widgets/generic/FunctionEntryRow.cpp src/widgets/generic/FunctionEntryRow.hpp
+    src/widgets/TextOverflowDisplayPolicy.cpp src/widgets/TextOverflowDisplayPolicy.hpp
     src/core/Updater.cpp src/core/Updater.hpp
 )
 
