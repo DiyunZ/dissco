@@ -177,4 +177,15 @@ if(NOT CMAKE_BUILD_TYPE STREQUAL "Debug")
     target_compile_definitions(LASSIE PRIVATE QT_NO_DEBUG_OUTPUT)
 endif()
 
+if(BUILD_TESTING)
+    target_compile_definitions(LASSIE PRIVATE DISSCO_ENABLE_UI_LAYOUT_TESTS)
+    add_test(NAME LASSIE.EnvelopeLegendLayout
+        COMMAND LASSIE
+    )
+    set_tests_properties(LASSIE.EnvelopeLegendLayout PROPERTIES
+        ENVIRONMENT "QT_QPA_PLATFORM=offscreen;DISSCO_TEST_ENVELOPE_LAYOUT=1"
+        TIMEOUT 10
+    )
+endif()
+
 message(STATUS "DONE!")

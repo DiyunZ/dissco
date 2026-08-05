@@ -21,6 +21,8 @@ include(DISSCOVersions.txt)
 
 project(DISSCO VERSION ${DISSCO_VERSION})
 
+include(CTest)
+
 if(CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang")
     find_program(LLD_LINKER ld.lld)
     if(LLD_LINKER)

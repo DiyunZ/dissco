@@ -17,7 +17,6 @@
 #include <QPushButton>
 #include <QHBoxLayout>
 #include <QFormLayout>
-#include <QSizePolicy>
 #include <QDebug>
 
 #include "../utilities.hpp"
@@ -31,7 +30,7 @@ EnvelopeLibraryWindow::EnvelopeLibraryWindow(QWidget* parent)
 {
     // Window setup
     setWindowTitle("Envelope Library");
-    resize(600, 220); // Compact initial size
+    resize(600, 500);
 
     // Central widget and layout
     QWidget* central = new QWidget(this);
@@ -84,8 +83,9 @@ EnvelopeLibraryWindow::EnvelopeLibraryWindow(QWidget* parent)
     xyWidget->setLayout(xyForm);
     xyLegendLayout->addWidget(xyWidget, 0, Qt::AlignLeft);
     QLabel* legend = new QLabel("Right click the graph to see available actions or click-and-drag a node to adjust the envelope.\nThick segment = Flexible; Thin segment = Fixed.\nBlue = Linear; Green = Spline; Red = Exponential (curved).\nYou can also type X and Y values directly to position nodes.", this);
+    legend->setObjectName("envelopeLegend");
     legend->setWordWrap(true);
-    legend->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Preferred);
+    // Keep QLabel's height-for-width policy so wrapped text gets enough room.
     xyLegendLayout->addWidget(legend, 1);
     layout->addLayout(xyLegendLayout);
 
@@ -356,4 +356,4 @@ void EnvelopeLibraryWindow::setEntries(const QString& x, const QString& y)
     // Reconnect signals
     connect(xEntry, &QLineEdit::textChanged, this, &EnvelopeLibraryWindow::valueEntriesChanged);
     connect(yEntry, &QLineEdit::textChanged, this, &EnvelopeLibraryWindow::valueEntriesChanged);
-} 
+}
