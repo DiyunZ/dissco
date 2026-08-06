@@ -301,16 +301,19 @@ MarkovModelLibraryWindow::MarkovModelLibraryWindow(QWidget* parent)
 
     m_undoStack = new QUndoStack(this);
 
-    auto* delegate = new NonNegativeRealDelegate(
-        [this]{ beginEditCapture(); }, this);
-    connect(delegate, &QAbstractItemDelegate::closeEditor, this,
-            &MarkovModelLibraryWindow::onEditorClosed);
+    auto makeDelegate = [this] {
+        auto* delegate = new NonNegativeRealDelegate(
+            [this]{ beginEditCapture(); }, this);
+        connect(delegate, &QAbstractItemDelegate::closeEditor, this,
+                &MarkovModelLibraryWindow::onEditorClosed);
+        return delegate;
+    };
 
     // Initial distribution
     m_distModel = new QStandardItemModel(this);
     m_distView = new QTableView;
     m_distView->setModel(m_distModel);
-    m_distView->setItemDelegate(delegate);
+    m_distView->setItemDelegate(makeDelegate());
     m_distView->verticalHeader()->setVisible(false);
     m_distView->horizontalHeader()->setSectionResizeMode(QHeaderView::Interactive);
     m_distView->setSelectionMode(QAbstractItemView::ExtendedSelection);
@@ -326,7 +329,7 @@ MarkovModelLibraryWindow::MarkovModelLibraryWindow(QWidget* parent)
     m_valueModel = new QStandardItemModel(this);
     m_valueView = new QTableView;
     m_valueView->setModel(m_valueModel);
-    m_valueView->setItemDelegate(delegate);
+    m_valueView->setItemDelegate(makeDelegate());
     m_valueView->verticalHeader()->setVisible(false);
     m_valueView->horizontalHeader()->setSectionResizeMode(QHeaderView::Interactive);
     m_valueView->setSelectionMode(QAbstractItemView::ExtendedSelection);
@@ -342,7 +345,7 @@ MarkovModelLibraryWindow::MarkovModelLibraryWindow(QWidget* parent)
     m_matrixModel = new QStandardItemModel(this);
     m_matrixView = new QTableView;
     m_matrixView->setModel(m_matrixModel);
-    m_matrixView->setItemDelegate(delegate);
+    m_matrixView->setItemDelegate(makeDelegate());
     m_matrixView->horizontalHeader()->setSectionResizeMode(QHeaderView::Interactive);
     m_matrixView->verticalHeader()->setSectionResizeMode(QHeaderView::Interactive);
     m_matrixView->setSelectionMode(QAbstractItemView::ExtendedSelection);
