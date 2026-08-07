@@ -53,15 +53,11 @@ namespace {
 static QString resolveCmodBinary()
 {
     // Prefer a CMOD sitting next to the LASSIE binary (packaged builds:
-    // LASSIE.app/Contents/MacOS/CMOD on macOS, the AppDir's usr/bin/CMOD on
+    // lassie.app/Contents/MacOS/cmod on macOS, the AppDir's usr/bin/cmod on
     // Linux, cmod.exe on Windows). QStandardPaths adds the platform-specific
     // executable suffix, which is required for a portable Windows package.
     const QString appDir = QCoreApplication::applicationDirPath();
-#ifdef Q_OS_WIN
     const QString executableName = QStringLiteral("cmod");
-#else
-    const QString executableName = QStringLiteral("CMOD");
-#endif
     const QString packagedCmod = QStandardPaths::findExecutable(
         executableName,
         {appDir, appDir + QStringLiteral("/../Resources")});

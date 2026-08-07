@@ -93,7 +93,7 @@ From the project root:
     cmake --build build --parallel
     cmake --build build --target package
 
-This produces `build/DISSCO-<version>-Darwin.dmg`. The DMG contains `LASSIE.app` with the CMOD binary embedded at `Contents/MacOS/CMOD` and Qt frameworks bundled in via `macdeployqt`.
+This produces `build/DISSCO-<version>-Darwin.dmg`. The DMG contains `lassie.app` with the `cmod` binary embedded at `Contents/MacOS/cmod` and Qt frameworks bundled in via `macdeployqt`.
 
 The build's icon (`packaging/macos/LASSIE.icns`) is a placeholder; regenerate it from updated artwork via `packaging/macos/make-icns.sh`.
 

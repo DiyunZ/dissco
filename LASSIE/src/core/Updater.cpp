@@ -300,7 +300,7 @@ void Updater::downloadAndInstall(const ReleaseInfo &info) {
 
 void Updater::launchInstaller(const QString &localPath) {
 #if defined(Q_OS_MACOS)
-    // Mount the DMG in Finder; user drags LASSIE.app into Applications.
+    // Mount the DMG in Finder; user drags lassie.app into Applications.
     if (!QDesktopServices::openUrl(QUrl::fromLocalFile(localPath))) {
         reportError(tr("Couldn't open downloaded installer at %1").arg(localPath));
         return;

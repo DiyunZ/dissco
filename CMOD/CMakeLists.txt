@@ -27,11 +27,10 @@ target_include_directories(ModifierUsage PUBLIC
 target_compile_features(ModifierUsage PUBLIC cxx_std_20)
 
 add_executable(CMOD ${CMOD_SRC})
-set(CMOD_EXECUTABLE_BASENAME "CMOD")
-if(WIN32)
-    set(CMOD_EXECUTABLE_BASENAME "cmod")
-    set_target_properties(CMOD PROPERTIES OUTPUT_NAME "${CMOD_EXECUTABLE_BASENAME}")
-endif()
+set(CMOD_EXECUTABLE_BASENAME "cmod")
+set_target_properties(CMOD PROPERTIES
+    OUTPUT_NAME "${CMOD_EXECUTABLE_BASENAME}"
+)
 # CMOD is consumed by LASSIE as a standalone subprocess (QProcess::start),
 # not linked into it. No ENABLE_EXPORTS / WINDOWS_EXPORT_ALL_SYMBOLS is
 # needed — and adding them just to "make the link work" backfires on
@@ -79,7 +78,7 @@ message(STATUS "CMOD_BINARY set to ${CMOD_BINARY}")
 include(GNUInstallDirs)
 if(APPLE)
     install(TARGETS CMOD
-        RUNTIME DESTINATION LASSIE.app/Contents/MacOS
+        RUNTIME DESTINATION lassie.app/Contents/MacOS
         COMPONENT Runtime
     )
 else()

@@ -1,7 +1,7 @@
 # Release packaging for DISSCO (LASSIE GUI + CMOD CLI).
 #
 # Produces:
-#   - macOS: a .dmg containing LASSIE.app (with CMOD embedded in
+#   - macOS: a .dmg containing lassie.app (with cmod embedded in
 #     Contents/MacOS/) via CPack's DragNDrop generator. Qt frameworks are
 #     bundled by an install(CODE) step that invokes macdeployqt.
 #   - Windows: an NSIS installer .exe (lassie.exe + cmod.exe + Qt DLLs)
@@ -37,9 +37,9 @@ if(APPLE)
     get_filename_component(_qt_bin_dir "${_qmake_executable}" DIRECTORY)
     set(MACDEPLOYQT_EXECUTABLE "${_qt_bin_dir}/macdeployqt")
 
-    # Bundle Qt frameworks into the installed LASSIE.app. Runs at `cmake
-    # --install` time (and therefore during CPack), after the executable and
-    # CMOD have been copied in.
+    # Bundle Qt frameworks into the installed lassie.app. Runs at `cmake
+    # --install` time (and therefore during CPack), after lassie and cmod
+    # have been copied in.
     #
     # macdeployqt prints alarming-looking "ERROR: Cannot resolve rpath" lines
     # for weak-linked Qt modules (QtPdf, QtSvg, QtVirtualKeyboard*) that
@@ -48,10 +48,10 @@ if(APPLE)
     # valid. We capture output and drop those known-benign lines so real
     # problems remain visible.
     install(CODE "
-        message(STATUS \"Running macdeployqt on \${CMAKE_INSTALL_PREFIX}/LASSIE.app\")
+        message(STATUS \"Running macdeployqt on \${CMAKE_INSTALL_PREFIX}/lassie.app\")
         execute_process(
             COMMAND \"${MACDEPLOYQT_EXECUTABLE}\"
-                \"\${CMAKE_INSTALL_PREFIX}/LASSIE.app\"
+                \"\${CMAKE_INSTALL_PREFIX}/lassie.app\"
                 -always-overwrite
             RESULT_VARIABLE _mdq_result
             OUTPUT_VARIABLE _mdq_out

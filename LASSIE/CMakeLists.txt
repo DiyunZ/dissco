@@ -113,6 +113,7 @@ if(APPLE AND EXISTS "${LASSIE_ICON_MACOS}")
 endif()
 
 set_target_properties(LASSIE PROPERTIES
+    OUTPUT_NAME "lassie"
     WIN32_EXECUTABLE ON
     MACOSX_BUNDLE ON
     MACOSX_BUNDLE_BUNDLE_NAME "LASSIE"
@@ -123,10 +124,6 @@ set_target_properties(LASSIE PROPERTIES
     MACOSX_BUNDLE_COPYRIGHT "Copyright (c) DISSCO authors. Licensed under GPL-3.0."
     MACOSX_BUNDLE_ICON_FILE "LASSIE.icns"
 )
-
-if(WIN32)
-    set_target_properties(LASSIE PROPERTIES OUTPUT_NAME "lassie")
-endif()
 
 install(TARGETS LASSIE
     BUNDLE  DESTINATION . COMPONENT Runtime
