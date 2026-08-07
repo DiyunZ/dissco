@@ -8,6 +8,7 @@
 #include <QLayout>
 #include "windows/EnvelopeLibraryWindow.hpp"
 #endif
+#include "widgets/ComboBoxWheelGuard.hpp"
 #include "widgets/TextOverflowDisplayPolicy.hpp"
 #include "windows/MainWindow.hpp"
 
@@ -23,6 +24,7 @@ int main(int argc, char *argv[])
     QCoreApplication::setApplicationName("LASSIE");
 
     QApplication a(argc, argv);
+    ComboBoxWheelGuard comboBoxWheelGuard(a);
     TextOverflowDisplayPolicy textOverflowDisplayPolicy(a);
 
 #ifdef DISSCO_ENABLE_UI_LAYOUT_TESTS

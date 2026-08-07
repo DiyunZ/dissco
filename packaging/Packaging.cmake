@@ -1,10 +1,10 @@
 # Release packaging for DISSCO (LASSIE GUI + CMOD CLI).
 #
 # Produces:
-#   - macOS: a .dmg containing LASSIE.app (with CMOD embedded in
+#   - macOS: a .dmg containing lassie.app (with cmod embedded in
 #     Contents/MacOS/) via CPack's DragNDrop generator. Qt frameworks are
 #     bundled by an install(CODE) step that invokes macdeployqt.
-#   - Windows: an NSIS installer .exe (LASSIE.exe + CMOD.exe + Qt DLLs)
+#   - Windows: an NSIS installer .exe (lassie.exe + cmod.exe + Qt DLLs)
 #     via CPack's NSIS generator. Qt DLLs are bundled by an install(CODE)
 #     step that invokes windeployqt. The installer writes registry entries
 #     under HKLM\Software\Classes for the .dissco extension; these
@@ -37,9 +37,9 @@ if(APPLE)
     get_filename_component(_qt_bin_dir "${_qmake_executable}" DIRECTORY)
     set(MACDEPLOYQT_EXECUTABLE "${_qt_bin_dir}/macdeployqt")
 
-    # Bundle Qt frameworks into the installed LASSIE.app. Runs at `cmake
-    # --install` time (and therefore during CPack), after the executable and
-    # CMOD have been copied in.
+    # Bundle Qt frameworks into the installed lassie.app. Runs at `cmake
+    # --install` time (and therefore during CPack), after lassie and cmod
+    # have been copied in.
     #
     # macdeployqt prints alarming-looking "ERROR: Cannot resolve rpath" lines
     # for weak-linked Qt modules (QtPdf, QtSvg, QtVirtualKeyboard*) that
@@ -48,10 +48,10 @@ if(APPLE)
     # valid. We capture output and drop those known-benign lines so real
     # problems remain visible.
     install(CODE "
-        message(STATUS \"Running macdeployqt on \${CMAKE_INSTALL_PREFIX}/LASSIE.app\")
+        message(STATUS \"Running macdeployqt on \${CMAKE_INSTALL_PREFIX}/lassie.app\")
         execute_process(
             COMMAND \"${MACDEPLOYQT_EXECUTABLE}\"
-                \"\${CMAKE_INSTALL_PREFIX}/LASSIE.app\"
+                \"\${CMAKE_INSTALL_PREFIX}/lassie.app\"
                 -always-overwrite
             RESULT_VARIABLE _mdq_result
             OUTPUT_VARIABLE _mdq_out
@@ -77,7 +77,7 @@ if(APPLE)
 endif()
 
 if(WIN32)
-    # windeployqt: walks LASSIE.exe's PE imports and copies the matching Qt
+    # windeployqt: walks lassie.exe's PE imports and copies the matching Qt
     # DLLs (and platform plugins, styles, etc.) into the same directory.
     # We pull the Qt6::windeployqt imported target's path so the path
     # tracks whatever Qt the build is configured against, not whatever
@@ -90,13 +90,13 @@ if(WIN32)
         REQUIRED
     )
 
-    # Run windeployqt against the installed LASSIE.exe. Crucially this is a
+    # Run windeployqt against the installed lassie.exe. Crucially this is a
     # separate invocation from any build-time windeployqt (e.g. the one in
     # LASSIE/CMakeLists.txt's POST_BUILD command, which targets the build
     # dir for dev convenience): the installer needs DLLs in CMAKE_INSTALL_PREFIX,
     # not the build dir.
     install(CODE "
-        message(STATUS \"Running windeployqt on \${CMAKE_INSTALL_PREFIX}/bin/LASSIE.exe\")
+        message(STATUS \"Running windeployqt on \${CMAKE_INSTALL_PREFIX}/bin/lassie.exe\")
         execute_process(
             COMMAND \"${WINDEPLOYQT_EXECUTABLE}\"
                 --verbose 0
@@ -104,7 +104,7 @@ if(WIN32)
                 --no-translations
                 --no-system-d3d-compiler
                 --no-quick-import
-                \"\${CMAKE_INSTALL_PREFIX}/bin/LASSIE.exe\"
+                \"\${CMAKE_INSTALL_PREFIX}/bin/lassie.exe\"
             RESULT_VARIABLE _wdq_result
         )
         if(NOT _wdq_result EQUAL 0)
@@ -123,9 +123,9 @@ if(WIN32)
     set(CPACK_PACKAGE_INSTALL_DIRECTORY "DISSCO ${DISSCO_VERSION}")
     set(CPACK_NSIS_EXECUTABLES_DIRECTORY "bin")
 
-    # Start Menu and desktop shortcuts pointing at LASSIE.exe.
-    set(CPACK_PACKAGE_EXECUTABLES "LASSIE;LASSIE")
-    set(CPACK_CREATE_DESKTOP_LINKS "LASSIE")
+    # Start Menu and desktop shortcuts pointing at lassie.exe.
+    set(CPACK_PACKAGE_EXECUTABLES "lassie;LASSIE")
+    set(CPACK_CREATE_DESKTOP_LINKS "lassie")
 
     if(EXISTS "${CMAKE_SOURCE_DIR}/packaging/windows/LASSIE.ico")
         # NSIS wants Windows-native backslashes in these paths.
@@ -133,7 +133,7 @@ if(WIN32)
         string(REPLACE "\\" "\\\\" _nsis_icon "${_nsis_icon}")
         set(CPACK_NSIS_MUI_ICON "${_nsis_icon}")
         set(CPACK_NSIS_MUI_UNIICON "${_nsis_icon}")
-        set(CPACK_NSIS_INSTALLED_ICON_NAME "bin\\\\LASSIE.exe")
+        set(CPACK_NSIS_INSTALLED_ICON_NAME "bin\\\\lassie.exe")
     endif()
 
     # File-association registry entries.
@@ -160,8 +160,8 @@ if(WIN32)
         WriteRegStr HKLM 'Software\\\\Classes\\\\.dissco' '' 'DISSCO.Project'
         WriteRegStr HKLM 'Software\\\\Classes\\\\DISSCO.Project' '' 'DISSCO Project'
         WriteRegStr HKLM 'Software\\\\Classes\\\\DISSCO.Project' 'FriendlyTypeName' 'DISSCO Project'
-        WriteRegStr HKLM 'Software\\\\Classes\\\\DISSCO.Project\\\\DefaultIcon' '' '$INSTDIR\\\\bin\\\\LASSIE.exe,0'
-        WriteRegStr HKLM 'Software\\\\Classes\\\\DISSCO.Project\\\\shell\\\\open\\\\command' '' '\\\"$INSTDIR\\\\bin\\\\LASSIE.exe\\\" \\\"%1\\\"'
+        WriteRegStr HKLM 'Software\\\\Classes\\\\DISSCO.Project\\\\DefaultIcon' '' '$INSTDIR\\\\bin\\\\lassie.exe,0'
+        WriteRegStr HKLM 'Software\\\\Classes\\\\DISSCO.Project\\\\shell\\\\open\\\\command' '' '\\\"$INSTDIR\\\\bin\\\\lassie.exe\\\" \\\"%1\\\"'
         System::Call 'shell32::SHChangeNotify(i 0x08000000, i 0, p 0, p 0)'
     ")
     set(CPACK_NSIS_EXTRA_UNINSTALL_COMMANDS "

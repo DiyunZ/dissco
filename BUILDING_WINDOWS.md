@@ -280,15 +280,15 @@ cmake --build build --parallel
 A successful build should produce:
 
 ```text
-%DISSCO_ROOT%\build\CMOD\CMOD.exe
-%DISSCO_ROOT%\build\LASSIE\LASSIE.exe
+%DISSCO_ROOT%\build\CMOD\cmod.exe
+%DISSCO_ROOT%\build\LASSIE\lassie.exe
 ```
 
 Verify:
 
 ```cmd
-dir "%DISSCO_ROOT%\build\CMOD\CMOD.exe"
-dir "%DISSCO_ROOT%\build\LASSIE\LASSIE.exe"
+dir "%DISSCO_ROOT%\build\CMOD\cmod.exe"
+dir "%DISSCO_ROOT%\build\LASSIE\lassie.exe"
 ```
 
 Run LASSIE
@@ -297,7 +297,7 @@ Run LASSIE
 Run:
 
 ```cmd
-"%DISSCO_ROOT%\build\LASSIE\LASSIE.exe"
+"%DISSCO_ROOT%\build\LASSIE\lassie.exe"
 ```
 
 If LASSIE opens, the GUI build is working.
@@ -305,7 +305,7 @@ If LASSIE opens, the GUI build is working.
 If Windows reports missing Qt DLLs, run:
 
 ```cmd
-"%QT_ROOT%\bin\windeployqt.exe" "%DISSCO_ROOT%\build\LASSIE\LASSIE.exe"
+"%QT_ROOT%\bin\windeployqt.exe" "%DISSCO_ROOT%\build\LASSIE\lassie.exe"
 ```
 
 Then run LASSIE again.
@@ -316,7 +316,7 @@ Run CMOD Manually
 CMOD can be run directly with a `.dissco` file:
 
 ```cmd
-"%DISSCO_ROOT%\build\CMOD\CMOD.exe" "<path-to-project>\your_file.dissco"
+"%DISSCO_ROOT%\build\CMOD\cmod.exe" "<path-to-project>\your_file.dissco"
 ```
 
 Generate Score Output
@@ -374,7 +374,7 @@ The script automatically:
 
 The target computer only needs 64-bit Windows 10 or Windows 11. It does not
 need Qt, LilyPond, Visual Studio, the Visual C++ Redistributable, or
-administrator access. Extract the complete ZIP and double-click `LASSIE.exe`;
+administrator access. Extract the complete ZIP and double-click `lassie.exe`;
 `Run-DISSCO.bat` remains available as a compatibility launcher.
 
 For non-default paths or automation, run the PowerShell entry point directly:

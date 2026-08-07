@@ -53,12 +53,13 @@ namespace {
 static QString resolveCmodBinary()
 {
     // Prefer a CMOD sitting next to the LASSIE binary (packaged builds:
-    // LASSIE.app/Contents/MacOS/CMOD on macOS, the AppDir's usr/bin/CMOD on
-    // Linux, CMOD.exe on Windows). QStandardPaths adds the platform-specific
+    // lassie.app/Contents/MacOS/cmod on macOS, the AppDir's usr/bin/cmod on
+    // Linux, cmod.exe on Windows). QStandardPaths adds the platform-specific
     // executable suffix, which is required for a portable Windows package.
     const QString appDir = QCoreApplication::applicationDirPath();
+    const QString executableName = QStringLiteral("cmod");
     const QString packagedCmod = QStandardPaths::findExecutable(
-        QStringLiteral("CMOD"),
+        executableName,
         {appDir, appDir + QStringLiteral("/../Resources")});
     if (!packagedCmod.isEmpty()) {
         return QDir::cleanPath(packagedCmod);
@@ -72,7 +73,7 @@ static void configureCmodEnvironment(QProcess *cmod)
 {
     // Portable Windows packages carry LilyPond next to LASSIE. Add only the
     // bundled bin directory to CMOD's child environment, so launching
-    // LASSIE.exe directly works without a machine-wide LilyPond install.
+    // lassie.exe directly works without a machine-wide LilyPond install.
     const QString appDir = QCoreApplication::applicationDirPath();
     const QString lilyPond = QStandardPaths::findExecutable(
         QStringLiteral("lilypond"),

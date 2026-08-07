@@ -74,6 +74,7 @@ qt_add_executable(LASSIE
     src/widgets/Select.cpp src/widgets/Select.hpp
     src/widgets/MakeEnvelopeRow.cpp src/widgets/MakeEnvelopeRow.hpp
     src/widgets/generic/FunctionEntryRow.cpp src/widgets/generic/FunctionEntryRow.hpp
+    src/widgets/ComboBoxWheelGuard.cpp src/widgets/ComboBoxWheelGuard.hpp
     src/widgets/TextOverflowDisplayPolicy.cpp src/widgets/TextOverflowDisplayPolicy.hpp
     src/core/Updater.cpp src/core/Updater.hpp
 )
@@ -112,6 +113,7 @@ if(APPLE AND EXISTS "${LASSIE_ICON_MACOS}")
 endif()
 
 set_target_properties(LASSIE PROPERTIES
+    OUTPUT_NAME "lassie"
     WIN32_EXECUTABLE ON
     MACOSX_BUNDLE ON
     MACOSX_BUNDLE_BUNDLE_NAME "LASSIE"

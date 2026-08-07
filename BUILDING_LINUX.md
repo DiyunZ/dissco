@@ -86,6 +86,6 @@ From the project root:
     cmake --build build --parallel
     QMAKE=/usr/lib/qt6/bin/qmake6 cmake --build build --target appimage
 
-This produces `build/DISSCO-<version>-Linux-<arch>.AppImage` — a self-contained executable with Qt, libsndfile, and CMOD bundled in. It runs on most modern Linux distros without further installation.
+This produces `build/DISSCO-<version>-Linux-<arch>.AppImage` — a self-contained executable with Qt, libsndfile, and the `cmod` executable bundled in. Its desktop launcher runs `lassie`, and the AppImage works on most modern Linux distros without further installation.
 
 The first invocation downloads `linuxdeploy` and `linuxdeploy-plugin-qt` into `build/.linuxdeploy/`. The icon (`packaging/linux/LASSIE.png`) is a placeholder; replace it with real artwork before cutting a release.

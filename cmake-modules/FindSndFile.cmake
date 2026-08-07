@@ -157,7 +157,7 @@ if(NOT SNDFILE_FOUND AND WIN32 AND DISSCO_SNDFILE_FETCH_PREBUILT)
     find_package(SndFile CONFIG QUIET)
     if(SndFile_FOUND)
         _dissco_sndfile_extract_from_target()
-        # Expose the DLL so install() rules can ship it next to LASSIE.exe.
+        # Expose the DLL so install() rules can ship it next to lassie.exe.
         find_file(SNDFILE_DLL
             NAMES sndfile.dll libsndfile-1.dll
             HINTS "${_root}/bin"
