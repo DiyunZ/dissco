@@ -364,7 +364,7 @@ function Invoke-PortableSmokeTests {
         [Environment]::SetEnvironmentVariable("QT_PLUGIN_PATH", $null, "Process")
         [Environment]::SetEnvironmentVariable("QML2_IMPORT_PATH", $null, "Process")
 
-        $cmodOutput = & (Join-Path $PackageRoot "CMOD.exe") --help 2>&1
+        $cmodOutput = & (Join-Path $PackageRoot "cmod.exe") --help 2>&1
         if ($LASTEXITCODE -ne 0 -or ($cmodOutput -join "`n") -notmatch "Usage:") {
             throw "CMOD smoke test failed with exit code $LASTEXITCODE."
         }
@@ -375,7 +375,7 @@ function Invoke-PortableSmokeTests {
         }
 
         $guiProcess = Start-Process `
-            -FilePath (Join-Path $PackageRoot "LASSIE.exe") `
+            -FilePath (Join-Path $PackageRoot "lassie.exe") `
             -WorkingDirectory $PackageRoot `
             -WindowStyle Hidden `
             -PassThru
@@ -480,12 +480,12 @@ try {
     $LassieExe = Find-BuiltExecutable `
         -BuildRoot $BuildRoot `
         -Component "LASSIE" `
-        -Name "LASSIE.exe" `
+        -Name "lassie.exe" `
         -Configuration $Configuration
     $CmodExe = Find-BuiltExecutable `
         -BuildRoot $BuildRoot `
         -Component "CMOD" `
-        -Name "CMOD.exe" `
+        -Name "cmod.exe" `
         -Configuration $Configuration
     Write-Host "LASSIE: $($LassieExe.FullName)"
     Write-Host "CMOD:   $($CmodExe.FullName)"
@@ -507,7 +507,7 @@ try {
         --no-translations `
         --no-quick-import `
         --dir $StageRoot `
-        (Join-Path $StageRoot "LASSIE.exe")
+        (Join-Path $StageRoot "lassie.exe")
     if ($LASTEXITCODE -ne 0) {
         throw "windeployqt failed."
     }
@@ -553,7 +553,7 @@ try {
 setlocal
 cd /d "%~dp0"
 set "PATH=%~dp0$launcherLilyBin;%PATH%"
-start "" "%~dp0LASSIE.exe" %*
+start "" "%~dp0lassie.exe" %*
 endlocal
 "@
     Set-Content `
@@ -582,14 +582,14 @@ endlocal
     # UTF-8-without-BOM source files using the active Windows code page.
     $chineseInstructions = [Text.Encoding]::UTF8.GetString(
         [Convert]::FromBase64String(
-            "5Lit5paH6K+05piOCiAg6Kej5Y6L5pW05LiqIFpJUCDlkI7vvIznm7TmjqXlj4zlh7sgTEFTU0lFLmV4ZeOAggogIOS4jemcgOimgeWuieijhSBRdOOAgVZpc3VhbCBDKysg6L+Q6KGM5bqT5oiWIExpbHlQb25k77yM5Lmf5LiN6ZyA6KaB566h55CG5ZGY5p2D6ZmQ44CCCiAg6K+35Yu/5Y+q5aSN5Yi25Y2V5LiqIEVYRe+8m3Rvb2xz44CBcGxhdGZvcm1zIOWSjCBETEwg5paH5Lu26YO95piv56iL5bqP55qE5LiA6YOo5YiG44CC"))
+            "5Lit5paH6K+05piOCiAg6Kej5Y6L5pW05LiqIFpJUCDlkI7vvIznm7TmjqXlj4zlh7sgbGFzc2llLmV4ZeOAggogIOS4jemcgOimgeWuieijhSBRdOOAgVZpc3VhbCBDKysg6L+Q6KGM5bqT5oiWIExpbHlQb25k77yM5Lmf5LiN6ZyA6KaB566h55CG5ZGY5p2D6ZmQ44CCCiAg6K+35Yu/5Y+q5aSN5Yi25Y2V5LiqIEVYRe+8m3Rvb2xz44CBcGxhdGZvcm1zIOWSjCBETEwg5paH5Lu26YO95piv56iL5bqP55qE5LiA6YOo5YiG44CC"))
 
     $readme = @"
 DISSCO $version Portable for Windows x64
 ========================================
 
 RUN
-  Double-click LASSIE.exe.
+  Double-click lassie.exe.
   Run-DISSCO.bat is also provided as a compatibility launcher.
 
 REQUIREMENTS
@@ -613,8 +613,8 @@ Build: $commit$dirtySuffix
 
     Write-Host "[8/10] Validating package contents and architecture..." -ForegroundColor Cyan
     $requiredPaths = @(
-        "LASSIE.exe",
-        "CMOD.exe",
+        "lassie.exe",
+        "cmod.exe",
         "Qt6Core.dll",
         "Qt6Gui.dll",
         "Qt6Widgets.dll",
@@ -638,8 +638,8 @@ Build: $commit$dirtySuffix
     }
 
     foreach ($peFile in @(
-        (Join-Path $StageRoot "LASSIE.exe"),
-        (Join-Path $StageRoot "CMOD.exe"),
+        (Join-Path $StageRoot "lassie.exe"),
+        (Join-Path $StageRoot "cmod.exe"),
         (Join-Path $StageRoot "Qt6Core.dll")
     )) {
         if ((Get-PeMachine -Path $peFile) -ne 0x8664) {
@@ -648,8 +648,8 @@ Build: $commit$dirtySuffix
     }
 
     foreach ($sourceAndPackaged in @(
-        @($LassieExe.FullName, (Join-Path $StageRoot "LASSIE.exe")),
-        @($CmodExe.FullName, (Join-Path $StageRoot "CMOD.exe"))
+        @($LassieExe.FullName, (Join-Path $StageRoot "lassie.exe")),
+        @($CmodExe.FullName, (Join-Path $StageRoot "cmod.exe"))
     )) {
         $sourceHash = (Get-FileHash -LiteralPath $sourceAndPackaged[0] -Algorithm SHA256).Hash
         $packagedHash = (Get-FileHash -LiteralPath $sourceAndPackaged[1] -Algorithm SHA256).Hash

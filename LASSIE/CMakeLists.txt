@@ -74,6 +74,7 @@ qt_add_executable(LASSIE
     src/widgets/Select.cpp src/widgets/Select.hpp
     src/widgets/MakeEnvelopeRow.cpp src/widgets/MakeEnvelopeRow.hpp
     src/widgets/generic/FunctionEntryRow.cpp src/widgets/generic/FunctionEntryRow.hpp
+    src/widgets/ComboBoxWheelGuard.cpp src/widgets/ComboBoxWheelGuard.hpp
     src/widgets/TextOverflowDisplayPolicy.cpp src/widgets/TextOverflowDisplayPolicy.hpp
     src/core/Updater.cpp src/core/Updater.hpp
 )
@@ -122,6 +123,10 @@ set_target_properties(LASSIE PROPERTIES
     MACOSX_BUNDLE_COPYRIGHT "Copyright (c) DISSCO authors. Licensed under GPL-3.0."
     MACOSX_BUNDLE_ICON_FILE "LASSIE.icns"
 )
+
+if(WIN32)
+    set_target_properties(LASSIE PROPERTIES OUTPUT_NAME "lassie")
+endif()
 
 install(TARGETS LASSIE
     BUNDLE  DESTINATION . COMPONENT Runtime

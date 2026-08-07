@@ -311,7 +311,7 @@ void Updater::launchInstaller(const QString &localPath) {
 
 #elif defined(Q_OS_WIN)
     // Launch the NSIS installer; it'll elevate, uninstall the current
-    // version, and install the new one. We quit so it can replace LASSIE.exe.
+    // version, and install the new one. We quit so it can replace lassie.exe.
     if (!QDesktopServices::openUrl(QUrl::fromLocalFile(localPath))) {
         reportError(tr("Couldn't launch installer at %1").arg(localPath));
         return;
