@@ -5,8 +5,10 @@ param(
     [string]$LilyPondRoot,
     [string]$BuildDirectory = "build",
     [string]$PackageName = "DISSCO-Windows-x64",
+    [string]$OutputDirectory = "dist",
     [ValidateSet("Debug", "Release", "RelWithDebInfo", "MinSizeRel")]
     [string]$Configuration = "Release",
+    [switch]$CmodOnly,
     [switch]$SkipBuild,
     [switch]$SkipTests,
     [switch]$SkipSmokeTest,
@@ -345,7 +347,8 @@ function Get-PeMachine {
 function Invoke-PortableSmokeTests {
     param(
         [Parameter(Mandatory = $true)][string]$PackageRoot,
-        [Parameter(Mandatory = $true)][string]$BundledLilyPondExe
+        [string]$BundledLilyPondExe,
+        [switch]$CmodOnly
     )
 
     $savedEnvironment = @{}
@@ -369,19 +372,21 @@ function Invoke-PortableSmokeTests {
             throw "CMOD smoke test failed with exit code $LASTEXITCODE."
         }
 
-        $lilyOutput = & $BundledLilyPondExe --version 2>&1
-        if ($LASTEXITCODE -ne 0 -or ($lilyOutput -join "`n") -notmatch "GNU LilyPond") {
-            throw "Bundled LilyPond smoke test failed with exit code $LASTEXITCODE."
-        }
+        if (-not $CmodOnly) {
+            $lilyOutput = & $BundledLilyPondExe --version 2>&1
+            if ($LASTEXITCODE -ne 0 -or ($lilyOutput -join "`n") -notmatch "GNU LilyPond") {
+                throw "Bundled LilyPond smoke test failed with exit code $LASTEXITCODE."
+            }
 
-        $guiProcess = Start-Process `
-            -FilePath (Join-Path $PackageRoot "lassie.exe") `
-            -WorkingDirectory $PackageRoot `
-            -WindowStyle Hidden `
-            -PassThru
-        Start-Sleep -Seconds 3
-        if ($guiProcess.HasExited) {
-            throw "LASSIE exited during the portable smoke test (exit code $($guiProcess.ExitCode))."
+            $guiProcess = Start-Process `
+                -FilePath (Join-Path $PackageRoot "lassie.exe") `
+                -WorkingDirectory $PackageRoot `
+                -WindowStyle Hidden `
+                -PassThru
+            Start-Sleep -Seconds 3
+            if ($guiProcess.HasExited) {
+                throw "LASSIE exited during the portable smoke test (exit code $($guiProcess.ExitCode))."
+            }
         }
     }
     finally {
@@ -432,14 +437,31 @@ if (-not (Test-Path -LiteralPath $CTestExe -PathType Leaf)) {
     $CTestExe = $ctestCommand.Source
 }
 
-$QtBin = Find-QtBin -RequestedQtBin $QtBin -CachePath $CachePath
-$LilyPond = Find-LilyPond `
-    -RequestedRoot $LilyPondRoot `
-    -ProjectRoot $ProjectRoot `
-    -PackageName $PackageName
+$QtBin = $null
+$LilyPond = $null
+if (-not $CmodOnly) {
+    $QtBin = Find-QtBin -RequestedQtBin $QtBin -CachePath $CachePath
+    $LilyPond = Find-LilyPond `
+        -RequestedRoot $LilyPondRoot `
+        -ProjectRoot $ProjectRoot `
+        -PackageName $PackageName
+}
 $MsvcRuntimeDirectory = Find-MsvcRuntimeDirectory -CachePath $CachePath
+$CachedSndFileDll = Get-CMakeCacheValue -CachePath $CachePath -Name "SNDFILE_DLL"
+$SndFileRuntimeName = "sndfile.dll"
+if (-not [string]::IsNullOrWhiteSpace($CachedSndFileDll) -and
+    -not $CachedSndFileDll.EndsWith("-NOTFOUND")) {
+    if (-not (Test-Path -LiteralPath $CachedSndFileDll -PathType Leaf)) {
+        throw "SNDFILE_DLL from CMakeCache.txt was not found: $CachedSndFileDll"
+    }
+    $CachedSndFileDll = (Resolve-Path -LiteralPath $CachedSndFileDll).Path
+    $SndFileRuntimeName = [System.IO.Path]::GetFileName($CachedSndFileDll)
+}
 
-$DistRoot = Join-Path $ProjectRoot "dist"
+if (-not [System.IO.Path]::IsPathRooted($OutputDirectory)) {
+    $OutputDirectory = Join-Path $ProjectRoot $OutputDirectory
+}
+$DistRoot = [System.IO.Path]::GetFullPath($OutputDirectory)
 New-Item -ItemType Directory -Path $DistRoot -Force | Out-Null
 $DistRoot = (Resolve-Path -LiteralPath $DistRoot).Path
 $PackageRoot = Join-Path $DistRoot $PackageName
@@ -448,6 +470,8 @@ $ChecksumPath = $ZipPath + ".sha256"
 $StageRoot = Join-Path $DistRoot (".$PackageName.staging-$PID")
 
 Assert-DirectChildPath -Parent $DistRoot -Child $PackageRoot
+Assert-DirectChildPath -Parent $DistRoot -Child $ZipPath
+Assert-DirectChildPath -Parent $DistRoot -Child $ChecksumPath
 Assert-DirectChildPath -Parent $DistRoot -Child $StageRoot
 if (Test-Path -LiteralPath $StageRoot) {
     Remove-Item -LiteralPath $StageRoot -Recurse -Force
@@ -456,7 +480,12 @@ if (Test-Path -LiteralPath $StageRoot) {
 try {
     if (-not $SkipBuild) {
         Write-Host "[1/10] Building current $Configuration binaries..." -ForegroundColor Cyan
-        & $CMakeExe --build $BuildRoot --config $Configuration --parallel
+        if ($CmodOnly) {
+            & $CMakeExe --build $BuildRoot --config $Configuration --target CMOD --parallel
+        }
+        else {
+            & $CMakeExe --build $BuildRoot --config $Configuration --parallel
+        }
         if ($LASTEXITCODE -ne 0) {
             throw "$Configuration build failed."
         }
@@ -477,39 +506,54 @@ try {
     }
 
     Write-Host "[3/10] Selecting fresh build outputs..." -ForegroundColor Cyan
-    $LassieExe = Find-BuiltExecutable `
-        -BuildRoot $BuildRoot `
-        -Component "LASSIE" `
-        -Name "lassie.exe" `
-        -Configuration $Configuration
+    $LassieExe = $null
+    if (-not $CmodOnly) {
+        $LassieExe = Find-BuiltExecutable `
+            -BuildRoot $BuildRoot `
+            -Component "LASSIE" `
+            -Name "lassie.exe" `
+            -Configuration $Configuration
+    }
     $CmodExe = Find-BuiltExecutable `
         -BuildRoot $BuildRoot `
         -Component "CMOD" `
         -Name "cmod.exe" `
         -Configuration $Configuration
-    Write-Host "LASSIE: $($LassieExe.FullName)"
+    if (-not $CmodOnly) {
+        Write-Host "LASSIE: $($LassieExe.FullName)"
+    }
     Write-Host "CMOD:   $($CmodExe.FullName)"
-    Write-Host "Qt:     $QtBin"
-    Write-Host "LilyPond: $($LilyPond.Root)"
+    if (-not $CmodOnly) {
+        Write-Host "Qt:     $QtBin"
+        Write-Host "LilyPond: $($LilyPond.Root)"
+    }
     Write-Host "MSVC runtime: $MsvcRuntimeDirectory"
 
     Write-Host "[4/10] Creating an isolated staging directory..." -ForegroundColor Cyan
     New-Item -ItemType Directory -Path $StageRoot -Force | Out-Null
-    Copy-ExecutableAndAdjacentDlls -Executable $LassieExe -Destination $StageRoot
+    if (-not $CmodOnly) {
+        Copy-ExecutableAndAdjacentDlls -Executable $LassieExe -Destination $StageRoot
+    }
     Copy-ExecutableAndAdjacentDlls -Executable $CmodExe -Destination $StageRoot
+    if (-not [string]::IsNullOrWhiteSpace($CachedSndFileDll) -and
+        -not $CachedSndFileDll.EndsWith("-NOTFOUND")) {
+        Copy-Item -LiteralPath $CachedSndFileDll -Destination $StageRoot -Force
+    }
 
     Write-Host "[5/10] Deploying Qt and app-local MSVC runtime DLLs..." -ForegroundColor Cyan
-    $WinDeployQt = Join-Path $QtBin "windeployqt.exe"
-    & $WinDeployQt `
-        --release `
-        --force `
-        --no-compiler-runtime `
-        --no-translations `
-        --no-quick-import `
-        --dir $StageRoot `
-        (Join-Path $StageRoot "lassie.exe")
-    if ($LASTEXITCODE -ne 0) {
-        throw "windeployqt failed."
+    if (-not $CmodOnly) {
+        $WinDeployQt = Join-Path $QtBin "windeployqt.exe"
+        & $WinDeployQt `
+            --release `
+            --force `
+            --no-compiler-runtime `
+            --no-translations `
+            --no-quick-import `
+            --dir $StageRoot `
+            (Join-Path $StageRoot "lassie.exe")
+        if ($LASTEXITCODE -ne 0) {
+            throw "windeployqt failed."
+        }
     }
 
     Get-ChildItem -LiteralPath $MsvcRuntimeDirectory -File -Filter "*.dll" |
@@ -520,35 +564,53 @@ try {
         Remove-Item -Force
 
     Write-Host "[6/10] Bundling LilyPond and documentation..." -ForegroundColor Cyan
-    $BundledLilyPondRoot = Join-Path $StageRoot "tools\lilypond"
-    New-Item -ItemType Directory -Path $BundledLilyPondRoot -Force | Out-Null
-    Get-ChildItem -LiteralPath $LilyPond.Root -Force |
-        ForEach-Object {
-            Copy-Item -LiteralPath $_.FullName -Destination $BundledLilyPondRoot -Recurse -Force
+    $BundledLilyPondExe = $null
+    $BundledLilyBin = $null
+    if (-not $CmodOnly) {
+        $BundledLilyPondRoot = Join-Path $StageRoot "tools\lilypond"
+        New-Item -ItemType Directory -Path $BundledLilyPondRoot -Force | Out-Null
+        Get-ChildItem -LiteralPath $LilyPond.Root -Force |
+            ForEach-Object {
+                Copy-Item -LiteralPath $_.FullName -Destination $BundledLilyPondRoot -Recurse -Force
+            }
+
+        $BundledLilyBin = if ([string]::IsNullOrWhiteSpace($LilyPond.RelativeBin)) {
+            $BundledLilyPondRoot
         }
+        else {
+            Join-Path $BundledLilyPondRoot $LilyPond.RelativeBin
+        }
+        $BundledLilyPondExe = Join-Path $BundledLilyBin "lilypond.exe"
 
-    $BundledLilyBin = if ([string]::IsNullOrWhiteSpace($LilyPond.RelativeBin)) {
-        $BundledLilyPondRoot
-    }
-    else {
-        Join-Path $BundledLilyPondRoot $LilyPond.RelativeBin
-    }
-    $BundledLilyPondExe = Join-Path $BundledLilyBin "lilypond.exe"
-
-    if (Test-Path -LiteralPath (Join-Path $ProjectRoot "Documents") -PathType Container) {
-        Copy-Item `
-            -LiteralPath (Join-Path $ProjectRoot "Documents") `
-            -Destination (Join-Path $StageRoot "Documentation") `
-            -Recurse `
-            -Force
+        if (Test-Path -LiteralPath (Join-Path $ProjectRoot "Documents") -PathType Container) {
+            Copy-Item `
+                -LiteralPath (Join-Path $ProjectRoot "Documents") `
+                -Destination (Join-Path $StageRoot "Documentation") `
+                -Recurse `
+                -Force
+        }
+        New-Item -ItemType Directory -Path (Join-Path $StageRoot "SoundFiles") -Force | Out-Null
+        New-Item -ItemType Directory -Path (Join-Path $StageRoot "ScoreFiles") -Force | Out-Null
     }
     Copy-Item -LiteralPath (Join-Path $ProjectRoot "LICENSE") -Destination $StageRoot -Force
-    New-Item -ItemType Directory -Path (Join-Path $StageRoot "SoundFiles") -Force | Out-Null
-    New-Item -ItemType Directory -Path (Join-Path $StageRoot "ScoreFiles") -Force | Out-Null
 
     Write-Host "[7/10] Writing portable launchers and package information..." -ForegroundColor Cyan
-    $launcherLilyBin = $BundledLilyBin.Substring($StageRoot.Length).TrimStart('\', '/')
-    $launcher = @"
+    if ($CmodOnly) {
+        $launcher = @"
+@echo off
+setlocal
+cd /d "%~dp0"
+"%~dp0cmod.exe" %*
+endlocal
+"@
+        Set-Content `
+            -LiteralPath (Join-Path $StageRoot "Run-CMOD.bat") `
+            -Value $launcher `
+            -Encoding ASCII
+    }
+    else {
+        $launcherLilyBin = $BundledLilyBin.Substring($StageRoot.Length).TrimStart('\', '/')
+        $launcher = @"
 @echo off
 setlocal
 cd /d "%~dp0"
@@ -556,10 +618,11 @@ set "PATH=%~dp0$launcherLilyBin;%PATH%"
 start "" "%~dp0lassie.exe" %*
 endlocal
 "@
-    Set-Content `
-        -LiteralPath (Join-Path $StageRoot "Run-DISSCO.bat") `
-        -Value $launcher `
-        -Encoding ASCII
+        Set-Content `
+            -LiteralPath (Join-Path $StageRoot "Run-DISSCO.bat") `
+            -Value $launcher `
+            -Encoding ASCII
+    }
 
     $versionFile = Join-Path $ProjectRoot "DISSCOVersions.txt"
     $versionText = Get-Content -LiteralPath $versionFile -Raw
@@ -578,13 +641,35 @@ endlocal
         ""
     }
 
-    # Keep this script ASCII-compatible for Windows PowerShell 5, which reads
-    # UTF-8-without-BOM source files using the active Windows code page.
-    $chineseInstructions = [Text.Encoding]::UTF8.GetString(
-        [Convert]::FromBase64String(
-            "5Lit5paH6K+05piOCiAg6Kej5Y6L5pW05LiqIFpJUCDlkI7vvIznm7TmjqXlj4zlh7sgbGFzc2llLmV4ZeOAggogIOS4jemcgOimgeWuieijhSBRdOOAgVZpc3VhbCBDKysg6L+Q6KGM5bqT5oiWIExpbHlQb25k77yM5Lmf5LiN6ZyA6KaB566h55CG5ZGY5p2D6ZmQ44CCCiAg6K+35Yu/5Y+q5aSN5Yi25Y2V5LiqIEVYRe+8m3Rvb2xz44CBcGxhdGZvcm1zIOWSjCBETEwg5paH5Lu26YO95piv56iL5bqP55qE5LiA6YOo5YiG44CC"))
+    if ($CmodOnly) {
+        $readme = @"
+CMOD $version Portable for Windows x64
+======================================
 
-    $readme = @"
+RUN
+  Run-CMOD.bat --help
+  Run-CMOD.bat C:\path\to\project.dissco
+
+REQUIREMENTS
+  - 64-bit Windows 10 or Windows 11
+  - Extract the entire ZIP before running it
+  - Keep every file and folder together
+
+The Microsoft Visual C++ runtime and CMOD's audio libraries are included.
+LilyPond is not included; install it separately and add it to PATH for score
+or PDF output. Audio synthesis does not require LilyPond.
+
+Build: $commit$dirtySuffix
+"@
+    }
+    else {
+        # Keep this script ASCII-compatible for Windows PowerShell 5, which reads
+        # UTF-8-without-BOM source files using the active Windows code page.
+        $chineseInstructions = [Text.Encoding]::UTF8.GetString(
+            [Convert]::FromBase64String(
+                "5Lit5paH6K+05piOCiAg6Kej5Y6L5pW05LiqIFpJUCDlkI7vvIznm7TmjqXlj4zlh7sgbGFzc2llLmV4ZeOAggogIOS4jemcgOimgeWuieijhSBRdOOAgVZpc3VhbCBDKysg6L+Q6KGM5bqT5oiWIExpbHlQb25k77yM5Lmf5LiN6ZyA6KaB566h55CG5ZGY5p2D6ZmQ44CCCiAg6K+35Yu/5Y+q5aSN5Yi25Y2V5LiqIEVYRe+8m3Rvb2xz44CBcGxhdGZvcm1zIOWSjCBETEwg5paH5Lu26YO95piv56iL5bqP55qE5LiA6YOo5YiG44CC"))
+
+        $readme = @"
 DISSCO $version Portable for Windows x64
 ========================================
 
@@ -606,55 +691,95 @@ $chineseInstructions
 
 Build: $commit$dirtySuffix
 "@
+    }
     Set-Content `
         -LiteralPath (Join-Path $StageRoot "README.txt") `
         -Value $readme `
         -Encoding UTF8
 
     Write-Host "[8/10] Validating package contents and architecture..." -ForegroundColor Cyan
-    $requiredPaths = @(
-        "lassie.exe",
-        "cmod.exe",
-        "Qt6Core.dll",
-        "Qt6Gui.dll",
-        "Qt6Widgets.dll",
-        "platforms\qwindows.dll",
-        "msvcp140.dll",
-        "msvcp140_1.dll",
-        "vcruntime140.dll",
-        "vcruntime140_1.dll",
-        "Run-DISSCO.bat",
-        "README.txt",
-        "LICENSE"
-    )
+    $requiredPaths = if ($CmodOnly) {
+        @(
+            "cmod.exe",
+            $SndFileRuntimeName,
+            "msvcp140.dll",
+            "msvcp140_1.dll",
+            "vcruntime140.dll",
+            "vcruntime140_1.dll",
+            "Run-CMOD.bat",
+            "README.txt",
+            "LICENSE"
+        )
+    }
+    else {
+        @(
+            "lassie.exe",
+            "cmod.exe",
+            "Qt6Core.dll",
+            "Qt6Gui.dll",
+            "Qt6Widgets.dll",
+            "platforms\qwindows.dll",
+            "msvcp140.dll",
+            "msvcp140_1.dll",
+            "vcruntime140.dll",
+            "vcruntime140_1.dll",
+            "Run-DISSCO.bat",
+            "README.txt",
+            "LICENSE"
+        )
+    }
     $missing = @($requiredPaths | Where-Object {
         -not (Test-Path -LiteralPath (Join-Path $StageRoot $_) -PathType Leaf)
     })
-    if (-not (Test-Path -LiteralPath $BundledLilyPondExe -PathType Leaf)) {
+    if (-not $CmodOnly -and
+        -not (Test-Path -LiteralPath $BundledLilyPondExe -PathType Leaf)) {
         $missing += $BundledLilyPondExe
     }
     if ($missing.Count -gt 0) {
         throw "Portable package validation failed. Missing: $($missing -join ', ')"
     }
 
-    foreach ($peFile in @(
-        (Join-Path $StageRoot "lassie.exe"),
-        (Join-Path $StageRoot "cmod.exe"),
-        (Join-Path $StageRoot "Qt6Core.dll")
-    )) {
+    $peFiles = if ($CmodOnly) {
+        @((Join-Path $StageRoot "cmod.exe")) +
+            @(Get-ChildItem -LiteralPath $StageRoot -File -Filter "*.dll" |
+                ForEach-Object { $_.FullName })
+    }
+    else {
+        @(
+            (Join-Path $StageRoot "lassie.exe"),
+            (Join-Path $StageRoot "cmod.exe"),
+            (Join-Path $StageRoot "Qt6Core.dll")
+        )
+    }
+    foreach ($peFile in $peFiles) {
         if ((Get-PeMachine -Path $peFile) -ne 0x8664) {
             throw "The portable package contains a non-x64 binary: $peFile"
         }
     }
 
-    foreach ($sourceAndPackaged in @(
-        @($LassieExe.FullName, (Join-Path $StageRoot "lassie.exe")),
-        @($CmodExe.FullName, (Join-Path $StageRoot "cmod.exe"))
-    )) {
-        $sourceHash = (Get-FileHash -LiteralPath $sourceAndPackaged[0] -Algorithm SHA256).Hash
-        $packagedHash = (Get-FileHash -LiteralPath $sourceAndPackaged[1] -Algorithm SHA256).Hash
+    $packagedExecutables = if ($CmodOnly) {
+        @([pscustomobject]@{
+            Source = $CmodExe.FullName
+            Packaged = (Join-Path $StageRoot "cmod.exe")
+        })
+    }
+    else {
+        @(
+            [pscustomobject]@{
+                Source = $LassieExe.FullName
+                Packaged = (Join-Path $StageRoot "lassie.exe")
+            },
+            [pscustomobject]@{
+                Source = $CmodExe.FullName
+                Packaged = (Join-Path $StageRoot "cmod.exe")
+            }
+        )
+    }
+    foreach ($sourceAndPackaged in $packagedExecutables) {
+        $sourceHash = (Get-FileHash -LiteralPath $sourceAndPackaged.Source -Algorithm SHA256).Hash
+        $packagedHash = (Get-FileHash -LiteralPath $sourceAndPackaged.Packaged -Algorithm SHA256).Hash
         if ($sourceHash -ne $packagedHash) {
-            throw "Packaged executable differs from the current build: $($sourceAndPackaged[1])"
+            throw "Packaged executable differs from the current build: $($sourceAndPackaged.Packaged)"
         }
     }
 
@@ -662,7 +787,8 @@ Build: $commit$dirtySuffix
         Write-Host "[9/10] Testing without developer Qt/MSVC/LilyPond paths..." -ForegroundColor Cyan
         Invoke-PortableSmokeTests `
             -PackageRoot $StageRoot `
-            -BundledLilyPondExe $BundledLilyPondExe
+            -BundledLilyPondExe $BundledLilyPondExe `
+            -CmodOnly:$CmodOnly
     }
     else {
         Write-Host "[9/10] Portable smoke tests skipped by request." -ForegroundColor DarkGray

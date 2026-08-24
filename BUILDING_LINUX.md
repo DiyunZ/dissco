@@ -1,13 +1,15 @@
 Building on Linux 
 =================
 
+Looking for a released application instead of a source build? See [DOWNLOAD.md](DOWNLOAD.md).
+
 Preliminary Requirements
 --------------------------
 
 The following are *necessary* to compile anything:
 
 - git
-- A C++17-supporting compiler (g++, clang),
+- A C++20-supporting compiler (g++, clang),
 - A C compiler (gcc ...), and
 - cmake >= 3.25
 
@@ -48,11 +50,11 @@ Since we precompile headers for LASSIE and CMOD, we suggest `export CCACHE_SLOPP
 
 <!-- TODO: RHEL, maybe -->
 
-Installing DISSCO
------------------
-Just `git clone` this repo; explicitly:
+Getting the source
+------------------
+Clone this repository:
 
-    git clone https://github.com/cmp-illinois/DISSCO-2.2.0.git
+    git clone https://github.com/cmp-illinois/DISSCO.git
 
 Building
 --------
@@ -89,3 +91,9 @@ From the project root:
 This produces `build/DISSCO-<version>-Linux-<arch>.AppImage` — a self-contained executable with Qt, libsndfile, and the `cmod` executable bundled in. Its desktop launcher runs `lassie`, and the AppImage works on most modern Linux distros without further installation.
 
 The first invocation downloads `linuxdeploy` and `linuxdeploy-plugin-qt` into `build/.linuxdeploy/`. The icon (`packaging/linux/LASSIE.png`) is a placeholder; replace it with real artwork before cutting a release.
+
+To build the standalone CMOD AppImage instead:
+
+    cmake --build build --target cmod-package
+
+This produces `build/CMOD-<version>-Linux-<architecture>.AppImage`. It contains CMOD and its audio-library dependencies, but not LASSIE, Qt, or LilyPond.

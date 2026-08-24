@@ -35,6 +35,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #include "Piece.h"
 #include "Patter.h"
 #include "ProbabilityEnvelope.h" // consider moving this into LASS.h
+#include <filesystem>
 #include <memory>
 #include <sstream>
 #include <string>
@@ -74,8 +75,8 @@ Utilities::Utilities(pugi::xml_node root,
 
   envelopeLibrary = new EnvelopeLibrary();
   envelopeLibrary->loadLibraryNewFormat((char*)fileString.c_str());
-  string deleteCommand = "rm " + fileString;
-  system(deleteCommand.c_str());
+  std::error_code removalError;
+  std::filesystem::remove(fileString, removalError);
 
   // Construct Markov Model Library
   pugi::xml_node markovModelLibraryElement = GNES(envelopeLibraryElement);
