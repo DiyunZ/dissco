@@ -115,7 +115,7 @@ class Piece {
   **/
   ~Piece();
 
-  /// Returns false when an external score-generation step failed.
+    /// Returns false when any requested output could not be generated.
   bool completedSuccessfully() const { return buildSucceeded; }
 
   /**

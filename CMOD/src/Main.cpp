@@ -48,6 +48,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #include "SignalHandlers.h"
 
 			//added by Sever must be a more elegant way
+#include <filesystem>
 #include <iostream>
 #include <fstream>
 using namespace std;
@@ -76,21 +77,16 @@ int main(int parameterCount, char **parameterList) {
     return 0;
   }
 
-  size_t lastSlash = path.find_last_of('/');
-  string workingPath = path.substr(0, lastSlash+1);
+    const filesystem::path projectPath(path);
+    filesystem::path workingDirectory = projectPath.parent_path();
+    if (workingDirectory.empty())
+        workingDirectory = ".";
+
+    string workingPath = workingDirectory.string();
   cout << "Working in path: " << workingPath << endl;
 
   //Determine the project name.
-  //remove extension .dissco
-  path = path.substr(0, path.length() - 7);
-  string projectName;
-
-  if (lastSlash!=string::npos){
-    projectName = path.substr(lastSlash+1);
-  }
-  else {
-    projectName = path;
-  }
+    string projectName = projectPath.stem().string();
 
   //Determine project sound file output.
   PieceHelper::createSoundFilesDirectory(workingPath);
