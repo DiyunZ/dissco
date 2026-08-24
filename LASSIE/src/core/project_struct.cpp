@@ -16,6 +16,7 @@ in the associated window (currently, the project view).
 #include <QTextStream>
 #include <QFileInfo>
 #include <QProcess>
+#include <QSet>
 #include <QXmlStreamReader>
 #include <QXmlStreamWriter>
 #include <sstream>
@@ -75,10 +76,43 @@ namespace QtParser {
         return readInner(r);
     }
 
+    inline bool readNextRequiredChild(QXmlStreamReader& r,
+                                      QStringView expectedName) {
+        if (!r.readNextStartElement()) {
+            if (!r.hasError()) {
+                r.raiseError(QStringLiteral("Expected required <%1> element.")
+                                 .arg(expectedName.toString()));
+            }
+            return false;
+        }
+        if (r.name() != expectedName) {
+            r.raiseError(QStringLiteral("Expected <%1>, but found <%2>.")
+                             .arg(expectedName.toString(), r.name().toString()));
+            return false;
+        }
+        return true;
+    }
+
+    inline QString nextRequiredChildInner(QXmlStreamReader& r,
+                                          QStringView expectedName) {
+        if (!readNextRequiredChild(r, expectedName))
+            return {};
+        return readInner(r);
+    }
+
     /// @brief Consume any remaining children of the element currently being read,
     ///   advancing to its EndElement.
     inline void consumeRest(QXmlStreamReader& r) {
         while (r.readNextStartElement()) r.skipCurrentElement();
+    }
+
+    inline bool hasValidEventName(QXmlStreamReader& r, const QString& name) {
+        if (r.hasError())
+            return false;
+        if (!name.trimmed().isEmpty())
+            return true;
+        r.raiseError(QStringLiteral("<Event> is missing a non-empty <Name>."));
+        return false;
     }
 
     inline Package parsePackage(QXmlStreamReader& r) {
@@ -257,38 +291,47 @@ namespace QtParser {
     }
 
     inline void parseTimeSig(QXmlStreamReader& r, TimeSignature& ts) {
-        ts.bar_value  = nextChildInner(r);
-        ts.note_value = nextChildInner(r);
+        ts.bar_value = nextRequiredChildInner(r, QStringView(u"Entry1"));
+        ts.note_value = nextRequiredChildInner(r, QStringView(u"Entry2"));
         consumeRest(r);
     }
 
     inline void parseTempo(QXmlStreamReader& r, Tempo& t) {
-        t.method_flag = nextChildInner(r).toUInt();
-        t.prefix      = nextChildInner(r);
-        t.note_value  = nextChildInner(r);
-        t.frentry_1   = nextChildInner(r);
-        t.frentry_2   = nextChildInner(r);
-        t.valentry    = nextChildInner(r);
+        t.method_flag = nextRequiredChildInner(
+            r, QStringView(u"MethodFlag")).toUInt();
+        t.prefix = nextRequiredChildInner(r, QStringView(u"Prefix"));
+        t.note_value = nextRequiredChildInner(r, QStringView(u"NoteValue"));
+        t.frentry_1 = nextRequiredChildInner(
+            r, QStringView(u"FractionEntry1"));
+        t.frentry_2 = nextRequiredChildInner(
+            r, QStringView(u"FractionEntry2"));
+        t.valentry = nextRequiredChildInner(r, QStringView(u"ValueEntry"));
         consumeRest(r);
     }
 
     inline void parseNumChildren(QXmlStreamReader& r, NumChildren& n) {
-        n.method_flag = nextChildInner(r).toUInt();
-        n.entry_1     = nextChildInner(r);
-        n.entry_2     = nextChildInner(r);
-        n.entry_3     = nextChildInner(r);
+        n.method_flag = nextRequiredChildInner(
+            r, QStringView(u"MethodFlag")).toUInt();
+        n.entry_1 = nextRequiredChildInner(r, QStringView(u"Entry1"));
+        n.entry_2 = nextRequiredChildInner(r, QStringView(u"Entry2"));
+        n.entry_3 = nextRequiredChildInner(r, QStringView(u"Entry3"));
         consumeRest(r);
     }
 
     inline void parseChildEventDef(QXmlStreamReader& r, ChildDef& c) {
-        c.entry_1            = nextChildInner(r);
-        c.entry_2            = nextChildInner(r);
-        c.entry_3            = nextChildInner(r);
-        c.attack_sieve       = nextChildInner(r);
-        c.duration_sieve     = nextChildInner(r);
-        c.definition_flag    = nextChildInner(r).toUInt();
-        c.starttype_flag     = nextChildInner(r).toUInt();
-        c.durationtype_flag  = nextChildInner(r).toUInt();
+        c.entry_1 = nextRequiredChildInner(r, QStringView(u"Entry1"));
+        c.entry_2 = nextRequiredChildInner(r, QStringView(u"Entry2"));
+        c.entry_3 = nextRequiredChildInner(r, QStringView(u"Entry3"));
+        c.attack_sieve = nextRequiredChildInner(
+            r, QStringView(u"AttackSieve"));
+        c.duration_sieve = nextRequiredChildInner(
+            r, QStringView(u"DurationSieve"));
+        c.definition_flag = nextRequiredChildInner(
+            r, QStringView(u"DefinitionFlag")).toUInt();
+        c.starttype_flag = nextRequiredChildInner(
+            r, QStringView(u"StartTypeFlag")).toUInt();
+        c.durationtype_flag = nextRequiredChildInner(
+            r, QStringView(u"DurationTypeFlag")).toUInt();
         consumeRest(r);
     }
 
@@ -305,30 +348,49 @@ namespace QtParser {
     ///   through `<Filter>`. The `<EventType>` child must already have been consumed
     ///   by the caller. Stops at `<Filter>` so callers can read the differing
     ///   trailing siblings (HEvent: `<Modifiers>`; BottomEvent: `<ExtraInfo>`).
-    inline void parseHEventCore(QXmlStreamReader& r, HEvent& event) {
-        event.name              = nextChildInner(r);   // <Name>
-        event.max_child_duration = nextChildInner(r);  // <MaxChildDuration>
-        event.edu_perbeat       = nextChildInner(r);   // <EDUPerBeat>
+    inline bool parseHEventCore(QXmlStreamReader& r, HEvent& event) {
+        event.name = nextRequiredChildInner(r, QStringView(u"Name"));
+        event.max_child_duration = nextRequiredChildInner(
+            r, QStringView(u"MaxChildDuration"));
+        event.edu_perbeat = nextRequiredChildInner(
+            r, QStringView(u"EDUPerBeat"));
+        if (r.hasError())
+            return false;
 
-        if (r.readNextStartElement()) parseTimeSig(r, event.timesig);
-        if (r.readNextStartElement()) parseTempo(r, event.tempo);
-        if (r.readNextStartElement()) parseNumChildren(r, event.numchildren);
-        if (r.readNextStartElement()) parseChildEventDef(r, event.child_event_def);
+        if (!readNextRequiredChild(r, QStringView(u"TimeSignature")))
+            return false;
+        parseTimeSig(r, event.timesig);
+        if (!readNextRequiredChild(r, QStringView(u"Tempo")))
+            return false;
+        parseTempo(r, event.tempo);
+        if (!readNextRequiredChild(r, QStringView(u"NumberOfChildren")))
+            return false;
+        parseNumChildren(r, event.numchildren);
+        if (!readNextRequiredChild(r, QStringView(u"ChildEventDefinition")))
+            return false;
+        parseChildEventDef(r, event.child_event_def);
+        if (r.hasError())
+            return false;
 
-        if (r.readNextStartElement()) { // <Layers>
+        if (readNextRequiredChild(r, QStringView(u"Layers"))) {
             while (r.readNextStartElement())
                 event.event_layers.append(parseLayer(r));
+        } else {
+            return false;
         }
 
-        event.spa    = nextChildInner(r); // <Spatialization>
-        event.reverb = nextChildInner(r); // <Reverb>
-        event.filter = nextChildInner(r); // <Filter>
+        event.spa = nextRequiredChildInner(r, QStringView(u"Spatialization"));
+        event.reverb = nextRequiredChildInner(r, QStringView(u"Reverb"));
+        event.filter = nextRequiredChildInner(r, QStringView(u"Filter"));
+        return !r.hasError();
     }
 
     inline void parseHEventChildren(QXmlStreamReader& r, HEvent& event) {
-        parseHEventCore(r, event);
-        if (r.readNextStartElement()) // <Modifiers>
-            parseModifiers(r, event.modifiers);
+        if (!parseHEventCore(r, event))
+            return;
+        if (!readNextRequiredChild(r, QStringView(u"Modifiers")))
+            return;
+        parseModifiers(r, event.modifiers);
         consumeRest(r);
     }
 
@@ -339,14 +401,24 @@ namespace QtParser {
         info.phase = QStringLiteral("0");
         bool modifierUsageMarkerSupported = false;
         info.modifier_sampling_scope = ModifierSamplingScope::PerSound;
+        QSet<QString> requiredFields{
+            QStringLiteral("FrequencyInfo"), QStringLiteral("Loudness"),
+            QStringLiteral("Spatialization"), QStringLiteral("Reverb"),
+            QStringLiteral("Modifiers")
+        };
         while (r.readNextStartElement()) {
             const QString tag = r.name().toString();
+            requiredFields.remove(tag);
 
             if (tag == QStringLiteral("FrequencyInfo")) {
-                info.freq_info.freq_flag      = nextChildInner(r).toUInt();
-                info.freq_info.continuum_flag = nextChildInner(r).toUInt();
-                info.freq_info.entry_1        = nextChildInner(r);
-                info.freq_info.entry_2        = nextChildInner(r);
+                info.freq_info.freq_flag = nextRequiredChildInner(
+                    r, QStringView(u"FrequencyFlag")).toUInt();
+                info.freq_info.continuum_flag = nextRequiredChildInner(
+                    r, QStringView(u"FrequencyContinuumFlag")).toUInt();
+                info.freq_info.entry_1 = nextRequiredChildInner(
+                    r, QStringView(u"FrequencyEntry1"));
+                info.freq_info.entry_2 = nextRequiredChildInner(
+                    r, QStringView(u"FrequencyEntry2"));
                 consumeRest(r);
             } else if (tag == QStringLiteral("Loudness")) {
                 info.loudness = readInner(r);
@@ -388,13 +460,23 @@ namespace QtParser {
                 r.skipCurrentElement();
             }
         }
+
+        if (!r.hasError() && !requiredFields.isEmpty()) {
+            QStringList missingFields = requiredFields.values();
+            missingFields.sort();
+            r.raiseError(QStringLiteral(
+                "<ExtraInfo> is missing required element(s): %1.")
+                             .arg(missingFields.join(QStringLiteral(", "))));
+        }
         info.modifier_usage_needs_review = !modifierUsageMarkerSupported;
     }
 
     inline void parseBottomEventChildren(QXmlStreamReader& r, BottomEvent& bev) {
-        parseHEventCore(r, bev.event);
-        if (r.readNextStartElement()) // <ExtraInfo>
-            parseExtraInfo(r, bev.extra_info);
+        if (!parseHEventCore(r, bev.event))
+            return;
+        if (!readNextRequiredChild(r, QStringView(u"ExtraInfo")))
+            return;
+        parseExtraInfo(r, bev.extra_info);
         consumeRest(r);
 
         QString prefix = bev.event.name.isEmpty() ? QString() : QString(bev.event.name[0]);
@@ -413,43 +495,67 @@ namespace QtParser {
     }
 
     inline void parseSpectrumEventChildren(QXmlStreamReader& r, SpectrumEvent& event) {
-        event.name              = nextChildInner(r);
-        event.num_partials      = nextChildInner(r);
-        event.deviation         = nextChildInner(r);
-        event.generate_spectrum = nextChildInner(r);
-        if (r.readNextStartElement())
-            event.spectrum = parseSpectrum(r);
+        event.name = nextRequiredChildInner(r, QStringView(u"Name"));
+        event.num_partials = nextRequiredChildInner(
+            r, QStringView(u"NumberOfPartials"));
+        event.deviation = nextRequiredChildInner(r, QStringView(u"Deviation"));
+        event.generate_spectrum = nextRequiredChildInner(
+            r, QStringView(u"GenerateSpectrum"));
+        if (r.hasError())
+            return;
+        if (!readNextRequiredChild(r, QStringView(u"Spectrum")))
+            return;
+        event.spectrum = parseSpectrum(r);
         consumeRest(r);
     }
 
     inline NoteInfo parseNoteInfo(QXmlStreamReader& r) {
         NoteInfo ni;
-        ni.staffs = nextChildInner(r);
-        if (r.readNextStartElement()) { // <Modifiers>
-            while (r.readNextStartElement())
-                ni.modifiers.append(readInner(r));
-        }
+        ni.staffs = nextRequiredChildInner(r, QStringView(u"Staffs"));
+        if (!readNextRequiredChild(r, QStringView(u"Modifiers")))
+            return ni;
+        while (r.readNextStartElement())
+            ni.modifiers.append(readInner(r));
         consumeRest(r);
         return ni;
     }
 
     inline void parseNoteEventChildren(QXmlStreamReader& r, NoteEvent& event) {
-        event.name = nextChildInner(r);
-        if (r.readNextStartElement())
-            event.note_info = parseNoteInfo(r);
+        event.name = nextRequiredChildInner(r, QStringView(u"Name"));
+        if (!readNextRequiredChild(r, QStringView(u"NoteInfo")))
+            return;
+        event.note_info = parseNoteInfo(r);
         consumeRest(r);
     }
 
 }
 
-void Project::parseEvent(QXmlStreamReader& r) {
+bool Project::parseEvent(QXmlStreamReader& r, Eventtype* parsedType) {
     // r at <Event> StartElement (with orderInPalette attribute).
     QString orderinpalette = r.attributes().value("orderInPalette").toString();
 
     // First child is <EventType>, whose text content is the integer type.
-    if (!r.readNextStartElement()) { r.skipCurrentElement(); return; }
-    int typeInt = QtParser::readInner(r).toInt();
+    if (!r.readNextStartElement()) {
+        r.raiseError(QStringLiteral("<Event> is missing <EventType>."));
+        return false;
+    }
+    if (r.name() != QStringView(u"EventType")) {
+        r.raiseError(QStringLiteral("Expected <EventType> as the first child of <Event>."));
+        return false;
+    }
+
+    bool validType = false;
+    int typeInt = QtParser::readInner(r).toInt(&validType);
+    if (!validType || typeInt < static_cast<int>(top)
+        || typeInt > static_cast<int>(spec)) {
+        r.raiseError(QStringLiteral("<EventType> contains an invalid event type."));
+        return false;
+    }
     Eventtype type = (Eventtype)typeInt;
+    if (type == folder || type == mea || type == spec) {
+        r.raiseError(QStringLiteral("<EventType> contains an unsupported event type."));
+        return false;
+    }
 
     switch (type) {
         case top:
@@ -460,6 +566,8 @@ void Project::parseEvent(QXmlStreamReader& r) {
             eh.orderinpalette = orderinpalette;
             eh.type = type;
             QtParser::parseHEventChildren(r, eh);
+            if (!QtParser::hasValidEventName(r, eh.name))
+                return false;
             qDebug() << "parsed" << eh.type << "event named" << eh.name;
             switch (type) {
                 case top:   top_event = eh; break;
@@ -475,6 +583,8 @@ void Project::parseEvent(QXmlStreamReader& r) {
             eb.event.orderinpalette = orderinpalette;
             eb.event.type = type;
             QtParser::parseBottomEventChildren(r, eb);
+            if (!QtParser::hasValidEventName(r, eb.event.name))
+                return false;
             qDebug() << "parsed Bottom event named" << eb.event.name;
             bottom_events.append(eb);
             break;
@@ -483,6 +593,8 @@ void Project::parseEvent(QXmlStreamReader& r) {
             SpectrumEvent espec;
             espec.orderinpalette = orderinpalette;
             QtParser::parseSpectrumEventChildren(r, espec);
+            if (!QtParser::hasValidEventName(r, espec.name))
+                return false;
             qDebug() << "parsed Spectrum event named" << espec.name;
             spectrum_events.append(espec);
             break;
@@ -491,6 +603,8 @@ void Project::parseEvent(QXmlStreamReader& r) {
             NoteEvent en;
             en.orderinpalette = orderinpalette;
             QtParser::parseNoteEventChildren(r, en);
+            if (!QtParser::hasValidEventName(r, en.name))
+                return false;
             qDebug() << "parsed Note event named " << en.name;
             note_events.append(en);
             break;
@@ -498,9 +612,13 @@ void Project::parseEvent(QXmlStreamReader& r) {
         case env: {
             EnvelopeEvent ee;
             ee.orderinpalette = orderinpalette;
-            ee.name             = QtParser::nextChildInner(r);
-            ee.envelope_builder = QtParser::nextChildInner(r);
+            ee.name = QtParser::nextRequiredChildInner(
+                r, QStringView(u"Name"));
+            ee.envelope_builder = QtParser::nextRequiredChildInner(
+                r, QStringView(u"EnvelopeBuilder"));
             QtParser::consumeRest(r);
+            if (!QtParser::hasValidEventName(r, ee.name))
+                return false;
             qDebug() << "parsed Envelope event named" << ee.name;
             envelope_events.append(ee);
             break;
@@ -508,9 +626,13 @@ void Project::parseEvent(QXmlStreamReader& r) {
         case sieve: {
             SieveEvent esi;
             esi.orderinpalette = orderinpalette;
-            esi.name          = QtParser::nextChildInner(r);
-            esi.sieve_builder = QtParser::nextChildInner(r);
+            esi.name = QtParser::nextRequiredChildInner(
+                r, QStringView(u"Name"));
+            esi.sieve_builder = QtParser::nextRequiredChildInner(
+                r, QStringView(u"SieveBuilder"));
             QtParser::consumeRest(r);
+            if (!QtParser::hasValidEventName(r, esi.name))
+                return false;
             qDebug() << "parsed Sieve event named" << esi.name;
             sieve_events.append(esi);
             break;
@@ -518,9 +640,13 @@ void Project::parseEvent(QXmlStreamReader& r) {
         case spa: {
             SpaEvent espa;
             espa.orderinpalette = orderinpalette;
-            espa.name           = QtParser::nextChildInner(r);
-            espa.spatialization = QtParser::nextChildInner(r);
+            espa.name = QtParser::nextRequiredChildInner(
+                r, QStringView(u"Name"));
+            espa.spatialization = QtParser::nextRequiredChildInner(
+                r, QStringView(u"Spatialization"));
             QtParser::consumeRest(r);
+            if (!QtParser::hasValidEventName(r, espa.name))
+                return false;
             qDebug() << "parsed Spa event named" << espa.name;
             spa_events.append(espa);
             break;
@@ -528,9 +654,13 @@ void Project::parseEvent(QXmlStreamReader& r) {
         case pattern: {
             PatternEvent ep;
             ep.orderinpalette = orderinpalette;
-            ep.name            = QtParser::nextChildInner(r);
-            ep.pattern_builder = QtParser::nextChildInner(r);
+            ep.name = QtParser::nextRequiredChildInner(
+                r, QStringView(u"Name"));
+            ep.pattern_builder = QtParser::nextRequiredChildInner(
+                r, QStringView(u"PatternBuilder"));
             QtParser::consumeRest(r);
+            if (!QtParser::hasValidEventName(r, ep.name))
+                return false;
             qDebug() << "parsed Pattern event named" << ep.name;
             pattern_events.append(ep);
             break;
@@ -538,9 +668,13 @@ void Project::parseEvent(QXmlStreamReader& r) {
         case reverb: {
             ReverbEvent er;
             er.orderinpalette = orderinpalette;
-            er.name          = QtParser::nextChildInner(r);
-            er.reverberation = QtParser::nextChildInner(r);
+            er.name = QtParser::nextRequiredChildInner(
+                r, QStringView(u"Name"));
+            er.reverberation = QtParser::nextRequiredChildInner(
+                r, QStringView(u"Reverberation"));
             QtParser::consumeRest(r);
+            if (!QtParser::hasValidEventName(r, er.name))
+                return false;
             qDebug() << "parsed Reverb event named" << er.name;
             reverb_events.append(er);
             break;
@@ -548,58 +682,137 @@ void Project::parseEvent(QXmlStreamReader& r) {
         case filter: {
             FilterEvent ef;
             ef.orderinpalette = orderinpalette;
-            ef.name           = QtParser::nextChildInner(r);
-            ef.filter_builder = QtParser::nextChildInner(r);
+            ef.name = QtParser::nextRequiredChildInner(
+                r, QStringView(u"Name"));
+            ef.filter_builder = QtParser::nextRequiredChildInner(
+                r, QStringView(u"FilterBuilder"));
             QtParser::consumeRest(r);
+            if (!QtParser::hasValidEventName(r, ef.name))
+                return false;
             qDebug() << "parsed Filter event named" << ef.name;
             filter_events.append(ef);
             break;
         }
         default:
-            qDebug() << "ERROR: parsing event gave event type outside defined types";
-            r.skipCurrentElement();
+            return false;
     }
+
+    if (parsedType)
+        *parsedType = type;
+    return true;
 }
 
-void ProjectManager::parse(Project* p, const QString& filepath) {
+bool ProjectManager::parse(Project* p, const QString& filepath,
+                           QString* errorMessage) {
+    const auto fail = [errorMessage](const QString& message) {
+        if (errorMessage)
+            *errorMessage = message;
+        return false;
+    };
+
     QFile file(filepath);
     if (!file.open(QIODevice::ReadOnly | QIODevice::Text)) {
-        qDebug() << "ERROR: cannot open" << filepath;
-        return;
+        return fail(QStringLiteral("Cannot read the project file: %1")
+                        .arg(file.errorString()));
     }
     QXmlStreamReader r(&file);
 
-    if (!r.readNextStartElement()) return; // <DISSCO> root
+    if (!r.readNextStartElement()) {
+        if (r.hasError()) {
+            return fail(QStringLiteral("XML error at line %1, column %2: %3")
+                            .arg(r.lineNumber())
+                            .arg(r.columnNumber())
+                            .arg(r.errorString()));
+        }
+        return fail(QStringLiteral("The file does not contain an XML root element."));
+    }
+
+    if (r.name() != QStringView(u"ProjectRoot")) {
+        return fail(QStringLiteral(
+                        "Expected <ProjectRoot> at line %1, but found <%2>.")
+                        .arg(r.lineNumber())
+                        .arg(r.name().toString()));
+    }
+
+    bool foundProjectConfiguration = false;
+    bool foundEvents = false;
+    bool foundTopEvent = false;
+    QString configuredTopEventName;
+    QString structureError;
 
     while (r.readNextStartElement()) {
         const QString elName = r.name().toString();
 
         if (elName == "ProjectConfiguration") {
-            // Children: <Title>, <FileFlag>, <TopEvent>, <PieceStartTime>, <Duration>,
-            //           <Synthesis>, <Score>, <Grandstaff>, <NumOfStaff>, <NumOfChannels>,
-            //           <SampleRate>, <SampleSize>, <NumOfThreads>, <OutputParticel> (optional)
-            r.readNextStartElement(); // <Title> — skipped
-            QtParser::readInner(r);
-            p->file_flag = QtParser::nextChildInner(r);
-            QtParser::nextChildInner(r); // <TopEvent> — always "0"
-            p->top_event.name = "0";
-            p->start_time   = QtParser::nextChildInner(r);
-            p->duration     = QtParser::nextChildInner(r);
-            p->synthesis    = (QtParser::nextChildInner(r) == "True");
-            p->score        = (QtParser::nextChildInner(r) == "True");
-            p->grand_staff  = (QtParser::nextChildInner(r) == "True");
-            p->num_staffs   = QtParser::nextChildInner(r);
-            p->num_channels = QtParser::nextChildInner(r);
-            p->sample_rate  = QtParser::nextChildInner(r);
-            p->sample_size  = QtParser::nextChildInner(r);
-            p->num_threads  = QtParser::nextChildInner(r);
-            // <OutputParticel> is optional; defaults to false.
+            if (foundProjectConfiguration) {
+                structureError = QStringLiteral(
+                    "The project contains more than one <ProjectConfiguration> section.");
+                r.skipCurrentElement();
+                continue;
+            }
+            foundProjectConfiguration = true;
+
+            QSet<QString> requiredFields{
+                QStringLiteral("Title"), QStringLiteral("FileFlag"),
+                QStringLiteral("TopEvent"), QStringLiteral("PieceStartTime"),
+                QStringLiteral("Duration"), QStringLiteral("NumberOfStaff"),
+                QStringLiteral("NumberOfChannels"),
+                QStringLiteral("SampleRate"), QStringLiteral("SampleSize"),
+                QStringLiteral("NumberOfThreads")
+            };
+
+            // Older LASSIE versions omitted false boolean fields entirely.
+            p->synthesis = false;
+            p->score = false;
+            p->grand_staff = false;
             p->output_particel = false;
             while (r.readNextStartElement()) {
-                if (r.name() == QStringView(u"OutputParticel"))
-                    p->output_particel = (QtParser::readInner(r) == "True");
-                else
+                const QString field = r.name().toString();
+                requiredFields.remove(field);
+
+                if (field == QStringLiteral("Title")) {
+                    // The filename remains the authoritative in-app title.
+                    QtParser::readInner(r);
+                } else if (field == QStringLiteral("FileFlag")) {
+                    p->file_flag = QtParser::readInner(r);
+                } else if (field == QStringLiteral("TopEvent")) {
+                    configuredTopEventName = QtParser::readInner(r).trimmed();
+                } else if (field == QStringLiteral("PieceStartTime")) {
+                    p->start_time = QtParser::readInner(r);
+                } else if (field == QStringLiteral("Duration")) {
+                    p->duration = QtParser::readInner(r);
+                } else if (field == QStringLiteral("Synthesis")) {
+                    p->synthesis = (QtParser::readInner(r) == QStringLiteral("True"));
+                } else if (field == QStringLiteral("Score")) {
+                    p->score = (QtParser::readInner(r) == QStringLiteral("True"));
+                } else if (field == QStringLiteral("GrandStaff")) {
+                    p->grand_staff = (QtParser::readInner(r) == QStringLiteral("True"));
+                } else if (field == QStringLiteral("NumberOfStaff")) {
+                    p->num_staffs = QtParser::readInner(r);
+                } else if (field == QStringLiteral("NumberOfChannels")) {
+                    p->num_channels = QtParser::readInner(r);
+                } else if (field == QStringLiteral("SampleRate")) {
+                    p->sample_rate = QtParser::readInner(r);
+                } else if (field == QStringLiteral("SampleSize")) {
+                    p->sample_size = QtParser::readInner(r);
+                } else if (field == QStringLiteral("NumberOfThreads")) {
+                    p->num_threads = QtParser::readInner(r);
+                } else if (field == QStringLiteral("OutputParticel")) {
+                    p->output_particel =
+                        (QtParser::readInner(r) == QStringLiteral("True"));
+                } else if (field == QStringLiteral("Seed")) {
+                    p->seed = QtParser::readInner(r);
+                } else {
                     r.skipCurrentElement();
+                }
+            }
+
+            if (!requiredFields.isEmpty() && structureError.isEmpty()) {
+                QStringList missingFields = requiredFields.values();
+                missingFields.sort();
+                structureError = QStringLiteral(
+                    "<ProjectConfiguration> is missing required field(s): %1.")
+                    .arg(missingFields.join(QStringLiteral(", ")));
             }
         }
         else if (elName == "NoteModifiers") {
@@ -669,11 +882,26 @@ void ProjectManager::parse(Project* p, const QString& filepath) {
             qDebug() << "Passed markov";
         }
         else if (elName == "Events") {
+            if (foundEvents) {
+                structureError = QStringLiteral(
+                    "The project contains more than one <Events> section.");
+                r.skipCurrentElement();
+                continue;
+            }
+            foundEvents = true;
             while (r.readNextStartElement()) {
-                if (r.name() == QStringView(u"Event"))
-                    p->parseEvent(r);
-                else
+                if (r.name() == QStringView(u"Event")) {
+                    Eventtype parsedType = top;
+                    if (p->parseEvent(r, &parsedType) && parsedType == top) {
+                        if (foundTopEvent) {
+                            structureError = QStringLiteral(
+                                "The project contains more than one top event.");
+                        }
+                        foundTopEvent = true;
+                    }
+                } else {
                     r.skipCurrentElement();
+                }
             }
         }
         else {
@@ -681,8 +909,33 @@ void ProjectManager::parse(Project* p, const QString& filepath) {
         }
     }
 
-    if (r.hasError())
-        qDebug() << "XML parse error:" << r.errorString();
+    if (r.hasError()) {
+        return fail(QStringLiteral("XML error at line %1, column %2: %3")
+                        .arg(r.lineNumber())
+                        .arg(r.columnNumber())
+                        .arg(r.errorString()));
+    }
+    if (!foundProjectConfiguration)
+        return fail(QStringLiteral("The project is missing <ProjectConfiguration>."));
+    if (!foundEvents)
+        return fail(QStringLiteral("The project is missing <Events>."));
+    if (!foundTopEvent)
+        return fail(QStringLiteral("The project is missing a top event."));
+    if (!structureError.isEmpty())
+        return fail(structureError);
+    if (configuredTopEventName.isEmpty()) {
+        return fail(QStringLiteral(
+            "<ProjectConfiguration><TopEvent> must name the top event."));
+    }
+    if (p->top_event.name != configuredTopEventName) {
+        return fail(QStringLiteral(
+            "Configured top event '%1' does not match parsed top event '%2'.")
+                        .arg(configuredTopEventName, p->top_event.name));
+    }
+
+    if (errorMessage)
+        errorMessage->clear();
+    return true;
 }
 
 
@@ -746,7 +999,8 @@ Project* ProjectManager::create(const QString& title, const QByteArray& id){
     return project;
 }
 
-Project* ProjectManager::open(const QString& filepath, const QByteArray& id){
+Project* ProjectManager::open(const QString& filepath, const QByteArray& id,
+                              QString* errorMessage, bool makeCurrent){
     QFileInfo info(filepath);
     QString cpath = info.canonicalFilePath();
     info.setFile(cpath);
@@ -755,10 +1009,17 @@ Project* ProjectManager::open(const QString& filepath, const QByteArray& id){
     QFileInfo fileinfo(filepath);
     project->fileinfo = fileinfo;
 
-    curr_project_ = project;
-
     qDebug() << "Now parsing " << filepath;
-    parse(project, filepath);
+    if (!parse(project, filepath, errorMessage)) {
+#ifdef TABEDITOR
+        project_hash_.remove(project->id);
+#endif
+        delete project;
+        return nullptr;
+    }
+
+    if (makeCurrent)
+        curr_project_ = project;
     
     return project;
 }

@@ -62,7 +62,7 @@ class Project : public QObject {
          *  \returns 
         **/
         Project(const QString& _title = QString(), const QByteArray& _id = QByteArray());
-        void parseEvent(QXmlStreamReader& reader);
+        bool parseEvent(QXmlStreamReader& reader, Eventtype* parsedType = nullptr);
         /* the *.dissco file */
         QFileInfo fileinfo;
         QByteArray id;
@@ -163,11 +163,13 @@ class ProjectManager : public QObject {
         /// Create a fresh in-memory Project; not yet bound to a file on disk.
         Project* create(const QString& title = QString(), const QByteArray& id = QByteArray());
         /// Validate and open a `.dissco` file from disk, returning a new Project.
-        Project* open(const QString& filepath, const QByteArray& id = QByteArray());
+        Project* open(const QString& filepath, const QByteArray& id = QByteArray(),
+                      QString* errorMessage = nullptr, bool makeCurrent = true);
         /// Build a Project from an arbitrary file path (e.g. import path).
         Project* build(const QString& filepath, const QByteArray& id = QByteArray());
         /// Populate @p p from the XML found in the file at @p filepath.
-        void parse(Project*, const QString&);
+        /// Returns false and describes the parse/structure error in @p errorMessage.
+        bool parse(Project*, const QString&, QString* errorMessage = nullptr);
         /// Tear down @p p and free its resources.
         void close(Project*);
         /// Serialize @p p to its existing on-disk path. Returns 0 on success.

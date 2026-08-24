@@ -272,10 +272,22 @@ void MainWindow::openProjectPath(const QString &path)
     if (!maybeSaveBeforeClose())
         return;
 
-    closeCurrentProject();
+    ProjectManager* pm = Inst::get_project_manager();
+    QString openError;
+    Project* openedProject = pm->open(path, nullptr, &openError, false);
+    if (!openedProject) {
+        QMessageBox::warning(
+            this, tr("Cannot Open Project"),
+            tr("Cannot open %1:\n%2\n\nThe current project was not changed.")
+                .arg(QDir::toNativeSeparators(path), openError));
+        return;
+    }
+
+    if (projectView)
+        closeCurrentProject();
+    pm->set_curr_project(openedProject);
 
     currentFile = path;
-    Inst::get_project_manager()->open(currentFile, nullptr);
     addToRecentProjects(currentFile);
     showFile();
 }

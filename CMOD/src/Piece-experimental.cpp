@@ -395,7 +395,8 @@ Piece::Piece(string _workingPath, string _projectTitle){
     MultiTrack* renderedScore = utilities->doneCMOD();
     string soundFilename = getNextSoundFile();
     //Write to file.
-    AuWriter::write(*renderedScore, soundFilename);
+    if (!AuWriter::write(*renderedScore, soundFilename))
+        buildSucceeded = false;
     delete renderedScore;
   }
   if (scorePrinting) {
@@ -460,7 +461,7 @@ Piece::Piece(string _workingPath, string _projectTitle){
   cout << endl;
   cout << "-----------------------------------------------------------" <<
     endl;
-  cout << "Build complete." << endl;
+    cout << (buildSucceeded ? "Build complete." : "Build failed.") << endl;
   cout << "-----------------------------------------------------------" <<
     endl << endl;
   cout.flush();
