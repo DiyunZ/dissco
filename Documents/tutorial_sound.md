@@ -1,28 +1,8 @@
 # Simple DISSCO Project with LASSIE: Sound Synthesis 2.2.0
 
-## 0. Download DISSCO
+## 1. Download DISSCO
 
-- Clone the repository: **git clone https://github.com/cmp-illinois/dissco.git**
-
-- Enter the project directory: **cd dissco**
-
-## 1. Build DISSCO
-
-- Create a build directory and enter it:
-
-mkdir build
-
-cd build
-
-- Generate the build files:
-
-cmake ..
-
-- Compile the program:
-
-cmake --build .
-
-(Be patient, as compiling may take a few minutes.)
+- To Download and Install DISSCO, look at the [Downloading DISSCO page](https://github.com/cmp-illinois/DISSCO/blob/main/DOWNLOAD.md). The latest releases of DISSCO are [available here](https://github.com/cmp-illinois/DISSCO/releases/latest).
 
 ## 2. Launch LASSIE (if you already downloaded and compiled DISSCO start here)
 
