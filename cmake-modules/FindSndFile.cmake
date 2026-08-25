@@ -48,8 +48,17 @@ function(_dissco_sndfile_extract_from_target)
         return()
     endif()
     get_target_property(_inc SndFile::sndfile INTERFACE_INCLUDE_DIRECTORIES)
-    # IMPORTED_LOCATION_<CONFIG> is the actual file; LOCATION may be a
-    # generator expression. Try a few common configs.
+    # On Windows, a shared imported target has both an import library (used by
+    # the linker) and a runtime DLL. Prefer IMPORTED_IMPLIB_<CONFIG> for the
+    # former; other platforms link IMPORTED_LOCATION_<CONFIG> directly.
+    foreach(_cfg IMPORTED_IMPLIB_RELEASE IMPORTED_IMPLIB_RELWITHDEBINFO
+                 IMPORTED_IMPLIB_MINSIZEREL IMPORTED_IMPLIB_DEBUG
+                 IMPORTED_IMPLIB)
+        get_target_property(_implib SndFile::sndfile ${_cfg})
+        if(_implib AND NOT _implib STREQUAL "_implib-NOTFOUND")
+            break()
+        endif()
+    endforeach()
     foreach(_cfg IMPORTED_LOCATION_RELEASE IMPORTED_LOCATION_RELWITHDEBINFO
                  IMPORTED_LOCATION_MINSIZEREL IMPORTED_LOCATION_DEBUG
                  IMPORTED_LOCATION)
@@ -58,9 +67,19 @@ function(_dissco_sndfile_extract_from_target)
             break()
         endif()
     endforeach()
-    if(_inc AND _loc)
+    if(WIN32 AND _implib)
+        set(_link_file "${_implib}")
+    else()
+        set(_link_file "${_loc}")
+    endif()
+    if(_inc AND _link_file)
         set(SNDFILE_INCLUDE_DIR "${_inc}" PARENT_SCOPE)
-        set(SNDFILE_LIBRARY     "${_loc}" PARENT_SCOPE)
+        set(SNDFILE_LIBRARY     "${_link_file}" PARENT_SCOPE)
+        if(WIN32 AND _loc MATCHES "\\.dll$")
+            set(SNDFILE_DLL "${_loc}" CACHE FILEPATH
+                "Path to the libsndfile runtime DLL." FORCE)
+            set(SNDFILE_DLL     "${_loc}" PARENT_SCOPE)
+        endif()
         set(SNDFILE_FOUND       TRUE      PARENT_SCOPE)
     endif()
 endfunction()
