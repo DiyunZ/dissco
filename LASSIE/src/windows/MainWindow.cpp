@@ -403,7 +403,7 @@ void MainWindow::runProject()
     }
 
     bool ok{};
-    const QString seed = QInputDialog::getText(this, tr("QInputDialog::getText()"), 
+    const QString seed = QInputDialog::getText(this, tr("Enter Seed"),
                                         tr("Enter a seed:"), QLineEdit::Normal,
                                         "abcd", &ok);
     if(!ok) return;
