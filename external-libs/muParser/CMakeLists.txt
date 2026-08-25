@@ -10,6 +10,7 @@ file(GLOB_RECURSE MUPARSER_SRC
 
 ### in the future, we'll let this be shared if there's a viable muparser lib install
 add_library(MUPARSER STATIC ${MUPARSER_SRC})
+target_compile_definitions(MUPARSER PUBLIC MUPARSER_STATIC)
 
 target_include_directories(MUPARSER PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
 
