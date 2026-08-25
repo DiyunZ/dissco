@@ -7,7 +7,7 @@ on:
   workflow_dispatch:
     inputs:
       tag:
-        description: "Tag/version to release (e.g. v2.2.0). Optional; if empty, a draft release for the current SHA is produced."
+        description: "Tag/version for a draft release (e.g. v2.2.0). Leave empty to build workflow artifacts only."
         required: false
 
 permissions:
@@ -15,7 +15,7 @@ permissions:
 
 jobs:
   macos:
-    name: macOS DMG
+    name: macOS arm64 packages
     runs-on: macos-14
     steps:
       - uses: actions/checkout@v5
@@ -23,7 +23,7 @@ jobs:
       - name: Install dependencies
         run: |
           brew update
-          brew install cmake ninja libsndfile
+          brew install cmake ninja libsndfile dylibbundler
 
       - name: Install Qt 6.8
         uses: jurplel/install-qt-action@v4
@@ -47,20 +47,19 @@ jobs:
       - name: Package (DMG)
         run: cmake --build build --target package
 
-      - name: Locate artifact
-        id: artifact
-        run: |
-          dmg=$(ls build/DISSCO-*-Darwin.dmg | head -n1)
-          echo "path=${dmg}" >> "$GITHUB_OUTPUT"
-          echo "name=$(basename "${dmg}")" >> "$GITHUB_OUTPUT"
+      - name: Package standalone CMOD
+        run: cmake --build build --target cmod-package
 
       - uses: actions/upload-artifact@v5
         with:
-          name: ${{ steps.artifact.outputs.name }}
-          path: ${{ steps.artifact.outputs.path }}
+          name: macos-packages
+          if-no-files-found: error
+          path: |
+            build/DISSCO-*-Darwin.dmg
+            build/CMOD-*-Darwin-*.tar.gz
 
   linux:
-    name: Linux AppImage
+    name: Linux x86_64 packages
     # Pinned to 22.04 for older glibc: AppImages built here run on more
     # downstream distros than ones built on 24.04+.
     runs-on: ubuntu-22.04
@@ -107,21 +106,19 @@ jobs:
           QMAKE: ${{ env.QT_ROOT_DIR }}/bin/qmake
         run: cmake --build build --target appimage
 
-      - name: Locate artifact
-        id: artifact
-        run: |
-          img=$(ls build/DISSCO-*.AppImage | head -n1)
-          echo "path=${img}" >> "$GITHUB_OUTPUT"
-          echo "name=$(basename "${img}")" >> "$GITHUB_OUTPUT"
+      - name: Package standalone CMOD
+        run: cmake --build build --target cmod-package
 
       - uses: actions/upload-artifact@v5
         with:
-          name: ${{ steps.artifact.outputs.name }}
-          path: ${{ steps.artifact.outputs.path }}
+          name: linux-packages
+          if-no-files-found: error
+          path: |
+            build/DISSCO-*-Linux-*.AppImage
+            build/CMOD-*-Linux-*.AppImage
 
   windows:
-    name: Windows installer
-    if: false
+    name: Windows x64 packages
     runs-on: windows-2022
     defaults:
       run:
@@ -134,6 +131,9 @@ jobs:
         uses: ilammy/msvc-dev-cmd@v1
         with:
           arch: x64
+
+      - name: Install NSIS
+        run: choco install nsis --yes --no-progress
 
       - name: Install Qt 6.8
         uses: jurplel/install-qt-action@v4
@@ -162,31 +162,77 @@ jobs:
       - name: Package (NSIS installer)
         run: cmake --build build --target package
 
-      - name: Locate artifact
-        id: artifact
-        run: |
-          $exe = Get-ChildItem build/DISSCO-*-Windows.exe | Select-Object -First 1
-          "path=$($exe.FullName)" | Out-File -Append -Encoding utf8 $env:GITHUB_OUTPUT
-          "name=$($exe.Name)"     | Out-File -Append -Encoding utf8 $env:GITHUB_OUTPUT
+      - name: Package standalone CMOD
+        run: cmake --build build --target cmod-package
 
       - uses: actions/upload-artifact@v5
         with:
-          name: ${{ steps.artifact.outputs.name }}
-          path: ${{ steps.artifact.outputs.path }}
+          name: windows-packages
+          if-no-files-found: error
+          path: |
+            build/DISSCO-*-Windows.exe
+            build/CMOD-*-Windows-x64.zip
 
   release:
     name: Publish GitHub release
     needs: [macos, linux, windows]
-    if: startsWith(github.ref, 'refs/tags/v')
+    if: >-
+      startsWith(github.ref, 'refs/tags/v') ||
+      (github.event_name == 'workflow_dispatch' && inputs.tag != '')
     runs-on: ubuntu-22.04
+    env:
+      RELEASE_TAG: ${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref_name }}
     steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+
       - uses: actions/download-artifact@v5
         with:
           path: dist
           merge-multiple: true
 
+      - name: Validate release tag and assets
+        run: |
+          major=$(sed -n 's/set(DISSCO_VER_MAJOR \([0-9][0-9]*\))/\1/p' DISSCOVersions.txt)
+          minor=$(sed -n 's/set(DISSCO_VER_MINOR \([0-9][0-9]*\))/\1/p' DISSCOVersions.txt)
+          patch=$(sed -n 's/set(DISSCO_VER_PATCH \([0-9][0-9]*\))/\1/p' DISSCOVersions.txt)
+          expected="v${major}.${minor}.${patch}"
+          if [[ "${RELEASE_TAG}" != "${expected}" ]]; then
+            echo "Release tag ${RELEASE_TAG} must match ${expected}." >&2
+            exit 1
+          fi
+
+          if git show-ref --verify --quiet "refs/tags/${RELEASE_TAG}"; then
+            tag_commit=$(git rev-list -n 1 "refs/tags/${RELEASE_TAG}")
+            if [[ "${tag_commit}" != "${GITHUB_SHA}" ]]; then
+              echo "Existing tag ${RELEASE_TAG} must match the current commit ${GITHUB_SHA}." >&2
+              exit 1
+            fi
+          fi
+
+          cd dist
+          for pattern in \
+            'DISSCO-*-Darwin.dmg' \
+            'DISSCO-*-Linux-*.AppImage' \
+            'DISSCO-*-Windows.exe' \
+            'CMOD-*-Darwin-*.tar.gz' \
+            'CMOD-*-Linux-*.AppImage' \
+            'CMOD-*-Windows-x64.zip'; do
+            compgen -G "${pattern}" > /dev/null || {
+              echo "Missing release asset: ${pattern}" >&2
+              exit 1
+            }
+          done
+
+      - name: Generate SHA-256 checksums
+        working-directory: dist
+        run: sha256sum * > SHA256SUMS
+
       - uses: softprops/action-gh-release@v2
         with:
+          tag_name: ${{ env.RELEASE_TAG }}
+          target_commitish: ${{ github.sha }}
           files: dist/*
-          draft: true
+          draft: ${{ github.event_name == 'workflow_dispatch' }}
           generate_release_notes: true

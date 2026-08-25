@@ -1,13 +1,15 @@
 Building on macOS 
 =================
 
+Looking for a released application instead of a source build? See [DOWNLOAD.md](DOWNLOAD.md).
+
 Preliminary Requirements
 --------------------------
 
 The following are *necessary* to compile anything:
 
 - git
-- A C++17-supporting compiler (g++, clang),
+- A C++20-supporting compiler (g++, clang),
 - A C compiler (gcc ...), and
 - cmake >= 3.25
 
@@ -58,11 +60,11 @@ MacPorts will install it in `/opt/local/include/[your includes here]` and `/opt/
 Since we precompile headers for LASSIE and CMOD, we suggest `export CCACHE_SLOPPINESS=pch_defines,time_macros`. Please review the `ccache` man page for more.
 
 
-Installing DISSCO
------------------
-Just `git clone` this repo; explicitly:
+Getting the source
+------------------
+Clone this repository:
 
-    git clone https://github.com/cmp-illinois/DISSCO-2.2.0.git
+    git clone https://github.com/cmp-illinois/DISSCO.git
 
 Building
 --------
@@ -86,6 +88,10 @@ From `build`, you can clean `build` using `cmake --build . --target clean`. Alte
 
 Building a release DMG
 ----------------------
+The release packages also require `dylibbundler`:
+
+    brew install dylibbundler
+
 From the project root:
 
     cmake -S . -B build -DCMAKE_BUILD_TYPE=Release \
@@ -98,3 +104,9 @@ This produces `build/DISSCO-<version>-Darwin.dmg`. The DMG contains `lassie.app`
 The build's icon (`packaging/macos/LASSIE.icns`) is a placeholder; regenerate it from updated artwork via `packaging/macos/make-icns.sh`.
 
 **Note on Gatekeeper**: without an Apple Developer ID signature + notarization, users opening the DMG will see a "cannot be verified" dialog and must right-click → Open. Code-signing and notarization can be added to the GitHub Actions release workflow once Apple Developer credentials are available.
+
+To build the standalone CMOD archive, run:
+
+    cmake --build build --target cmod-package
+
+This produces `build/CMOD-<version>-Darwin-<architecture>.tar.gz`. It contains CMOD and its audio-library dependencies, but not LASSIE, Qt, or LilyPond.

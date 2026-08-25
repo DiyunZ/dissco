@@ -1,9 +1,11 @@
-# DISSCO-2.2.0
-Major update to DISSCO focusing on cross-platform compatibility and improved usability.
+# DISSCO
 
-Please refer to the `BUILDING.md` file relevant to the operating system you wish to install on.
+DISSCO combines the LASSIE graphical editor with the CMOD composition and synthesis engine.
 
-# Contributing
+- [Download DISSCO or CMOD](DOWNLOAD.md) for Linux, macOS, and Windows
+- Build from source on [Linux](BUILDING_LINUX.md), [macOS](BUILDING_MACOS.md), or [Windows](BUILDING_WINDOWS.md)
+
+## Contributing
 
 Thank you for your interest in contributing to the dissco project. 
 

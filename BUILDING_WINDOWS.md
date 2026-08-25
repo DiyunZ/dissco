@@ -3,6 +3,8 @@ Building on Windows
 
 This guide explains how to build and run DISSCO on Windows using MSVC, CMake, Ninja, Qt, vcpkg, Git for Windows, and LilyPond.
 
+Looking for a released application instead of a source build? See [DOWNLOAD.md](DOWNLOAD.md).
+
 DISSCO contains three main parts:
 
 - **LASS**: sound synthesis library
@@ -203,7 +205,7 @@ Choose where to put the source code. This guide assumes `C:\dev\DISSCO-2.2.0`:
 
 ```cmd
 cd /d C:\dev
-git clone https://github.com/cmp-illinois/DISSCO-2.2.0.git
+git clone https://github.com/cmp-illinois/DISSCO.git
 cd DISSCO-2.2.0
 ```
 
@@ -387,3 +389,11 @@ For non-default paths or automation, run the PowerShell entry point directly:
 ```
 
 Use `Get-Help .\Make-Portable-for-Windows.ps1 -Detailed` to view the accepted switches.
+
+To create only the standalone CMOD package from an existing Release build:
+
+```cmd
+cmake --build build --target cmod-package
+```
+
+This produces `build\CMOD-<version>-Windows-x64.zip`. It includes CMOD, the Microsoft Visual C++ runtime, and CMOD's audio-library DLLs, but not LASSIE, Qt, or LilyPond.

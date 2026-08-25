@@ -1,0 +1,10 @@
+[Desktop Entry]
+Type=Application
+Name=CMOD
+Comment=Render a DISSCO composition from the command line
+Exec=cmod %f
+Icon=CMOD
+Terminal=true
+Categories=AudioVideo;Audio;
+MimeType=application/x-dissco;
+Keywords=composition;music;sound;synthesis;dissco;cmod;
