@@ -6,9 +6,7 @@
 
 ## 2. Launch LASSIE (if you already downloaded and compiled DISSCO start here)
 
-- Make sure you are inside the build directory: cd ~/dissco/build
-
-- Open the application: **./LASSIE/LASSIE**
+- Open up the DISSCO application.
 
 - Wait for the LASSIE window to appear.
 
