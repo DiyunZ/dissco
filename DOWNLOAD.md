@@ -1,6 +1,6 @@
 # Download DISSCO and CMOD
 
-Use the assets on the [latest DISSCO release](https://github.com/cmp-illinois/DISSCO/releases/latest). GitHub Actions artifacts are temporary build outputs and are not supported downloads.
+Go to the [latest DISSCO release](https://github.com/cmp-illinois/DISSCO/releases/latest) page and scroll down to the assets section for the downloads. Below are detailed the specific install instructions for each operating system.
 
 DISSCO includes the LASSIE graphical editor and CMOD. Download a `DISSCO-*` asset for the complete application. Download a `CMOD-*` asset only when you want the command-line composition and synthesis tool without LASSIE.
 
