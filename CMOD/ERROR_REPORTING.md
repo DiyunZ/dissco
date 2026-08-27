@@ -37,11 +37,3 @@ or classify an arbitrary `std::exception` as a user-input error.
 
 `Main.cpp` reports the exception once and returns a nonzero exit code. A failed
 run must not reach its `Build complete.` message.
-
-## Tests
-
-With `BUILD_TESTING=ON`, run `ctest --test-dir <build> -R CMOD.ErrorReporting
---output-on-failure`. The CLI tests use isolated fixture copies and bounded
-stdin-driven subprocesses. The successful score-output test is registered when
-LilyPond is available; missing-LilyPond and score-write failure tests do not
-require it.
