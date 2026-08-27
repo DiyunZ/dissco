@@ -1,4 +1,5 @@
 #include "Section.h"
+#include "CmodError.h"
 
 string Section::prev_loudness;
 
@@ -263,8 +264,10 @@ int Section::CalculateEDUsFromSecondsInTempo(float seconds) {
 void Section::Build(bool notate_time_signature) {
   if (!is_built_) {
     if (is_edu_limit_ && remaining_edus_ == 0) {
-      cerr << "Section cannot be built without exact edu allotment" << endl;
-      exit(1);
+      throw CmodError(CmodError::Kind::Project,
+                      "Two tempo sections start too close together to leave a notatable duration.",
+                      "Score section starting at " + to_string(GetStartTimeGlobal()) + " seconds",
+                      "Separate the tempo changes by at least one EDU, or use a finer EDU Per Beat setting.");
     }
 
     section_flat_.clear();
@@ -300,8 +303,10 @@ const list<Note*>& Section::GetSectionFlat() {
     return section_flat_;
   }
 
-  cerr << "Cannot get flattened unbuilt section!" << endl;
-  exit(1);
+  throw CmodError(CmodError::Kind::Internal,
+                  "Score output requested a section before it was built.",
+                  "Score section starting at " + to_string(GetStartTimeGlobal()) + " seconds",
+                  "Report this error to the DISSCO developers with the project file, seed, and full output.");
 }
 
 bool Section::operator<(const TimeSignature& time_signature) const {
@@ -467,6 +472,13 @@ void Section::Notate() {
 void Section::CapEnding() {
   int cur_bar_edus = 0;
   list<Note*> last_bar = PopLastBarNotes();
+
+  if (last_bar.empty()) {
+    throw CmodError(CmodError::Kind::Project,
+                    "No notes with a notatable duration remain before this tempo transition.",
+                    "Score section starting at " + to_string(GetStartTimeGlobal()) + " seconds",
+                    "Check note durations and EDU settings. Give this section positive note durations, or disable score output.");
+  }
   
   if (!last_bar.empty()) {
     cur_bar_edus = last_bar.back()->end_t - last_bar.front()->start_t;
@@ -478,12 +490,15 @@ void Section::CapEnding() {
   int total_edus_to_use = remaining_edus_ + cur_bar_edus;
 
   if (remaining_edus_ < 0) {
-    cerr << "Sections overlap" << endl;
-    exit(1);
+    throw CmodError(CmodError::Kind::Project,
+                    "Notes extend " + to_string(-remaining_edus_) + " EDU past the next tempo section.",
+                    "Score section starting at " + to_string(GetStartTimeGlobal()) + " seconds",
+                    "Shorten the preceding notes or move the next tempo change later so score sections do not overlap.");
   } else if (remaining_edus_ == 0 && cur_bar_edus == 0) {
     return; // Sections align perfectly!
   } else {
     int pow_2 = 0;
+    int best_pow_2 = 0;
     int min_err = INT_MAX;
     int ts_num, ts_den;
     while (time_signature_.beat_edus_ % TimeSignature::Power(2, pow_2) == 0) {
@@ -492,6 +507,7 @@ void Section::CapEnding() {
         ts_num = total_edus_to_use / tmp_beat_edus;
         ts_den = time_signature_.unit_note_ * TimeSignature::Power(2, pow_2);
         min_err = 0;
+        best_pow_2 = pow_2;
         break; // Overhanging time forms a dyadic time signature
       } else {
         // Form a dyadic time signature by adding sound or rest with the least error
@@ -501,12 +517,13 @@ void Section::CapEnding() {
           ts_num = num_beats; // Add time
           ts_den = time_signature_.unit_note_ * TimeSignature::Power(2, pow_2);
           min_err = err;
+          best_pow_2 = pow_2;
         }
       }
       ++pow_2;
     }
 
-    int beat_divisor = TimeSignature::Power(2, pow_2);
+    int beat_divisor = TimeSignature::Power(2, best_pow_2);
     Tempo new_tempo(time_signature_.tempo_);
 
     new_tempo.setEDUPerTimeSignatureBeat(time_signature_.beat_edus_ / beat_divisor);
@@ -518,30 +535,34 @@ void Section::CapEnding() {
     cap_->SetDurationEDUS(-1);
 
     int offset = last_bar.front()->start_t;
+    Note* last_note = last_bar.back();
     while (!last_bar.empty()) {
       // Make notes in the cap start from 0 while preserving the original
       // attack of every individual pitch in a grouped chord.
       last_bar.front()->shiftEDUs(-offset);
 
       if (!cap_->InsertNote(last_bar.front())) {
-        cerr << "Note could not be inserted into end cap. " <<
-                "This should not happen under any circumstance." << endl;
-        exit(1);
+        throw CmodError(CmodError::Kind::Internal,
+                        "A note could not be assigned to the end of its tempo section.",
+                        "Score section starting at " + to_string(GetStartTimeGlobal()) + " seconds",
+                        "Report this error to the DISSCO developers with the project file, seed, and full output.");
       }
       last_bar.pop_front();
     }
 
     if (min_err != 0 && remaining_edus_ == 0) { // No extra time and leftover sound does not fill time signature
-      Note* extra_space = new Note(*last_bar.back()); // TODO - what if we get a tie over the last bar
-      extra_space->start_t = last_bar.back()->start_t;
+      Note* extra_space = new Note(*last_note); // TODO - what if we get a tie over the last bar
+      extra_space->start_t = last_note->end_t;
       extra_space->end_t = extra_space->start_t + min_err;
       extra_space->split = 1;
       cap_->InsertNote(extra_space);
     }
 
     if (min_err != 0) {
-      cout << Note::int_to_str(new_tempo.calculateSecondsFromEDUs(min_err))
-           << " seconds added to stitch sections." << endl;
+      cout << "Warning: Score section starting at " << GetStartTimeGlobal()
+           << " seconds was extended by " << new_tempo.calculateSecondsFromEDUs(min_err)
+           << " seconds to fit a notatable time signature. "
+           << "Suggestion: Align tempo changes to the timing grid if this extension is not intended." << endl;
     }
 
     // Only notate time signature if different
@@ -768,7 +789,8 @@ list<Note*> Section::PopFirstBar() {
   list<Note*>::iterator note_iter = section_flat_.begin();
   int num_items_in_bar = 0;
   bool first_barline_seen = false;
-  while ((note_iter != section_flat_.end() && !first_barline_seen) || (*note_iter)->type != NoteType::kBarline) {
+  while (note_iter != section_flat_.end() &&
+         (!first_barline_seen || (*note_iter)->type != NoteType::kBarline)) {
     bar.push_back(*note_iter);
 
     if ((*note_iter)->type == NoteType::kBarline) 
@@ -777,9 +799,11 @@ list<Note*> Section::PopFirstBar() {
     ++note_iter; ++num_items_in_bar;
   }
 
-  if (!first_barline_seen) {
-    cerr << "Could not locate first bar in section" << endl;
-    exit(1);
+  if (!first_barline_seen || note_iter == section_flat_.end()) {
+    throw CmodError(CmodError::Kind::Internal,
+                    "A score section is missing a complete bar during a tempo transition.",
+                    "Score section starting at " + to_string(GetStartTimeGlobal()) + " seconds",
+                    "Report this error to the DISSCO developers with the project file, seed, and full output.");
   }
 
   // Remove the first bar from section_flat_
@@ -797,9 +821,10 @@ list<Note*> Section::PopLastBarNotes() {
 
   Note* last_barline = 0;
   list<Note*>::iterator note_iter = section_flat_.begin();
-  list<Note*>::iterator next = ++section_flat_.begin();
   int num_items_in_bar = 0;
-  for (; note_iter != section_flat_.end(); ++note_iter, ++next) {
+  for (; note_iter != section_flat_.end(); ++note_iter) {
+    list<Note*>::iterator next = note_iter;
+    ++next;
     Note* note = *note_iter;
 
     if (note->type == NoteType::kNote) {
@@ -817,8 +842,10 @@ list<Note*> Section::PopLastBarNotes() {
   }
 
   if (last_barline == 0) {
-    cerr << "Could not locate last bar for stitching" << endl;
-    exit(1);
+    throw CmodError(CmodError::Kind::Project,
+                    "No notatable bar was generated before a tempo transition.",
+                    "Score section starting at " + to_string(GetStartTimeGlobal()) + " seconds",
+                    "Check that the section contains notes with positive durations compatible with its EDU and time signature settings.");
   }
 
   // Remove the last bar from section_flat_

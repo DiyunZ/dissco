@@ -37,10 +37,73 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #include "Patter.h"
 #include "ProbabilityEnvelope.h" // consider moving this into LASS.h
 #include <cmath>
+#include <algorithm>
 #include <filesystem>
+#include <iomanip>
 #include <memory>
+#include <limits>
 #include <sstream>
 #include <string>
+
+static int checkedEnvelopeNumber(double number, int size,
+                                 const string& function) {
+  if (number < 1 || number >= static_cast<double>(size) + 1) {
+    throw CmodError(CmodError::Kind::Project,
+                    function + " envelope number " + to_string(number)
+                        + " is outside the library of " + to_string(size) + " envelopes.",
+                    "Function: " + function + " -> Envelope number",
+                    "Choose an existing envelope from the library. Envelope numbers start at 1; add an envelope if the library is empty.");
+  }
+  return static_cast<int>(number);
+}
+
+class ObjectReferenceGuard {
+public:
+  ObjectReferenceGuard(std::vector<pugi::xml_node>& references,
+                       pugi::xml_node node, const string& kind, const string& name)
+      : references_(references) {
+    if (std::find(references.begin(), references.end(), node) != references.end()) {
+      throw CmodError(CmodError::Kind::Project,
+                      "A circular " + kind + " reference reaches '" + name + "' again.",
+                      kind + " object: " + name,
+                      "Remove the reference back to this object so its definition can be evaluated without a cycle.");
+    }
+    references_.push_back(node);
+  }
+  ~ObjectReferenceGuard() { references_.pop_back(); }
+private:
+  std::vector<pugi::xml_node>& references_;
+};
+
+static string requiredFunctionArgument(pugi::xml_node node,
+                                       const string& function, const string& field) {
+  const string expression = Utilities::XMLTranscode(node);
+  if (!node || expression.find_first_not_of(" \t\r\n") == string::npos) {
+    throw CmodError(CmodError::Kind::Project,
+                    function + " is missing its " + field + " argument.",
+                    "Function: " + function + " -> " + field,
+                    "Enter a value or expression for this argument in the function editor.");
+  }
+  return expression;
+}
+
+static int checkedIntegerArgument(double value, const string& function,
+                                  const string& field) {
+  const double integer = std::trunc(value);
+  if (!std::isfinite(value) || integer < std::numeric_limits<int>::min()
+      || integer > std::numeric_limits<int>::max()) {
+    std::ostringstream originalValue;
+    originalValue << std::setprecision(std::numeric_limits<double>::max_digits10) << value;
+    throw CmodError(CmodError::Kind::Project,
+                    function + " " + field + " value " + originalValue.str()
+                        + " is outside the supported integer range "
+                        + to_string(std::numeric_limits<int>::min()) + " through "
+                        + to_string(std::numeric_limits<int>::max()) + ".",
+                    "Function: " + function + " -> " + field,
+                    "Use a finite value whose integer part is within this range; fractional parts are truncated toward zero.");
+  }
+  return static_cast<int>(integer);
+}
 
 Utilities::Utilities(pugi::xml_node root,
                      string _workingPath,
@@ -115,18 +178,61 @@ Utilities::Utilities(pugi::xml_node root,
                     "MarkovModelLibrary: " + countText,
                     "Set the model count to the number of saved Markov models, or resave the project in LASSIE.");
   }
-  markovModelLibrary.resize(size);
   string modelText, line;
   getline(ss, line, '\n');
   for (int i = 0; i < size; i++) {
-    getline(ss, line, '\n');
+    if (!getline(ss, line, '\n')) {
+      throw CmodError(CmodError::Kind::Project,
+                      "Markov model " + to_string(i) + " is missing from the declared library.",
+                      "MarkovModelLibrary -> model count " + to_string(size),
+                      "Restore the missing model data, or correct the model count by resaving the library in LASSIE.");
+    }
+    std::istringstream stateCountInput(line);
+    int stateCount = 0;
+    if (!(stateCountInput >> stateCount) || stateCount < 0
+        || (stateCountInput >> std::ws, !stateCountInput.eof())) {
+      throw CmodError(CmodError::Kind::Project,
+                      "Markov model " + to_string(i) + " has an invalid or missing state count.",
+                      "MarkovModelLibrary -> model " + to_string(i),
+                      "Restore the model's state count and data, or resave the model in LASSIE.");
+    }
     modelText = line + '\n';
+    const auto validateModelLine = [i](const string& text, unsigned long long expected,
+                                      const string& field, bool probability) {
+      std::istringstream values(text);
+      for (unsigned long long j = 0; j < expected; ++j) {
+        double value = 0;
+        if (!(values >> value) || !std::isfinite(value) || (probability && value < 0)
+            || (!probability && std::abs(value) > std::numeric_limits<float>::max())) {
+          throw CmodError(CmodError::Kind::Project,
+                          "Markov model " + to_string(i) + " has missing or invalid " + field
+                              + " at entry " + to_string(j + 1) + ".",
+                          "MarkovModelLibrary -> model " + to_string(i) + " -> " + field,
+                          "Provide one finite value per state and a complete matrix of nonnegative transition probabilities in the Markov model editor.");
+        }
+      }
+      values >> std::ws;
+      if (!values.eof()) {
+        throw CmodError(CmodError::Kind::Project,
+                        "Markov model " + to_string(i) + " has extra or invalid data after its " + field + ".",
+                        "MarkovModelLibrary -> model " + to_string(i) + " -> " + field,
+                        "Make the model's state count, values, initial probabilities, and transition matrix dimensions agree.");
+      }
+    };
+    line.clear();
     getline(ss, line, '\n');
+    validateModelLine(line, stateCount, "state values", false);
     modelText += line + '\n';
+    line.clear();
     getline(ss, line, '\n');
+    validateModelLine(line, stateCount, "initial probabilities", true);
     modelText += line + '\n';
+    line.clear();
     getline(ss, line, '\n');
+    validateModelLine(line, static_cast<unsigned long long>(stateCount) * stateCount,
+                      "transition probabilities", true);
     modelText += line;
+    markovModelLibrary.emplace_back();
     markovModelLibrary[i].from_str(modelText);
     markovModelLibrary[i].normalize();
   }
@@ -750,9 +856,7 @@ Sieve* Utilities::evaluateSieveFunction(string _functionString,void* _object){
 string Utilities::static_function_CURRENT_TYPE(void* _object){
   if (_object !=NULL){
     double resultNum = ((Event*)_object)->getCurrentChildType();
-    char result [50];
-    sprintf(result, "%f",  resultNum);
-    return string(result);
+    return to_string(resultNum);
   }
   else {
     cerr<<"Utilities:Warning! static_function_CURRENT_TYPE has no object to look up."<<endl;
@@ -765,9 +869,7 @@ string Utilities::static_function_CURRENT_TYPE(void* _object){
 string Utilities::static_function_CURRENT_CHILD_NUM(void* _object){
   if (_object !=NULL){
     double resultNum = ((Event*)_object)->getCurrentChild();
-    char result [50];
-    sprintf(result, "%f",  resultNum);
-    return string(result);
+    return to_string(resultNum);
   }
   else {
     cerr<<"Utilities:Warning! static_function_CURRENT_NUM has no object to look up."<<endl;
@@ -780,9 +882,7 @@ string Utilities::static_function_CURRENT_CHILD_NUM(void* _object){
 string Utilities::static_function_CURRENT_PARTIAL_NUM(void* _object){
   if (_object !=NULL){
     double resultNum = static_cast<Event*>(_object)->getCurrPartialNum();
-    char result [50];
-    sprintf(result, "%f",  resultNum);
-    return string(result);
+    return to_string(resultNum);
   }
   else {
     cerr<<"Utilities:Warning! static_function_CURRENT_PARTIAL_NUM has no object to look up."<<endl;
@@ -793,17 +893,24 @@ string Utilities::static_function_CURRENT_PARTIAL_NUM(void* _object){
 //----------------------------------------------------------------------------//
 
 string Utilities::static_function_CURRENT_DENSITY(void* _object){
-  cout<<"Utilities:Warning! static_function_CURRENT_DENSITY is not implemented in CMOD 2.0 yet."<<endl;
-
+  cerr << "CMOD warning: CURRENT_DENSITY is not implemented in this CMOD version; using legacy value 0.\n"
+       << "Context: ";
+  if (_object != NULL && _object != piece)
+    cerr << "Event '" << static_cast<Event*>(_object)->getEventName() << "' -> ";
+  cerr << "Function: CURRENT_DENSITY\n"
+       << "Suggestion: Replace it with a constant or a supported expression for the desired density.\n";
   return "0";
 }
 
 //----------------------------------------------------------------------------//
 
 string Utilities::static_function_CURRENT_SEGMENT(void* _object){
-    //should recieve an envelope as the _object? --Ming-ching May 07 2013
-    cout<<"Utilities:Warning! static_function_CURRENT_SEGMENT is not implemented in CMOD 2.0 yet."<<endl;
-
+  cerr << "CMOD warning: CURRENT_SEGMENT is not implemented in this CMOD version; using legacy value 0.\n"
+       << "Context: ";
+  if (_object != NULL && _object != piece)
+    cerr << "Event '" << static_cast<Event*>(_object)->getEventName() << "' -> ";
+  cerr << "Function: CURRENT_SEGMENT\n"
+       << "Suggestion: Replace it with a constant or a supported expression for the desired segment.\n";
   return "0";
 }
 
@@ -812,9 +919,7 @@ string Utilities::static_function_CURRENT_SEGMENT(void* _object){
 string Utilities::static_function_AVAILABLE_EDU(void* _object){
   if (_object !=NULL){
     double resultNum = ((Event*)_object)->getAvailableEDU();
-    char result [50];
-    sprintf(result, "%f",  resultNum);
-    return string(result);
+    return to_string(resultNum);
   }
   else {
     cerr<<"Utilities:Warning! static_function_AVAILABLE_EDU has no object to look up."<<endl;
@@ -827,9 +932,7 @@ string Utilities::static_function_AVAILABLE_EDU(void* _object){
 string Utilities::static_function_CURRENT_LAYER(void* _object){
   if (_object !=NULL){
     double resultNum = ((Event*)_object)->getCurrentLayer();
-    char result [50];
-    sprintf(result, "%f",  resultNum);
-    return string(result);
+    return to_string(resultNum);
   }
   else {
     cerr<<"Utilities:Warning! static_function_CURRENT_LAYER has no object to look up."<<endl;
@@ -842,11 +945,9 @@ string Utilities::static_function_CURRENT_LAYER(void* _object){
 string Utilities::static_function_PREVIOUS_CHILD_DURATION(void* _object){
 if (_object !=NULL){
     double resultNum = ((Event*)_object)->getPreviousChildEndTime();
-    char result [50];
-    sprintf(result, "%f",  resultNum);
 //  cout << "Utilities::static_function_PREVIOUS_CHILD_DURATION - resultNum=" 
 //       << resultNum << endl;
-    return string(result);
+    return to_string(resultNum);
   }
   else {
     cerr<<"Utilities:Warning! static_function_PREVIOUS_CHILD_DURATION has no object to look up."<<endl;
@@ -862,9 +963,7 @@ string Utilities::function_Inverse(pugi::xml_node _functionElement, void* _objec
   double entry = evaluate(XMLTranscode(elementIter ),_object);
 
   double resultNum = ( 1. / entry );
-  char result [50];
-  sprintf(result, "%f",  resultNum);
-  return string(result);
+  return to_string(resultNum);
 }
 
 
@@ -872,12 +971,24 @@ string Utilities::function_Inverse(pugi::xml_node _functionElement, void* _objec
 
 string Utilities::function_Markov(pugi::xml_node _functionElement, void* _object) {
   pugi::xml_node elementIter = GNES(GFEC(_functionElement));
-  int entry = (int)evaluate(XMLTranscode(elementIter), _object);
+  const double modelIndex = evaluate(XMLTranscode(elementIter), _object);
+  if (modelIndex < 0 || modelIndex >= markovModelLibrary.size()) {
+    throw CmodError(CmodError::Kind::Project,
+                    "Markov model index " + to_string(modelIndex)
+                        + " is outside the library of " + to_string(markovModelLibrary.size()) + " models.",
+                    "Function: Markov -> model index",
+                    "Choose a saved Markov model in LASSIE. Model indices start at 0; add a model if the library is empty.");
+  }
+  const size_t entry = static_cast<size_t>(modelIndex);
+  if (markovModelLibrary[entry].getStateSize() == 0) {
+    throw CmodError(CmodError::Kind::Project,
+                    "Markov model " + to_string(entry) + " has no states to sample.",
+                    "Function: Markov -> model index",
+                    "Add states and probabilities to this model, or select a populated model.");
+  }
 
   float resultNum = markovModelLibrary[entry].nextSample(Random::Rand());
-  char result [50];
-  sprintf(result, "%f", resultNum);
-  return string(result);
+  return to_string(resultNum);
 }
 
 //----------------------------------------------------------------------------//
@@ -888,16 +999,22 @@ string Utilities::function_LN(pugi::xml_node _functionElement, void* _object){
   double entry = evaluate(XMLTranscode(elementIter ),_object);
 
   double resultNum = ( 1. / pow(2.71828, entry) );
-  char result [50];
-  sprintf(result, "%f",  resultNum);
-  return string(result);
+  return to_string(resultNum);
 }
 
 //----------------------------------------------------------------------------//
 
 string Utilities::function_Fibonacci(pugi::xml_node _functionElement, void* _object){
   pugi::xml_node elementIter = GNES(GFEC(_functionElement));
-  int entry = evaluate(XMLTranscode(elementIter ),_object);
+  const double value = evaluate(XMLTranscode(elementIter), _object);
+  if (value >= 47) {
+    throw CmodError(CmodError::Kind::Project,
+                    "Fibonacci entry " + to_string(value) + " exceeds the supported maximum of 46.",
+                    "Function: Fibonacci -> Entry",
+                    "Use an entry at most 46; larger Fibonacci values exceed CMOD's integer range.");
+  }
+  if (value <= 2) return "1";
+  const int entry = static_cast<int>(value);
 
   int numA = 1;
   int numB = 1;
@@ -907,9 +1024,7 @@ string Utilities::function_Fibonacci(pugi::xml_node _functionElement, void* _obj
     numA = swap;
   }
   int resultNum = numB;
-  char result [50];
-  sprintf(result, "%i",  resultNum);
-  return string(result);
+  return to_string(resultNum);
 }
 
 //----------------------------------------------------------------------------//
@@ -942,11 +1057,14 @@ string Utilities::function_Decay(pugi::xml_node _functionElement, void* _object)
     decay = base * pow(rate, index);
   } else if (type == "LINEAR") {
     decay = base - (rate * index);
+  } else {
+    throw CmodError(CmodError::Kind::Project,
+                    "Decay type '" + type + "' is not supported.",
+                    "Function: Decay -> Type",
+                    "Choose EXPONENTIAL or LINEAR in the Decay function editor.");
   }
 
-  char result [50];
-  sprintf(result, "%f",  decay);
-  return string(result);
+  return to_string(decay);
 }
 
 //----------------------------------------------------------------------------//
@@ -978,19 +1096,29 @@ string Utilities::function_Stochos(pugi::xml_node _functionElement, void* _objec
 
   pugi::xml_node elementIter = GNES(GFEC(_functionElement));
   string method = XMLTC(elementIter);
+  if (method != "FUNCTIONS" && method != "RANGE_DISTRIB") {
+    throw CmodError(CmodError::Kind::Project,
+                    "Stochos method '" + method + "' is not supported.",
+                    "Function: Stochos -> Method",
+                    "Choose FUNCTIONS or RANGE_DISTRIB in the Stochos function editor.");
+  }
 
   elementIter = GNES(elementIter);
   pugi::xml_node envElementIter = GFEC(elementIter);
-  vector<Envelope*> envVect;
+  vector<std::unique_ptr<Envelope>> envVect;
   while (envElementIter!=NULL) {
-    //cou << MLTC(envElementIter)<<endl;
-    envVect.push_back((Envelope*)evaluateObject(XMLTC(envElementIter), _object, eventEnv));
+    envVect.emplace_back((Envelope*)evaluateObject(XMLTC(envElementIter), _object, eventEnv));
     envElementIter = GNES(envElementIter);
   }
-
+  if (envVect.empty()) {
+    throw CmodError(CmodError::Kind::Project,
+                    "Stochos has no envelopes to evaluate.",
+                    "Function: Stochos -> Envelopes",
+                    "Add at least one envelope for FUNCTIONS, or three envelopes per RANGE_DISTRIB group.");
+  }
 
   elementIter = GNES(elementIter);
-  int offset = (int) evaluate ( XMLTC(elementIter), _object);
+  const double offsetValue = evaluate(XMLTC(elementIter), _object);
   float returnVal = 0.0;
 
   if(method == "FUNCTIONS") {
@@ -1011,44 +1139,26 @@ string Utilities::function_Stochos(pugi::xml_node _functionElement, void* _objec
     float limit[2];
 
     // distribution within given range; takes 3 envs: min, MAX, val in between
-    if((int)envVect.size() <= 3 * offset) {
-      cerr << "Error - Stochos - Not enough envelopes on the list: envVect.size="
-           << envVect.size() << " 3*offset=" << 3 * offset << endl;
-      if (_object != NULL) {
-        cerr << "       in file " << ((Event*)_object)->getEventName() << endl;
-      }
-      exit(1);
+    if (offsetValue < 0 || offsetValue >= envVect.size() / 3) {
+      throw CmodError(CmodError::Kind::Project,
+                      "Stochos offset " + to_string(offsetValue)
+                          + " does not select a complete group of 3 envelopes from the list of "
+                          + to_string(envVect.size()) + " envelopes.",
+                      "Function: Stochos -> RANGE_DISTRIB -> Offset",
+                      "Use a nonnegative group offset (starting at 0) and supply minimum, maximum, and distribution envelopes for that group.");
     }
+    const size_t offset = static_cast<size_t>(offsetValue);
     for(int i = 0; i < 2; i++) {
-      if(envVect[3 * offset + i] != NULL) {
-        limit[i] = envVect[3 * offset + i]->getValue(checkpoint, 1);
-      } else {
-        cerr << "Stochos - NULL envelope. Trying to access envy["
-             << 3 * offset + i<< "]=" <<  envVect[3 * offset + i] << endl;
-      }
+      limit[i] = envVect[3 * offset + i]->getValue(checkpoint, 1);
     }
 
-    if(envVect[3 * offset + 2]) {
-      returnVal = envVect[3 * offset + 2]->getValue(Random::Rand(), 1);
-    } else {
-      cerr << "Stochos - NULL envelope. Trying to access envVect["
-           << 3 * offset + 2 << "]=" << envVect[ 3 * offset + 2] << endl;
-    }
+    returnVal = envVect[3 * offset + 2]->getValue(Random::Rand(), 1);
 
     returnVal *= (limit[1] - limit[0]);
     returnVal += limit[0];
-  } else {
-    cerr << "Stochos --- invalid method!  Use FUNCTIONS or RANGE_DISTRIB" << endl;
-    exit(1);
   }
 
-  for (unsigned i = 0; i < envVect.size(); i ++){
-    delete envVect[i];
-  }
-
-  char result [50];
-  sprintf(result, "%f",  returnVal);
-  return string(result);
+  return to_string(returnVal);
 
 }
 
@@ -1058,9 +1168,7 @@ string Utilities::function_ValuePick(pugi::xml_node _functionElement, void* _obj
   Sieve* si = sieve_ValuePick(_functionElement, _object);
   int resultNum = si->ChooseL();
   delete si;
-  char result [50];
-  sprintf(result, "%i",  resultNum);
-  return string(result);
+  return to_string(resultNum);
 }
 
 //----------------------------------------------------------------------------//
@@ -1197,9 +1305,7 @@ string Utilities::function_ChooseL(pugi::xml_node _functionElement, void* _objec
   Sieve* svPtr = (Sieve*)evaluateObject(sivFunctionString, _object, eventSiv);
   double resultNum = svPtr->ChooseL();
   delete svPtr;
-  char result [50];
-  sprintf(result, "%f",  resultNum);
-  return string(result);
+  return to_string(resultNum);
 }
 
 //----------------------------------------------------------------------------//
@@ -1246,9 +1352,7 @@ string Utilities::function_Randomizer(pugi::xml_node _functionElement, void* _ob
   double devVal = baseVal * percDev;
   double resultNum = Random::Rand(baseVal - devVal, baseVal + devVal);
 
-  char result [50];
-  sprintf(result, "%f",  resultNum);
-  return string(result);
+  return to_string(resultNum);
 
 }
 
@@ -1259,12 +1363,10 @@ string Utilities::function_Random(pugi::xml_node _functionElement, void* _object
   pugi::xml_node lowBoundElement = GNES(GFEC(_functionElement));
   pugi::xml_node highBoundElement = GNES(lowBoundElement);
 
-  double lowBound = evaluate(XMLTranscode(lowBoundElement ),_object);
-  double highBound = evaluate(XMLTranscode(highBoundElement), _object);
+  double lowBound = evaluate(requiredFunctionArgument(lowBoundElement, "Random", "Low"), _object);
+  double highBound = evaluate(requiredFunctionArgument(highBoundElement, "Random", "High"), _object);
 
-  char result [50];
-  sprintf(result, "%f",  Random::Rand(lowBound, highBound));
-  return string(result);
+  return to_string(Random::Rand(lowBound, highBound));
 
 }
 
@@ -1285,24 +1387,17 @@ string Utilities::function_Select(pugi::xml_node _functionElement, void* _object
 
   pugi::xml_node listElement = GNES(GFEC(_functionElement));
   pugi::xml_node indexElement = GNES(listElement);
+  if (XMLTranscode(listElement).find_first_not_of(" \t\r\n") == string::npos) {
+    throw CmodError(CmodError::Kind::Project,
+                    "Select cannot choose from an empty list.",
+                    "Function: Select -> List",
+                    "Add at least one value or object to the Select list.");
+  }
 
   std::vector<std::string> list = listElementToStringVector(listElement);
 
-  const size_t index = checkedSelectIndex(evaluate(XMLTranscode(indexElement), _object), list.size());
-  char result [50];
-/*
-for(int i=0; i<list.size(); ++i)
-std::cout << list[i] << ' ';
-*/
-  sprintf(result, "%f",  evaluate( list[index], _object));
-/*
-cout << "  result= ";
-for(int i=0; i <= 2; i++ ) {
-cout << result[i];
-}
-cout << endl;
-*/
-  return string(result);
+  const size_t index = checkedSelectIndex(evaluate(requiredFunctionArgument(indexElement, "Select", "Index"), _object), list.size());
+  return to_string(evaluate(list[index], _object));
 
 }
 
@@ -1312,8 +1407,14 @@ string Utilities::function_SelectObject(pugi::xml_node _functionElement, void* _
 
   pugi::xml_node listElement = GNES(GFEC(_functionElement));
   pugi::xml_node indexElement = GNES(listElement);
+  if (XMLTranscode(listElement).find_first_not_of(" \t\r\n") == string::npos) {
+    throw CmodError(CmodError::Kind::Project,
+                    "Select cannot choose from an empty list.",
+                    "Function: Select -> List",
+                    "Add at least one value or object to the Select list.");
+  }
   std::vector<std::string> list = listElementToStringVector(listElement);
-  const size_t index = checkedSelectIndex(evaluate(XMLTranscode(indexElement), _object), list.size());
+  const size_t index = checkedSelectIndex(evaluate(requiredFunctionArgument(indexElement, "Select", "Index"), _object), list.size());
   return list[index];
 }
 
@@ -1348,34 +1449,34 @@ string Utilities::function_GetPattern(pugi::xml_node _functionElement, void* _ob
   }
 
   double returnValue = pattern->GetNextValue(method, origin);
-  char result [50];
-  sprintf(result, "%f", returnValue);
-  return string(result);
+  return to_string(returnValue);
 
 }
 
 
 //----------------------------------------------------------------------------/
 string Utilities::function_RandomInt(pugi::xml_node _functionElement, void* _object){
-  pugi::xml_node lowBoundElement = GNES(GFEC(_functionElement));
-  pugi::xml_node highBoundElement = GNES(lowBoundElement);
+  pugi::xml_node lowBoundElement = _functionElement.child("Low");
+  pugi::xml_node highBoundElement = _functionElement.child("High");
 
-  int lowBound = (int)evaluate(XMLTranscode(lowBoundElement), _object);
-  int highBound = (int)evaluate(XMLTranscode(highBoundElement), _object);
-  char result [50];
-  sprintf(result, "%d",  Random::RandInt(lowBound, highBound));
-  return string(result);
+  const int lowBound = checkedIntegerArgument(
+      evaluate(requiredFunctionArgument(lowBoundElement, "RandomInt", "Low"), _object), "RandomInt", "Low");
+  const int highBound = checkedIntegerArgument(
+      evaluate(requiredFunctionArgument(highBoundElement, "RandomInt", "High"), _object), "RandomInt", "High");
+  return to_string(Random::RandInt(lowBound, highBound));
 }
 
 //---------------------------------------------------------------------------//
 
 string Utilities::function_RandomOrderInt(pugi::xml_node _functionElement, void* _object) {
-  pugi::xml_node lowBoundElement = GNES(GFEC(_functionElement));
-  pugi::xml_node highBoundElement = GNES(lowBoundElement);
+  pugi::xml_node lowBoundElement = _functionElement.child("Low");
+  pugi::xml_node highBoundElement = _functionElement.child("High");
   pugi::xml_node idElement = GNES(highBoundElement);
 
-  int lowBound = (int)evaluate(XMLTranscode(lowBoundElement), _object);
-  int highBound = (int)evaluate(XMLTranscode(highBoundElement), _object);
+  const int lowBound = checkedIntegerArgument(
+      evaluate(requiredFunctionArgument(lowBoundElement, "RandomOrderInt", "Low"), _object), "RandomOrderInt", "Low");
+  const int highBound = checkedIntegerArgument(
+      evaluate(requiredFunctionArgument(highBoundElement, "RandomOrderInt", "High"), _object), "RandomOrderInt", "High");
   int id = (int) evaluate(XMLTranscode(idElement), _object);
   
   // Event* currentEvent = ((Event*)_object);
@@ -1391,9 +1492,7 @@ string Utilities::function_RandomOrderInt(pugi::xml_node _functionElement, void*
   //        << endl;
   // }
 
-  char result [50];
-  sprintf(result, "%d",  Random::RandOrderInt(lowBound, highBound, id));
-  return string(result);
+  return to_string(Random::RandOrderInt(lowBound, highBound, id));
 }
 
 //---------------------------------------------------------------------------//
@@ -1403,7 +1502,8 @@ string Utilities::function_RandomDensity(pugi::xml_node _functionElement, void* 
   pugi::xml_node lowBoundElement = GNES(envelopeNumberElement);
   pugi::xml_node highBoundElement = GNES(lowBoundElement);
 
-  int envelopeNumber = (int)evaluate(XMLTranscode(envelopeNumberElement), _object);
+  const int envelopeNumber = checkedEnvelopeNumber(
+      evaluate(XMLTranscode(envelopeNumberElement), _object), envelopeLibrary->size(), "RandomDensity");
   double lowBound = evaluate(XMLTranscode(lowBoundElement), _object);
   double highBound = evaluate(XMLTranscode(highBoundElement), _object);
 
@@ -1416,9 +1516,7 @@ string Utilities::function_RandomDensity(pugi::xml_node _functionElement, void* 
   double resultNumber = env.sample(rand) * (highBound - lowBound) + lowBound;
   // cout << "lowbound: " << lowBound << ", highbound: " << highBound << ", result: " << resultNumber << endl;
 
-  char result [50];
-  sprintf(result, "%lf", resultNumber);
-  return string(result);
+  return to_string(resultNumber);
 }
 
 //----------------------------------------------------------------------------//
@@ -1451,6 +1549,7 @@ Sieve* Utilities::getSieveHelper(void* _object, pugi::xml_node _SIVFunction){
   if (XMLTranscode(functionNameElement).compare("ReadSIVFile")==0){
     string fileName = XMLTranscode(GNES(functionNameElement));
     pugi::xml_node k = getEventElement(eventSiv, fileName);
+    ObjectReferenceGuard reference(resolvingObjectReferences, k, "sieve", fileName);
     return getSieveHelper(_object, GNES(GNES(GFEC(k))));
   }
 
@@ -1548,8 +1647,10 @@ Sieve* Utilities::getSieveHelper(void* _object, pugi::xml_node _SIVFunction){
   }
 
   // Otherwise, the function fails.
-  cerr<<"Utilities::Warning! Sieve Construction Failed"<<endl;
-  return NULL;
+  throw CmodError(CmodError::Kind::Project,
+                  "Cannot construct a sieve from function '" + XMLTranscode(functionNameElement) + "'.",
+                  "Sieve expression: " + XMLTranscode(_SIVFunction),
+                  "Use MakeSieve, ReadSIVFile, or a Select list containing sieve functions.");
 }
 
 
@@ -1577,6 +1678,7 @@ Patter* Utilities::getPatternHelper(void* _object, pugi::xml_node _PATFunction){
   if (XMLTranscode(functionNameElement).compare("ReadPATFile")==0){
     string fileName = XMLTranscode(GNES(functionNameElement));
     pugi::xml_node k = getEventElement(eventPat, fileName);
+    ObjectReferenceGuard reference(resolvingObjectReferences, k, "pattern", fileName);
 
     return getPatternHelper(_object, GNES(GNES(GFEC(k))));
 
@@ -1654,8 +1756,10 @@ cout << "intList size: " << stringList.size() << "    " << endl;
 return pat;
 
   }
-  cerr<<"Utilities::Warning! Pattern Construction Failed"<<endl;
-  return NULL;
+  throw CmodError(CmodError::Kind::Project,
+                  "Cannot construct a pattern from function '" + XMLTranscode(functionNameElement) + "'.",
+                  "Pattern expression: " + XMLTranscode(_PATFunction),
+                  "Use MakePattern, ExpandPattern, ReadPATFile, or a Select list containing pattern functions.");
 }
 
 //----------------------------------------------------------------------------//
@@ -1711,6 +1815,7 @@ pugi::xml_node Utilities::getSPAFunctionElementHelper(void* _object, pugi::xml_n
 
 
     pugi::xml_node k = getEventElement(eventSpa, fileName);
+    ObjectReferenceGuard reference(resolvingObjectReferences, k, "spatialization", fileName);
 
     return getSPAFunctionElementHelper(_object, GNES(GNES(GFEC(k))), false);
 
@@ -1792,6 +1897,7 @@ pugi::xml_node Utilities::getREVFunctionElementHelper(void* _object, pugi::xml_n
 
 
     pugi::xml_node k = getEventElement(eventRev, fileName);
+    ObjectReferenceGuard reference(resolvingObjectReferences, k, "reverb", fileName);
 
     return getREVFunctionElementHelper(_object, GNES(GNES(GFEC(k))), false); ;
 
@@ -1884,6 +1990,7 @@ pugi::xml_node Utilities::getFILFunctionElementHelper(void* _object, pugi::xml_n
 
 
     pugi::xml_node k = getEventElement(eventFil, fileName);
+    ObjectReferenceGuard reference(resolvingObjectReferences, k, "filter", fileName);
 
     return getFILFunctionElementHelper(_object, GNES(GNES(GFEC(k))), false); ;
 
@@ -1950,9 +2057,10 @@ Envelope* Utilities::getEnvelope(string _input, void* _object){
 return getEnvelope(selectedListElementString,  _object);
   }
   else {
-cout<<functionName<<endl;
-    cout<<"warning: evaluating envelope failed."<<endl;
-    return NULL;
+    throw CmodError(CmodError::Kind::Project,
+                    "Cannot construct an envelope from function '" + functionName + "'.",
+                    "Envelope expression: " + _input,
+                    "Use EnvLib, MakeEnvelope, ReadENVFile, or a Select list containing envelope functions.");
   }
 return returnEnvelope;
 }
@@ -1962,7 +2070,8 @@ return returnEnvelope;
 Envelope* Utilities::envLib(pugi::xml_node _functionElement, void* _object){
 //  <Env>3</Env>
 //  <Scale>1.0</Scale>
-  int envelopeNumber = evaluate(XMLTranscode(_functionElement), _object);
+  const int envelopeNumber = checkedEnvelopeNumber(
+      evaluate(XMLTranscode(_functionElement), _object), envelopeLibrary->size(), "EnvLib");
   Envelope* env = envelopeLibrary->getEnvelope(envelopeNumber);
   //cout <<"EnvLib: #"<<envelopeNumber<<endl;
   double scale = evaluate(XMLTranscode(GNES(_functionElement)), _object);
@@ -1977,6 +2086,7 @@ Envelope* Utilities::readEnvFile(pugi::xml_node _functionElement, void* _object)
   //<File>object name</File>
 
   pugi::xml_node file = getEventElement(eventEnv, XMLTranscode(_functionElement));
+  ObjectReferenceGuard reference(resolvingObjectReferences, file, "envelope", XMLTranscode(_functionElement));
 
 //  <Event orderInPalette=' 0'>
 //      <EventType>6</EventType>
@@ -2025,6 +2135,33 @@ Envelope* Utilities::makeEnvelope(pugi::xml_node _functionElement, void* _object
 
   double scale = evaluate(XMLTranscode(GNES(_functionElement)), _object);
 
+  const auto childCount = [](pugi::xml_node node) {
+    size_t count = 0;
+    for (; node; node = node.next_sibling()) {
+      if (node.type() == pugi::node_element) ++count;
+    }
+    return count;
+  };
+  const size_t xCount = childCount(x);
+  const size_t yCount = childCount(y);
+  const size_t typeCount = childCount(t);
+  const size_t propertyCount = childCount(p);
+  if (xCount < 2 || xCount != yCount) {
+    throw CmodError(CmodError::Kind::Project,
+                    "MakeEnvelope has " + to_string(xCount) + " X points and "
+                        + to_string(yCount) + " Y points.",
+                    "Function: MakeEnvelope -> Xs/Ys",
+                    "Provide at least two matching X/Y point pairs in the envelope editor.");
+  }
+  if (typeCount != xCount - 1 || propertyCount != xCount - 1) {
+    throw CmodError(CmodError::Kind::Project,
+                    "MakeEnvelope has " + to_string(xCount) + " points, "
+                        + to_string(typeCount) + " segment interpolation types, and "
+                        + to_string(propertyCount) + " segment length properties.",
+                    "Function: MakeEnvelope -> Types/Pros",
+                    "Provide one interpolation type and one FIXED/FLEXIBLE property for each segment between adjacent points.");
+  }
+
   // create the collection of points
   vector<xy_point> points;
 
@@ -2066,8 +2203,10 @@ Envelope* Utilities::makeEnvelope(pugi::xml_node _functionElement, void* _object
       seg.interType = EXPONENTIAL;
     }
     else {
-      cerr << "Error in MakeEnvelope: Unrecognized interpolation type" << endl;
-      exit(1);
+      throw CmodError(CmodError::Kind::Project,
+                      "MakeEnvelope interpolation type '" + XMLTranscode(t) + "' is not supported.",
+                      "Function: MakeEnvelope -> segment " + to_string(segments.size() + 1),
+                      "Choose LINEAR, SPLINE, or EXPONENTIAL for this segment.");
     }
 
     if (XMLTranscode(p).compare("FIXED")==0) {
@@ -2077,8 +2216,10 @@ Envelope* Utilities::makeEnvelope(pugi::xml_node _functionElement, void* _object
       seg.lengthType = FLEXIBLE;
     }
     else {
-      cerr << "Error in MakeEnvelope: Unrecognized envelope length stretch type." << endl;
-      exit(1);
+      throw CmodError(CmodError::Kind::Project,
+                      "MakeEnvelope length property '" + XMLTranscode(p) + "' is not supported.",
+                      "Function: MakeEnvelope -> segment " + to_string(segments.size() + 1),
+                      "Choose FIXED or FLEXIBLE for this segment's length property.");
     }
 
     segments.push_back(seg);

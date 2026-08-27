@@ -26,6 +26,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 
 #include "Patter.h"
 #include "Random.h"
+#include "CmodError.h"
 
 //---------------------------------------------------------------------------//
 
@@ -83,32 +84,17 @@ void Patter::moveOrigin( int newOrigin ) {
 //----------------------------------------------------------------------------//
 
 int Patter::GetNextValue(string method, int newOrigin) {
-  int returnValue = 0;    // Initialize to 0
+  if (method != "IN_ORDER") {
+    throw CmodError(CmodError::Kind::Project,
+                    "GetPattern method '" + method + "' is not implemented in this CMOD version.",
+                    "Function: GetPattern -> Method",
+                    "Choose IN_ORDER, or replace GetPattern with a supported selection function.");
+  }
   if (origin != newOrigin) {
     moveOrigin(newOrigin);
   }
-  
-  if (method == "IN_ORDER") {
-    returnValue = patty[nextIndex];
-    nextIndex = (nextIndex + 1) % patty.size();
-
-  } else if (method == "OTHER") {
-    //    ValuePick; 
-    //    ChooseFromList; 
-    //    SimpleIrand
-  } else if (method == "TYPE_CLUSTERS") {		// stochos FUNCS
-    //value = (int)ReadComputeFloat(checkPoint, offset);
-
-  } else if (method == "TIME_DEPEND") {		// tone-row
-    //    value = Patter::TimeDepend(checkPoint);
-
-  } else if (method == "PROBABILITY") {
-    //    value =
-
-  } else {
-    cerr << "Patter::GetNextValue - method not available" << endl;
-    exit(1);
-  }
+  const int returnValue = patty[nextIndex];
+  nextIndex = (nextIndex + 1) % patty.size();
 
   return returnValue;
 }
@@ -128,21 +114,20 @@ void Patter::SimplePat() {
 //---------------------------------------------------------------------------//
 
 void Patter::Expand(string method, int modulo, int low, int high) {
+  if (method != "EQUIVALENCE") {
+    throw CmodError(CmodError::Kind::Project,
+                    "ExpandPattern method '" + method + "' is not implemented in this CMOD version.",
+                    "Function: ExpandPattern -> Method",
+                    "Choose EQUIVALENCE, or remove the ExpandPattern function.");
+  }
   // don't call Expand if origin = 0; delay until GetPattern is called!
   if(origin == 0) {
     expMethod = method;
     expModulo = modulo;
     expLow = low;
     expHigh = high;
-  } else if(method == "EQUIVALENCE") {
-    Equivalence(modulo,low,high);
-  } else if(method == "SYMMETRIES") {
-    Symmetries(modulo,low,high);
-  } else if(method == "DISTORT") {
-    Distort(modulo,low,high);
   } else {
-    cerr << "Patter::Expand - no method available" << endl;
-    exit(1);
+    Equivalence(modulo,low,high);
   }
 }
 
@@ -209,7 +194,12 @@ void Patter::Equivalence(int modulo, int low, int high) {
     }
 
     if (probs.size() == 0) {
-      cout << "Patter::Equivalence() error: probs array empty!" << endl;
+      throw CmodError(CmodError::Kind::Project,
+                      "ExpandPattern cannot produce a value within range "
+                          + std::to_string(low) + " through " + std::to_string(high)
+                          + " from " + std::to_string(lastNum) + " with modulo " + std::to_string(modulo) + ".",
+                      "Function: ExpandPattern -> EQUIVALENCE -> interval " + std::to_string(location),
+                      "Widen the range or adjust the origin, intervals, and modulo so at least one equivalent value is available.");
     }
 
     // normalize the probability array, and order from 0 to 1

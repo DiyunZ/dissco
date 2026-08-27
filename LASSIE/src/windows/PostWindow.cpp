@@ -55,6 +55,7 @@ PostWindow::PostWindow(QProcess *process, QWidget *parent)
     connect(runProc, &QAction::triggered, this, &PostWindow::runProcess);
     
     connect(proc, &QProcess::stateChanged, this, [this, termProc, killProc, runProc]{
+        if (proc->state() == QProcess::Starting) stopRequested = false;
         if(proc->state() != QProcess::NotRunning){
             termProc->setEnabled(true);
             killProc->setEnabled(true);
@@ -68,6 +69,8 @@ PostWindow::PostWindow(QProcess *process, QWidget *parent)
 
     connect(proc, &QProcess::started, this, [this] {
         resetProcessOutputState();
+        appendColored(QStringLiteral("CMOD executable: %1").arg(proc->program()),
+                      Qt::black);
     });
 
     connect(proc, &QProcess::finished, this,
@@ -79,7 +82,14 @@ PostWindow::PostWindow(QProcess *process, QWidget *parent)
         runProc->setEnabled(true);
         const bool succeeded =
             exitStatus == QProcess::NormalExit && exitCode == 0;
-        if (succeeded) {
+        if (stopRequested) {
+            if (!succeeded) recolorStderr(Qt::red);
+            appendColored(
+                QStringLiteral("*** Process exited after your stop request (%1; exit code %2) ***")
+                    .arg(exitStatus == QProcess::CrashExit ? QStringLiteral("abnormal exit")
+                         : succeeded ? QStringLiteral("normal exit") : QStringLiteral("failure"))
+                    .arg(exitCode), Qt::red);
+        } else if (succeeded) {
             appendColored(
                 "*** Process exited normally (exit code 0) ***",
                 Qt::black);
@@ -92,6 +102,15 @@ PostWindow::PostWindow(QProcess *process, QWidget *parent)
                       "*** Process crashed (abnormal exit; exit code %1) ***")
                       .arg(exitCode);
             appendColored(summary, Qt::red);
+            if (exitStatus == QProcess::CrashExit) {
+                appendColored(
+                    QStringLiteral(
+                        "CMOD stopped unexpectedly before the build completed.\n"
+                        "Suggestion: Check the CMOD executable path above. If the problem persists, "
+                        "send the DISSCO developers the project file, seed, and full output. "
+                        "The exit code alone does not identify the cause."),
+                    Qt::red);
+            }
         }
     });
 
@@ -99,8 +118,12 @@ PostWindow::PostWindow(QProcess *process, QWidget *parent)
             [this](QProcess::ProcessError error) {
         if (error == QProcess::FailedToStart) {
             appendColored(
-                QStringLiteral("*** Process failed to start: %1 ***")
-                    .arg(proc->errorString()),
+                QStringLiteral(
+                    "*** Process failed to start: %1 ***\n"
+                    "CMOD executable: %2\n"
+                    "Suggestion: Check that this executable exists and can be run. "
+                    "Rebuild or reinstall DISSCO if the executable or its required libraries are missing.")
+                    .arg(proc->errorString(), proc->program()),
                 Qt::red);
         }
     });
@@ -134,6 +157,7 @@ void PostWindow::closeEvent(QCloseEvent *event)
 
         switch(ret){
             case QMessageBox::Yes:
+                stopRequested = true;
                 proc->kill();
                 break;
             case QMessageBox::No:
@@ -234,12 +258,14 @@ void PostWindow::clearOutput()
 
 void PostWindow::termProcess()
 {
+    stopRequested = true;
     proc->terminate();
     appendColored("*** User requested process terminate ***", Qt::red);
 }
 
 void PostWindow::killProcess()
 {
+    stopRequested = true;
     proc->kill();
     appendColored("*** Process killed by user ***", Qt::red);
 }
