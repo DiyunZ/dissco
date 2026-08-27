@@ -29,6 +29,9 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #include "Sieve.h"
 #include "Random.h" 
 #include "Bottom.h"
+#include "CmodError.h"
+#include <cmath>
+#include <limits>
 
 //----------------------------------------------------------------------------//
 //Checked
@@ -143,14 +146,23 @@ Event::Event(pugi::xml_node _element,
   }
 
 
+  const auto checkedChildCount = [this](double value) {
+    if (!std::isfinite(value) || value < 0 || value > std::numeric_limits<int>::max()) {
+      throw CmodError(CmodError::Kind::Project,
+                      "The number of children is outside the supported range.",
+                      "Event '" + name + "' -> NumberOfChildren: " + to_string(value),
+                      "Use a finite value between 0 and " + to_string(std::numeric_limits<int>::max()) + ".");
+    }
+    return static_cast<int>(value);
+  };
   pugi::xml_node flagElement = GFEC(numChildrenElement);
   if (XMLTC(flagElement) =="0"){ // Continuum
     pugi::xml_node entry1Element = GNES(flagElement);
     if (XMLTC(entry1Element)==""){
-      numChildren = childTypeElements.size();
+      numChildren = checkedChildCount(static_cast<double>(childTypeElements.size()));
     }
     else {
-      numChildren =(int) utilities->evaluate(XMLTC(entry1Element), (void*)this);
+      numChildren = checkedChildCount(utilities->evaluate(XMLTC(entry1Element), (void*)this));
     }
   }
   else if (XMLTC(flagElement) == "1"){ // Densitiy
@@ -165,7 +177,7 @@ Event::Event(pugi::xml_node _element,
 //  cout<<"density:"<< density<<", area:"<<area<<", underOne:"<<underOne<<endl;
 
     //not sure which version is the correct one. ask sever
-    numChildren = (int)(soundsPsec * ts.duration + underOne/area);
+    numChildren = checkedChildCount(soundsPsec * ts.duration + underOne/area);
 //  cout << "     numChildren=" << numChildren << endl;
     //numChildren = (int)(soundsPsec * layerElements * ts.duration + 0.5);
 
@@ -173,8 +185,16 @@ Event::Event(pugi::xml_node _element,
   else {// by layer
   numChildren = 0;
     for (unsigned i = 0; i < layerElements.size(); i ++){
-      numChildren +=utilities->evaluate(XMLTC(GFEC(layerElements[i])),(void*)this);
+      const int layerCount = checkedChildCount(utilities->evaluate(XMLTC(GFEC(layerElements[i])),(void*)this));
+      numChildren = checkedChildCount(static_cast<double>(numChildren) + layerCount);
     }
+  }
+
+  if (numChildren > 0 && childTypeElements.empty()) {
+    throw CmodError(CmodError::Kind::Project,
+                    "Children were requested, but no child events are listed in Layers.",
+                    "Event '" + name + "' -> NumberOfChildren",
+                    "Add child events to this event's Layers, or set Number of Children to zero.");
   }
 
   if (type <=3){ //top, high, mid, low

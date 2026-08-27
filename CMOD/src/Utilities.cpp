@@ -30,11 +30,13 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 //  Maintained by Fanbo Xiang 2018
 //----------------------------------------------------------------------------//
 #include "Utilities.h"
+#include "CmodError.h"
 #include "Random.h"
 #include "Event.h"
 #include "Piece.h"
 #include "Patter.h"
 #include "ProbabilityEnvelope.h" // consider moving this into LASS.h
+#include <cmath>
 #include <filesystem>
 #include <memory>
 #include <sstream>
@@ -55,6 +57,15 @@ Utilities::Utilities(pugi::xml_node root,
   samplingRate(_samplingRate),
   piece(_piece){
 
+  for (const char* section : {"EnvelopeLibrary", "MarkovModelLibrary", "Events"}) {
+    if (!root.child(section)) {
+      throw CmodError(CmodError::Kind::Project,
+                      "Missing required project section '" + string(section) + "'.",
+                      "ProjectRoot/" + string(section),
+                      "Restore the missing section, or resave the original project in LASSIE.");
+    }
+  }
+
   // New LASS Score
   if (soundSynthesis){
     score = new Score (numThreads,  numChannels, _samplingRate );
@@ -66,12 +77,24 @@ Utilities::Utilities(pugi::xml_node root,
 
 
   // Construct Envelope library
-  pugi::xml_node envelopeLibraryElement = GNES(GNES(GFEC(root)));
+  pugi::xml_node envelopeLibraryElement = root.child("EnvelopeLibrary");
   string envLibContent = XMLTranscode(envelopeLibraryElement);
   string fileString = "lib.temp";
   FILE* file  = fopen(fileString.c_str(), "w");
-  fputs (envLibContent.c_str(), file);
-  fclose(file);
+  if (file == NULL) {
+    throw CmodError(CmodError::Kind::Output,
+                    "Cannot create the temporary envelope library file.",
+                    "File: " + fileString,
+                    "Check that the project folder is writable and that lib.temp is not a directory.");
+  }
+  const bool writeSucceeded = fputs(envLibContent.c_str(), file) >= 0;
+  const bool closeSucceeded = fclose(file) == 0;
+  if (!writeSucceeded || !closeSucceeded) {
+    throw CmodError(CmodError::Kind::Output,
+                    "Cannot write the temporary envelope library file.",
+                    "File: " + fileString,
+                    "Check free disk space and write permissions for the project folder.");
+  }
 
   envelopeLibrary = new EnvelopeLibrary();
   envelopeLibrary->loadLibraryNewFormat((char*)fileString.c_str());
@@ -79,16 +102,19 @@ Utilities::Utilities(pugi::xml_node root,
   std::filesystem::remove(fileString, removalError);
 
   // Construct Markov Model Library
-  pugi::xml_node markovModelLibraryElement = GNES(envelopeLibraryElement);
-  string tagName = markovModelLibraryElement.name();
-  if (tagName != "MarkovModelLibrary") {
-    cout << "Project is outdated, please save the project in the latest version of DISSCO" << endl;
-    exit(1);
-  }
+  pugi::xml_node markovModelLibraryElement = root.child("MarkovModelLibrary");
   string data = XMLTC(markovModelLibraryElement);
   std::stringstream ss(data);
-  int size;
-  ss >> size;
+  string countText;
+  ss >> countText;
+  std::istringstream countInput(countText);
+  int size = 0;
+  if (!(countInput >> size) || !countInput.eof() || size < 0) {
+    throw CmodError(CmodError::Kind::Project,
+                    "MarkovModelLibrary model count must be a nonnegative integer.",
+                    "MarkovModelLibrary: " + countText,
+                    "Set the model count to the number of saved Markov models, or resave the project in LASSIE.");
+  }
   markovModelLibrary.resize(size);
   string modelText, line;
   getline(ss, line, '\n');
@@ -108,7 +134,7 @@ Utilities::Utilities(pugi::xml_node root,
 
   //events and other objects
 
-  pugi::xml_node eventElements = GNES(markovModelLibraryElement);
+  pugi::xml_node eventElements = root.child("Events");
   pugi::xml_node thisEventElement = GFEC(eventElements);
   //Counters to assign numbers to the events. Experimental
 
@@ -267,50 +293,52 @@ Utilities::~Utilities(){
 //----------------------------------------------------------------------------//
 
 pugi::xml_node Utilities::getEventElement(EventType _type, string _eventName){
-  map<string, pugi::xml_node>::iterator it;
+  const auto lookup = [_type, &_eventName](
+      const map<string, pugi::xml_node>& elements) {
+    const auto it = elements.find(_eventName);
+    if (it == elements.end()) {
+      throw CmodError(CmodError::Kind::Project,
+                      "Cannot find event or object '" + _eventName
+                          + "' of type " + to_string(static_cast<int>(_type)) + ".",
+                      "Event/object reference",
+                      "Check the referenced name and type in LASSIE, or restore the missing object.");
+    }
+    return it->second;
+  };
 
   switch((int)_type){
     case 0:
-      it = topEventElements.find(_eventName);
-      break;
+      return lookup(topEventElements);
     case 1:
-      it = highEventElements.find(_eventName);
-      break;
+      return lookup(highEventElements);
     case 2:
-      it = midEventElements.find(_eventName);
-      break;
+      return lookup(midEventElements);
     case 3:
-      it = lowEventElements.find(_eventName);
-      break;
+      return lookup(lowEventElements);
     case 4:
-      it = bottomEventElements.find(_eventName);
-      break;
+      return lookup(bottomEventElements);
     case 5:
-      it = spectrumElements.find(_eventName);
-      break;
+      return lookup(spectrumElements);
     case 6:
-      it = envelopeElements.find(_eventName);
-      break;
+      return lookup(envelopeElements);
     case 7:
-      it = sieveElements.find(_eventName);
-      break;
+      return lookup(sieveElements);
     case 8:
-      it = spatializationElements.find(_eventName);
-      break;
+      return lookup(spatializationElements);
     case 9:
-      it = patternElements.find(_eventName);
-      break;
+      return lookup(patternElements);
     case 10:
-      it = reverbElements.find(_eventName);
-      break;
+      return lookup(reverbElements);
     case 12:
-      it = notesElements.find(_eventName);
-      break;
+      return lookup(notesElements);
     case 13:
-      it = filterElements.find(_eventName);
-      break;
+      return lookup(filterElements);
   }
-  return it->second;
+  throw CmodError(CmodError::Kind::Project,
+                  "Unsupported event/object type " + to_string(static_cast<int>(_type))
+                      + " for '" + _eventName + "'.",
+                  "Event/object reference",
+                  "Use a supported event/object type and recreate the reference in LASSIE.");
 }
 
 
@@ -353,6 +381,14 @@ Sieve* Utilities::evaluateSieve(std::string _input, void* _object){
 double Utilities::evaluate(std::string _input, void* _object){
   if (_input == "") return 0;
 
+  const auto errorContext = [this, _object, &_input]() {
+    string context = "Expression: " + _input;
+    if (_object != NULL && _object != piece) {
+      context = "Event '" + static_cast<Event*>(_object)->getEventName()
+              + "' -> " + context;
+    }
+    return context;
+  };
   string workingString = _input;
   // Test if there is any function in this string (look for <Fun>), if so,
   // replace the function with the evaluated number. Repeat until all the
@@ -363,7 +399,13 @@ double Utilities::evaluate(std::string _input, void* _object){
     size_t locOfEndFun = findTheEndOfFirstFunction (workingString);
     functionStringLength = ((int) locOfEndFun) + 6 - ((int) locOfFun);//6 is the length of "</fun>"
     string functionString = workingString.substr(locOfFun, functionStringLength);
-    string evaluatedFunction = evaluateFunction( functionString, _object);
+    string evaluatedFunction;
+    try {
+      evaluatedFunction = evaluateFunction(functionString, _object);
+    } catch (CmodError& error) {
+      error.addContext(errorContext());
+      throw;
+    }
     string front = workingString.substr(0, locOfFun);
     string back = workingString.substr(((int)locOfEndFun) +6);
     workingString = front + evaluatedFunction + back;
@@ -373,21 +415,25 @@ double Utilities::evaluate(std::string _input, void* _object){
   }
   // evaluate the expression to the final result
   mu::Parser p;
-  p.SetExpr(workingString);
   double result;
 
   try {
+    p.SetExpr(workingString);
     result = p.Eval();
 //cout << "utilities result: " << result << endl;
-  } catch (mu::ParserError) {
-    cerr << "Oooops, we find a typo in your project." << endl;
-    if (_object != NULL){
-        cerr << "The string we see is located in Event (or Bottom): " << ((Event*)_object)->getEventName() << endl;
-    }
-    cerr << "The string we see is: " << _input << endl;
-    exit(1);
+  } catch (const mu::ParserError& error) {
+    throw CmodError(CmodError::Kind::Project,
+                    "Cannot evaluate numeric expression: " + error.GetMsg(),
+                    errorContext(),
+                    "Check the expression's operators, parentheses, and function arguments in LASSIE.");
   }
 
+  if (!std::isfinite(result)) {
+    throw CmodError(CmodError::Kind::Project,
+                    "Numeric expression produced a non-finite value.",
+                    errorContext(),
+                    "Check for division by zero and invalid function inputs; the result must be finite.");
+  }
   return result;
 }
 
@@ -569,6 +615,20 @@ string Utilities::evaluateFunction(string _functionString,void* _object){
   pugi::xml_node functionNameElement = GFEC(root);
   string functionName = functionNameElement.child_value();
 
+  const bool needsEvent = functionName == "GetPattern"
+      || functionName == "CURRENT_TYPE"
+      || functionName == "CURRENT_CHILD_NUM"
+      || functionName == "CURRENT_PARTIAL_NUM"
+      || functionName == "AVAILABLE_EDU"
+      || functionName == "CURRENT_LAYER"
+      || functionName == "PREVIOUS_CHILD_DURATION";
+  if (needsEvent && (_object == NULL || _object == piece)) {
+    throw CmodError(CmodError::Kind::Project,
+                    "Function '" + functionName + "' requires an event context.",
+                    "Function: " + _functionString,
+                    "Use this function in an event, or replace it with a constant in Project Properties.");
+  }
+
   // check the function name and call the proper method for evaluation
   if(functionName.compare("RandomInt")==0){
      resultString = function_RandomInt(root, _object);
@@ -652,6 +712,12 @@ string Utilities::evaluateFunction(string _functionString,void* _object){
   else if (functionName.compare("PREVIOUS_CHILD_DURATION")==0){
     resultString = static_function_PREVIOUS_CHILD_DURATION( _object);
   }
+  else {
+    throw CmodError(CmodError::Kind::Project,
+                    "Unknown numeric function '" + functionName + "'.",
+                    "Function: " + _functionString,
+                    "Choose a supported numeric function in LASSIE and check its name.");
+  }
 
   return resultString;
 }
@@ -713,7 +779,7 @@ string Utilities::static_function_CURRENT_CHILD_NUM(void* _object){
 
 string Utilities::static_function_CURRENT_PARTIAL_NUM(void* _object){
   if (_object !=NULL){
-    double resultNum = ((Bottom*)_object)->getCurrPartialNum();
+    double resultNum = static_cast<Event*>(_object)->getCurrPartialNum();
     char result [50];
     sprintf(result, "%f",  resultNum);
     return string(result);
@@ -1204,6 +1270,17 @@ string Utilities::function_Random(pugi::xml_node _functionElement, void* _object
 
 //----------------------------------------------------------------------------//
 
+static size_t checkedSelectIndex(double value, size_t listSize) {
+  if (!std::isfinite(value) || value < 0 || value >= listSize) {
+    throw CmodError(CmodError::Kind::Project,
+                    "Select index " + to_string(value)
+                        + " is outside the list of " + to_string(listSize) + " entries.",
+                    "Function: Select",
+                    "Use a nonnegative index smaller than the number of entries in the Select list.");
+  }
+  return static_cast<size_t>(value);
+}
+
 string Utilities::function_Select(pugi::xml_node _functionElement, void* _object){
 
   pugi::xml_node listElement = GNES(GFEC(_functionElement));
@@ -1211,7 +1288,7 @@ string Utilities::function_Select(pugi::xml_node _functionElement, void* _object
 
   std::vector<std::string> list = listElementToStringVector(listElement);
 
-  int index = (int)evaluate(XMLTranscode(indexElement), _object);
+  const size_t index = checkedSelectIndex(evaluate(XMLTranscode(indexElement), _object), list.size());
   char result [50];
 /*
 for(int i=0; i<list.size(); ++i)
@@ -1236,7 +1313,7 @@ string Utilities::function_SelectObject(pugi::xml_node _functionElement, void* _
   pugi::xml_node listElement = GNES(GFEC(_functionElement));
   pugi::xml_node indexElement = GNES(listElement);
   std::vector<std::string> list = listElementToStringVector(listElement);
-  int index = (int)evaluate(XMLTranscode(indexElement), _object);
+  const size_t index = checkedSelectIndex(evaluate(XMLTranscode(indexElement), _object), list.size());
   return list[index];
 }
 

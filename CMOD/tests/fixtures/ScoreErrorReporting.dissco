@@ -1,0 +1,172 @@
+﻿<?xml version="1.0" encoding="UTF-8"?>
+<ProjectRoot>
+  <ProjectConfiguration>
+    <Title>MinimalScore</Title>
+    <FileFlag>
+    </FileFlag>
+    <TopEvent>0</TopEvent>
+    <PieceStartTime>0</PieceStartTime>
+    <Duration>1</Duration>
+    <Synthesis>False</Synthesis>
+    <Score>True</Score>
+    <GrandStaff>False</GrandStaff>
+    <NumberOfStaff>1</NumberOfStaff>
+    <NumberOfChannels>2</NumberOfChannels>
+    <SampleRate>22050</SampleRate>
+    <SampleSize>16</SampleSize>
+    <NumberOfThreads>1</NumberOfThreads>
+    <OutputParticel>False</OutputParticel>
+    <Seed>102</Seed>
+  </ProjectConfiguration>
+  <NoteModifiers>
+    <DefaultModifiers>
+    </DefaultModifiers>
+    <CustomModifiers>
+    </CustomModifiers>
+  </NoteModifiers>
+  <EnvelopeLibrary>
+  </EnvelopeLibrary>
+  <MarkovModelLibrary>0</MarkovModelLibrary>
+  <Events>
+    <Event orderInPalette="0">
+      <EventType>0</EventType>
+      <Name>0</Name>
+      <MaxChildDuration>60</MaxChildDuration>
+      <EDUPerBeat>60</EDUPerBeat>
+      <TimeSignature>
+        <Entry1>4</Entry1>
+        <Entry2>4</Entry2>
+      </TimeSignature>
+      <Tempo>
+        <MethodFlag>0</MethodFlag>
+        <Prefix>0</Prefix>
+        <NoteValue>2</NoteValue>
+        <FractionEntry1>1</FractionEntry1>
+        <FractionEntry2>1</FractionEntry2>
+        <ValueEntry>60</ValueEntry>
+      </Tempo>
+      <NumberOfChildren>
+        <MethodFlag>0</MethodFlag>
+        <Entry1>1</Entry1>
+        <Entry2 />
+        <Entry3 />
+      </NumberOfChildren>
+      <ChildEventDefinition>
+        <Entry1>0</Entry1>
+        <Entry2>0</Entry2>
+        <Entry3>60</Entry3>
+        <AttackSieve />
+        <DurationSieve />
+        <DefinitionFlag>0</DefinitionFlag>
+        <StartTypeFlag>1</StartTypeFlag>
+        <DurationTypeFlag>1</DurationTypeFlag>
+      </ChildEventDefinition>
+      <Layers>
+        <Layer>
+          <ByLayer>
+          </ByLayer>
+          <DiscretePackages>
+            <Package>
+              <EventName>n08ScoreNote</EventName>
+              <EventType>4</EventType>
+              <Weight>1</Weight>
+              <AttackEnvelope>
+              </AttackEnvelope>
+              <AttackEnvelopeScale>1</AttackEnvelopeScale>
+              <DurationEnvelope>
+              </DurationEnvelope>
+              <DurationEnvelopeScale>1</DurationEnvelopeScale>
+            </Package>
+          </DiscretePackages>
+        </Layer>
+      </Layers>
+      <Spatialization />
+      <Reverb />
+      <Filter />
+      <Modifiers />
+    </Event>
+    <Event orderInPalette="7">
+      <EventType>4</EventType>
+      <Name>n08ScoreNote</Name>
+      <MaxChildDuration>60</MaxChildDuration>
+      <EDUPerBeat>60</EDUPerBeat>
+      <TimeSignature>
+        <Entry1>4</Entry1>
+        <Entry2>4</Entry2>
+      </TimeSignature>
+      <Tempo>
+        <MethodFlag>0</MethodFlag>
+        <Prefix>0</Prefix>
+        <NoteValue>2</NoteValue>
+        <FractionEntry1>1</FractionEntry1>
+        <FractionEntry2>1</FractionEntry2>
+        <ValueEntry>60</ValueEntry>
+      </Tempo>
+      <NumberOfChildren>
+        <MethodFlag>0</MethodFlag>
+        <Entry1>1</Entry1>
+        <Entry2 />
+        <Entry3 />
+      </NumberOfChildren>
+      <ChildEventDefinition>
+        <Entry1>0</Entry1>
+        <Entry2>0</Entry2>
+        <Entry3>60</Entry3>
+        <AttackSieve>
+        </AttackSieve>
+        <DurationSieve>
+        </DurationSieve>
+        <DefinitionFlag>0</DefinitionFlag>
+        <StartTypeFlag>1</StartTypeFlag>
+        <DurationTypeFlag>1</DurationTypeFlag>
+      </ChildEventDefinition>
+      <Layers>
+        <Layer>
+          <ByLayer>
+          </ByLayer>
+          <DiscretePackages>
+            <Package>
+              <EventName>noteArticulated</EventName>
+              <EventType>12</EventType>
+              <Weight>1</Weight>
+              <AttackEnvelope>
+              </AttackEnvelope>
+              <AttackEnvelopeScale>1</AttackEnvelopeScale>
+              <DurationEnvelope>
+              </DurationEnvelope>
+              <DurationEnvelopeScale>1</DurationEnvelopeScale>
+            </Package>
+          </DiscretePackages>
+        </Layer>
+      </Layers>
+      <Spatialization />
+      <Reverb />
+      <Filter />
+      <ExtraInfo>
+        <FrequencyInfo>
+          <FrequencyFlag>0</FrequencyFlag>
+          <FrequencyContinuumFlag>0</FrequencyContinuumFlag>
+          <FrequencyEntry1>72</FrequencyEntry1>
+          <FrequencyEntry2 />
+        </FrequencyInfo>
+        <Loudness>0.1</Loudness>
+        <Phase>0</Phase>
+        <Spatialization />
+        <Reverb />
+        <Filter />
+        <ModifierUsage version="1" samplingScope="per-sound" />
+        <Modifiers />
+      </ExtraInfo>
+    </Event>
+    <Event orderInPalette="0">
+      <EventType>12</EventType>
+      <Name>noteArticulated</Name>
+      <NoteInfo>
+        <Staffs>0</Staffs>
+        <Modifiers>
+          <Modifier>accent</Modifier>
+        </Modifiers>
+      </NoteInfo>
+    </Event>
+  </Events>
+</ProjectRoot>

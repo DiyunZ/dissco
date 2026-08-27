@@ -1,4 +1,5 @@
 #include "NotationScore.h"
+#include "CmodError.h"
 
 NotationScore::NotationScore() : 
     score_title_("Score"),
@@ -128,6 +129,12 @@ void NotationScore::InsertNote(Note* n) {
 void NotationScore::Build() {
   if (!is_built_) {
     for(int i=0 ; i<staffSum; i++){
+      if (score_staff[i].empty()) {
+        throw CmodError(CmodError::Kind::Project,
+                        "No note events were generated for staff " + to_string(i) + ".",
+                        "Score output",
+                        "Add note events assigned to this staff, correct the staff settings, or disable score output.");
+      }
       // Since all tempos are registered, calculate their start times 
       // in terms of the previous tempo's EDU's
       vector<Section>::iterator iter = score_staff[i].begin();
