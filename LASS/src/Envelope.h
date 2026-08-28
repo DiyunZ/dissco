@@ -254,18 +254,16 @@ public:
   m_value_type getMaxValue ();
 
   /**
-   *  This function finds the value of an envelope at a given point.
-   *  The envelope is loaded first (from an Envelope library) then
-   *  scaled according to a given coefficient using Envelope::scale.
-   * \param checkPoint
-   * \param envNum The envelope number in the library
+   *  This function scales this envelope in place, then finds its value
+   *  at a given point using a normalized duration of 1.
+   * \param checkPoint The position in the envelope, from 0.0 to 1.0
    * \param coef The coefficient by which to scale the envelope
-   * \returns The value of an envelope at a given point
+   * \returns The value at checkPoint after scaling
    * \note This used to be in CMOD/utility.cpp
    **/
   float getScaledValueNew (double checkPoint, float coef);
 
-  /**
+  /*
    * This function computes an envelope number from the parameters,
    * loads the envelope from the library, scales it, and returns
    * the scaled envelope.
@@ -278,7 +276,10 @@ public:
 
   /**
    *	\deprecated
-   *   This outputs an XML representation of the object to STDOUT
+   *   This outputs an XML reference to the envelope and registers it
+   *   for later serialization if it is not already in dynObjs.
+   * \param xmlOutput The stream to write the XML reference to
+   * \param dynObjs The list of dynamic variables to serialize
    **/
   void xml_print( ofstream& xmlOutput, list<DynamicVariable*>& dynObjs );
 

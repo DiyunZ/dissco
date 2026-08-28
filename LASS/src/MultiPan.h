@@ -112,7 +112,7 @@ public:
 	 *  sound will appear to originate from.  An angle of zero
 	 *  is directly in front of you.  Positive angles rotate to
 	 *  your left, with positive pi (3.14...) being directly
-	 *  behind you.  Negative angles rotate to your left and 
+	 *  behind you.  Negative angles rotate to your right and
 	 *  negative pi (-3.14) is another name for the angle directly
 	 *  behind you.  For reference, pi/2 is straight left and
 	 *  -pi/2 is straight right.  To use pi, math.h defines
@@ -129,10 +129,8 @@ public:
 	 * object with numTracks. The track will be panned accross 
 	 * the channels by the passed in DynamicVariable.
 	 * \param t A track to spatialize
-	 * \param numTracks The number of tracks to spatialize to. (This
-	 *  is redundant, but is kept for similarity of interface with
-	 *  the regular pan object.  MultiPan already knows because you
-	 *  have to pass in nChans in the constructor)
+	 * \param numTracks The number of output tracks; must match the
+	 *  nChans value passed to the constructor
 	 * \return the track, spatialized to 'numTracks' number of tracks
 	 **/
 	MultiTrack* spatialize_Track(Track& t, int numTracks);

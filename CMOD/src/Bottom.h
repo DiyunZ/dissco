@@ -197,8 +197,8 @@ class Bottom : public Event {
     void printNoteParticel(Note& n, int type, string name);
 
     /**
-     * Adds pointers to any notes in this Bottom event to a vector (LIST ?)
-     * \param noteVect a reference to a vector of notes
+     * Collects the notes in this Bottom event.
+     * \return a list containing copies of this event's child notes
     **/
     list<Note> getNotes();
 

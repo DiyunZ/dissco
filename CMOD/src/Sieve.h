@@ -77,7 +77,7 @@ class Sieve {
     *  Constructor for (almost) empty object.  Creates an empty list of
     *  integers (elist) and an empty list of doubles (wList).  Sets size = 0
     *  and skip = 0.  Sets the related file name SIEVE/...
-    *  \param name of related file for this sieve.
+    *  \param aFile name of the file associated with this sieve
     **/
     Sieve(std::string aFile);
 
@@ -97,10 +97,11 @@ class Sieve {
     *  Build constructs the sieve: an expression specifying a list of integers
     *  \param minVal smallest value allowed on list
     *  \param maxVal largest value allowed on list
-    *  \param eMethod method for selecting elements of sieve
+    *  \param eMethod unused; elements are selected by parsing expr
     *  \param wMethod method for selecting weights
     *  \param expr string to parse into a list
-    *  \param wArgVector data for selecting weights
+    *  \param wArgVect data for selecting weights
+    *  \param offsetVect offsets supplied to the modular expression parser
     **/
     void BuildFromExpr(int minVal, int maxVal,
                        const char *eMethod, const char *wMethod,
@@ -112,9 +113,9 @@ class Sieve {
     *  \param maxVal largest value allowed on list
     *  \param eMethod method for selecting elements of sieve
     *  \param wMethod method for selecting weights
-    *  \param eArgVector data for selecting elements of sieve
-    *  \param wArgVector data for selecting weights
-    *  \param offsetVector offset of the elements
+    *  \param eArgVect data for selecting elements of sieve
+    *  \param wArgVect data for selecting weights
+    *  \param offsetVect offset of the elements
     **/
     void Build(int minVal, int maxVal,
                const char *eMethod, const char *wMethod,
@@ -139,7 +140,7 @@ class Sieve {
     *  probability values of the sieve, adds the result in a cumulative way
     *  resulting in probabilities from 0 to 1 and chooses an element of the
     *  sieve by using ChooseL
-    *  \param Envelope *env an envelope
+    *  \param env envelope used to modulate the sieve weights
     *  \param method name of the method used
     *  \return value chosen by ChooseL
     **/

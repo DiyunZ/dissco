@@ -91,11 +91,14 @@ class Matrix {
 
     /**
     *  Constructor.
-    *  \param numTypes
-    *  \param numAttacks
-    *  \param numDurations
-    *  \param numTypesInLayers
-    *  \param maxVal - limit for the last duration (endDur) allowed by the parent
+    *  \param numTypes number of child event types
+    *  \param numAttacks number of possible start times per type
+    *  \param numDurations number of possible durations per start time
+    *  \param numTypesInLayers number of event types in each layer
+    *  \param maxVal parent end-time limit; unused by this constructor
+    *  \param tempo tempo used to interpret beat positions in EDUs
+    *  \param wellAligned whether duration end points must align with the
+    *  attack sieve
     **/
     Matrix(int numTypes, int numAttacks, int numDurations,
            vector<int> numTypesInLayers, int maxVal,
@@ -120,8 +123,8 @@ class Matrix {
      *  Uses the sieve defining the stimes and the envelopes corresponding to
      *  each type of each layer to set probabilities of occurrence for each
      *  stime at each layer.
-     *  \param Sieve* attackSieve
-    *  \param vector<Envelope*> attackEnvs
+     *  \param attackSieve sieve providing possible start times and weights
+     *  \param attackEnvs optional per-type envelopes that scale attack weights
     **/
     void setAttacks(Sieve* attackSieve, vector<Envelope*> attackEnvs = vector<Envelope*>());
 
@@ -129,15 +132,15 @@ class Matrix {
      *  Uses the sieve defining possible durations and the envelopes
      *  corresponding to each type of each layer to set probabilities of
      *  occurrence for each duration at each layer.
-     *  \param Sieve* durSieve
-     *  \param vector<Envelope*> durEnvs
+     *  \param durSieve sieve providing possible durations and weights
+     *  \param durEnvs optional per-type envelopes that scale duration weights
      *  \param maxVal - limit for the last duration (endDur) allowed by the parent
      **/
     void setDurations(Sieve* durSieve, int maxVal, vector<Envelope*> durEnvs = vector<Envelope*>());
 
     /**
      *  Sets the probabilities of occurrence for each type
-     *  \param vector<double> typeProbVect
+     *  \param typeProbVect relative probabilities in child event type order
      **/
     void setTypeProbs(vector<double> typeProbVect);
 

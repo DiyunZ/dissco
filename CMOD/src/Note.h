@@ -190,7 +190,7 @@ class Note {
      *  Assigns the pitch of a note
      * pitchNames: The names of the pitches (C, C#, D, Eb, ...) starting w C0=0
      * octavePitch number of the octave
-     *  \param int pitchNum
+     *  \param pitchNum absolute pitch index in semitones, with C0 = 0
      **/
     void setPitchWellTempered(int pitchNum);
 
@@ -227,8 +227,7 @@ class Note {
      *   shortfermata, fermata, longfermata, verylongfermata, upbow, downbow,
      *   flageolet, open, halfopen, lheel, rheel, ltoe, rtoe, snappizzicato,
      *    stopped, segno, coda, varcoda (LyliPond markings)
-     *  \param modNums
-     *  \param modNames
+     *  \param modNames LilyPond modifier names to attach to this note
      **/
     void setModifiers(std::vector<std::string> modNames);
     /**
