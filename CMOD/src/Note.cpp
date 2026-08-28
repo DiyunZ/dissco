@@ -24,6 +24,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 //----------------------------------------------------------------------------//
 
 #include "Note.h"
+#include "CmodError.h"
 #include "Event.h"
 #include "Output.h"
 #include "Rational.h"
@@ -34,6 +35,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #include <stdio.h>
 #include <stdlib.h>
 #include <math.h>
+#include <cmath>
 
 using namespace std;
 
@@ -107,11 +109,15 @@ void Note::setPitchWellTempered(int absPitchNum) {
   octaveNum = pitchNum / 12;
 
   octavePitch = pitchNum % 12;
+  if (octavePitch < 0) {
+    octavePitch += 12;
+    --octaveNum;
+  }
   pitchName = pitchNames[octavePitch];
 
   string pitch = OutNames[octavePitch];
-  string signs[8] = {",,,",",,",",","","'","''","'''","''''"};
-  string sign = signs[octaveNum];
+  string sign = octaveNum < 3 ? string(3 - octaveNum, ',')
+                             : string(octaveNum - 3, '\'');
   chord_tones.clear();
   chord_tones.push_back({pitch + sign, modifiers, INT_MIN});
   rebuildPitchOutput();
@@ -130,7 +136,9 @@ int Note::HertzToPitch(float freqHz) {
   int pitchNum;
 
   if ( freqHz >= CEILING || freqHz <= MINFREQ) {
-    cerr << "WARNING: frequency out of range" << endl;
+    cerr << "Warning: Note Frequency is " << freqHz << " Hz, outside the nominal "
+         << MINFREQ << " to " << CEILING << " Hz range; using the nearest tempered pitch. "
+         << "Suggestion: Check the Bottom event's Frequency setting if this pitch is not intended." << endl;
   }
 
   pitchNum = rint(12 * log2(freqHz / C0));
@@ -176,9 +184,11 @@ void Note::setLoudnessMark(int dynamicNum, vector<string> dynamicNames) {
 void Note::setLoudnessSones(float sones) {
   loudnessNum = -1;
   // cout << " sones: " << sones << endl;
-  if(sones < 0 || sones > 256) {
-    cerr << "Note received invalid value for sones!" << endl;
-    exit(1);
+  if(!std::isfinite(sones) || sones < 0 || sones > 256) {
+    throw CmodError(CmodError::Kind::Project,
+                    "Note loudness is " + to_string(sones) + " sones, outside the supported range.",
+                    "Note loudness (sones)",
+                    "Set Loudness to a finite value from 0 to 256 sones for note events.");
   } else if(sones <= 4) {
     loudnessMark = "ppp";
   } else if(sones <= 8) {

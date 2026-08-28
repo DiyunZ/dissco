@@ -226,7 +226,6 @@ protected:
     //Number of restarts remaining.
     int restartsRemaining;
     static const int restartsNormallyAllowed = 6;
-    static const int restartsAllowedWithFewerChildren = 10;
 
     ///Restarts the build process if necessary (for buildDiscrete).
     void tryToRestart(void);
@@ -256,11 +255,6 @@ protected:
     pugi::xml_node methodFlagElement;
     pugi::xml_node childStartTypeFlag;
     pugi::xml_node childDurationTypeFlag;
-
-    // This thing sorta works, but killing a thread waiting for cin causes
-    // memory leak..   -- Ming-ching May 06, 2013
-    std::thread discreteWaitForInputIfFailedThread;
-    string discreteFailedResponse;
 
 
   public:
@@ -393,12 +387,6 @@ protected:
     **/
     void addPattern(std::string _string, Patter* _pat);
 
-    /**
-    * todo: incomplete function
-    **/
-    void setDiscreteFailedResponse(string _input)
-      { discreteFailedResponse = _input;}
-
   //------------- Private helper functions  ------------//
   protected:
 
@@ -450,6 +438,8 @@ protected:
     string getTempoStringFromDOMElement(pugi::xml_node _element);
 
     string getTimeSignatureStringFromDOMElement(pugi::xml_node _element);
+
+    int checkedChildType(double value) const;
 
     void buildMatrix(bool discrete);
     

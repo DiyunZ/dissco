@@ -115,9 +115,6 @@ class Piece {
   **/
   ~Piece();
 
-    /// Returns false when any requested output could not be generated.
-  bool completedSuccessfully() const { return buildSucceeded; }
-
   /**
   * Prints information about the piece.
   **/
@@ -173,7 +170,6 @@ class Piece {
   int sampleRate;
   int sampleSize;
   int numThreads;
-  bool buildSucceeded = true;
 
 };
 

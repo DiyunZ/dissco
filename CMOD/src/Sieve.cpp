@@ -27,6 +27,8 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #include "Sieve.h"
 #include "Random.h"
 #include "ModParser.h"
+#include "CmodError.h"
+#include <cmath>
 //---------------------------------------------------------------------------//
 
 Sieve::Sieve() {
@@ -60,6 +62,13 @@ void Sieve::BuildFromExpr(int minVal, int maxVal,
   ModParser mp(offsetVect);
   mp.parseExpr(expr, minVal, maxVal);
   eList = mp.getElements();
+  if (eList.empty()) {
+    throw CmodError(CmodError::Kind::Project,
+                    "Sieve has no elements within range " + std::to_string(minVal)
+                        + " through " + std::to_string(maxVal) + ".",
+                    "Sieve -> MODS expression: " + expr,
+                    "Widen the range or adjust the moduli and offsets so the sieve contains at least one element.");
+  }
 //Sieve::print_eList();
   Sieve::Weights(mp.getMods(), wMethod, wArgVect, mp.getOffsets());
 }
@@ -72,6 +81,13 @@ void Sieve::Build(int minVal, int maxVal,
                   vector<int> eArgVect, vector<int> wArgVect, vector<int> offsetVect) {
 
   Sieve::Elements(minVal, maxVal, eMethod, eArgVect, offsetVect);
+  if (eList.empty()) {
+    throw CmodError(CmodError::Kind::Project,
+                    "Sieve has no elements within range " + std::to_string(minVal)
+                        + " through " + std::to_string(maxVal) + ".",
+                    "Sieve -> Elements",
+                    "Widen the range or adjust the element list and offsets so the sieve contains at least one element.");
+  }
   Sieve::Weights(eArgVect, wMethod, wArgVect, offsetVect);
 }
 
@@ -79,6 +95,13 @@ void Sieve::Build(int minVal, int maxVal,
 //---------------------------------------------------------------------------//
 
 void Sieve::FillInVectors(vector<int>& intVect, vector<double>& doubleVect) {
+  if (eList.size() != wList.size()) {
+    throw CmodError(CmodError::Kind::Project,
+                    "Sieve has " + std::to_string(eList.size()) + " elements but "
+                        + std::to_string(wList.size()) + " weights.",
+                    "Sieve -> Weights",
+                    "Provide a weight for each retained element, or use PERIODIC weights.");
+  }
 
 //cout << "Sieve::FillInVectors - eList.size()=" << eList.size() << " wList.size()=" << wList.size() << endl;
 
@@ -129,6 +152,13 @@ int Sieve::Modify(Envelope *env, string method) {
 //---------------------------------------------------------------------------//
 
 int Sieve::ChooseL() {
+  if (eList.empty() || eList.size() != wList.size()) {
+    throw CmodError(CmodError::Kind::Project,
+                    "Sieve cannot choose from " + std::to_string(eList.size()) + " elements and "
+                        + std::to_string(wList.size()) + " weights.",
+                    "Function: ChooseL -> Sieve",
+                    "Provide at least one element and a weight for each element.");
+  }
   double randomNumber = Random::Rand();
 
   list<int>::iterator eIter = eList.begin();
@@ -137,6 +167,13 @@ int Sieve::ChooseL() {
   while (eIter != eList.end() && (randomNumber > *wIter)) {
     eIter++;
     wIter++;
+  }
+  if (eIter == eList.end() || !std::isfinite(*wIter) || *wIter < 0) {
+    throw CmodError(CmodError::Kind::Project,
+                    "Sieve weights do not provide a valid selection for random value "
+                        + std::to_string(randomNumber) + ".",
+                    "Function: ChooseL -> Sieve weights",
+                    "Use finite nonnegative weights that cover the full selection range; a cumulative weight list must end at 1 or greater.");
   }
 
   return *eIter;
@@ -148,25 +185,25 @@ int Sieve::ChooseL() {
 void Sieve::Elements(int minVal, int maxVal,
                      const char *method,
                      vector<int> eArgVect, std::vector<int> offsetVect) {
+  if ((strcmp(method, "MEANINGFUL") == 0 || strcmp(method, "MODS") == 0)
+      && offsetVect.size() < eArgVect.size()) {
+    throw CmodError(CmodError::Kind::Project,
+                    "Sieve has " + std::to_string(eArgVect.size()) + " elements/moduli but only "
+                        + std::to_string(offsetVect.size()) + " offsets.",
+                    "Sieve -> Offsets",
+                    "Provide one offset per element or modulus (use 0 when no offset is needed).");
+  }
   if(strcmp(method, "MEANINGFUL") == 0) {		//only meaningful elem.
     Sieve::Meaningful(minVal, maxVal, eArgVect, offsetVect);
   } else if(strcmp(method, "MODS") == 0) {		//uses moduli
     Sieve::Multiples(minVal, maxVal, eArgVect, offsetVect);
   } else if(strcmp(method, "FAKE") == 0) {		//all elem, same weight
     Sieve::Fake(minVal, maxVal);
-  } else if(strcmp(method, "FIBONACCI") == 0) {       	//Fibonacci sieve
-    cerr << " see harmSieve" << endl;
-    exit(1);
-  } else if(strcmp(method, "OVERTONES") == 0) {       	//overtone series
-    cerr << "utility::SieveElements - overtones not available yet" << endl;
-    exit(1);
-  } else if(strcmp(method, "MULT_PARAMS") == 0) {     	//multiple parameters
-    cerr << "utility::SieveElements - multiple params not available yet"
-        << endl;
-    exit(1);
   } else {
-    cerr << "no method to build sieve: "<< method << endl;
-    exit(1);
+    throw CmodError(CmodError::Kind::Project,
+                    "Sieve element method '" + string(method) + "' is not supported.",
+                    "Sieve -> Method",
+                    "Choose MEANINGFUL, MODS, or FAKE in the sieve editor.");
   }
 }
 
@@ -185,8 +222,10 @@ void Sieve::Weights(std::vector<int> eArgVect,
   } else if(strcmp(method, "INCLUDE") == 0) {
     Sieve::IncludeWeights(wArgVect);
   } else {
-    cerr << "Sieve::Weights - no method for asigning weights" << endl;
-    exit(1);
+    throw CmodError(CmodError::Kind::Project,
+                    "Sieve weight method '" + string(method) + "' is not supported.",
+                    "Sieve -> WeightMethod",
+                    "Choose PERIODIC, HIERARCHIC, or INCLUDE in the sieve editor.");
   }
 }
 
@@ -299,6 +338,20 @@ void Sieve::PeriodicWeights(const vector<int>& wArgVect) {
 void Sieve::HierarchicWeights(const std::vector<int>& eArgVect,
 				std::vector<int> wArgVect,
 				std::vector<int> offsetVect) {
+  if (wArgVect.size() > eArgVect.size() || wArgVect.size() > offsetVect.size()) {
+    throw CmodError(CmodError::Kind::Project,
+                    "Sieve HIERARCHIC weights do not have matching moduli and offsets.",
+                    "Sieve -> HIERARCHIC weights",
+                    "Provide a modulus and offset for every hierarchical weight.");
+  }
+  for (size_t i = 0; i < wArgVect.size(); ++i) {
+    if (eArgVect[i] == 0) {
+      throw CmodError(CmodError::Kind::Project,
+                      "Sieve HIERARCHIC modulus " + std::to_string(i + 1) + " is 0.",
+                      "Sieve -> HIERARCHIC weights",
+                      "Use nonzero moduli, or choose PERIODIC/INCLUDE weights for an element list containing 0.");
+    }
+  }
   unsigned whichMod;
   double probability;
 
@@ -333,6 +386,13 @@ cout << "Sieve::Hierarchic - eList.end=" << eList.end() << " eArgVect.size()="
 //---------------------------------------------------------------------------//
 
 void Sieve::IncludeWeights(const vector<int>& wArgVect) {
+  if (wArgVect.size() < eList.size()) {
+    throw CmodError(CmodError::Kind::Project,
+                    "Sieve INCLUDE has " + std::to_string(wArgVect.size()) + " weights for "
+                        + std::to_string(eList.size()) + " elements.",
+                    "Sieve -> INCLUDE weights",
+                    "Provide a weight for every retained element, or choose PERIODIC weights.");
+  }
 //for(int i = 0; i < wArgVect.size(); i++) {
   for(unsigned i = 0; i < eList.size(); i++) {
     if((int)i >= skip && i < eList.size() + skip) {

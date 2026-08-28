@@ -453,6 +453,7 @@ private:
   // Storage of LASS Parsed/generated Envelopes
 
   vector< MarkovModel<float> > markovModelLibrary;
+  std::vector<pugi::xml_node> resolvingObjectReferences;
 
   // Piece Configurations
   bool soundSynthesis = true;

@@ -241,6 +241,7 @@ void Matrix::setTypeProbs(vector<double> typeProbVect) {
 //----------------------------------------------------------------------------//
 MatPoint Matrix::chooseSweep(int remain) {
   MatPoint chosenPt = choose();
+  if (chosenPt.type == -1) return chosenPt;
 
   // set probs to 0 for every point starting before the end of chosenPt
   removeSweepConflicts(chosenPt);
@@ -259,6 +260,7 @@ MatPoint Matrix::chooseContinuum() {
 //---------------------------------------------------------------------------//
 MatPoint Matrix::chooseDiscrete(int remain) {
   MatPoint chosenPt = choose();
+  if (chosenPt.type == -1) return chosenPt;
 
   // remove conflicts in the matrix (set probs to 0)
   removeConflicts(chosenPt);
@@ -361,7 +363,7 @@ bool Matrix::normalizeMatrix() {
   }
 
   if (matrSum == 0) {
-    cerr << "MATRIX - ERROR: Sum of matrix is 0! (We're out of space)." << endl;
+    // Event reports the failed placement with the project and child context.
     return false; // indicate failure
   }
 
@@ -405,6 +407,10 @@ void Matrix::recomputeTypeProbs(int chosenType, int remaining) {
 //----------------------------------------------------------------------------//
 
 int Matrix::verify_valid(int endTime){
+  // A valid sieve may contain only attacks after the first beat. Without a
+  // beat-local anchor, keep the already valid EDU endpoint unchanged.
+  if (short_attime.empty()) return endTime;
+
   int length = short_attime.size();
 
   int low = 0;

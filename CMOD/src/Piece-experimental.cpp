@@ -32,9 +32,11 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #include "Output.h"
 #include "Random.h"
 #include "Utilities.h"
+#include "CmodError.h"
 #include <fstream>
 
 #include <cerrno>
+#include <cmath>
 #include <cstdio>
 #include <cstring>
 #include <filesystem>
@@ -75,9 +77,9 @@ static bool directoryExists(const string& path) {
   return stat(path.c_str(), &info) == 0 && (info.st_mode & S_IFDIR);
 }
 
-static bool createDirectoryIfMissing(const string& path) {
+static void createDirectoryIfMissing(const string& path) {
   if (directoryExists(path)) {
-    return true;
+    return;
   }
 
 #ifdef _WIN32
@@ -87,12 +89,12 @@ static bool createDirectoryIfMissing(const string& path) {
 #endif
 
   if (result == 0 || directoryExists(path)) {
-    return true;
+    return;
   }
 
-  cerr << "Error: could not create directory " << path
-       << " (" << strerror(errno) << ")" << endl;
-  return false;
+  throw CmodError(CmodError::Kind::Output,
+                  string("Cannot create output directory: ") + strerror(errno), path,
+                  "Check write permission and free disk space; a regular file must not occupy the output directory path.");
 }
 
 //----------------------------------------------------------------------------//
@@ -162,9 +164,7 @@ void PieceHelper::createSoundFilesDirectory(string path) {
 void PieceHelper::createScoreFilesDirectory(string path) {
   string scoreDir = PieceHelper::getFixedPath(path) + "ScoreFiles";
 
-  if (!createDirectoryIfMissing(scoreDir)) {
-    return;
-  }
+  createDirectoryIfMissing(scoreDir);
 
   vector<string> files = vector<string>();
   getDirectoryList(scoreDir, files);
@@ -242,60 +242,90 @@ void Piece::Print() {
 }
 
 
+static string configurationValue(pugi::xml_node configuration, const char* field) {
+  pugi::xml_node element = configuration.child(field);
+  if (!element) {
+    throw CmodError(CmodError::Kind::Project, "A required project setting is missing.",
+                    string("ProjectConfiguration.") + field,
+                    "Restore this setting in Project Properties, then save the project in LASSIE.");
+  }
+  return XMLTC(element);
+}
+
+static int positiveConfigurationInt(pugi::xml_node configuration, const char* field) {
+  const string text = configurationValue(configuration, field);
+  std::istringstream input(text);
+  int value = 0;
+  string extra;
+  if (!(input >> value) || (input >> extra) || value <= 0) {
+    throw CmodError(CmodError::Kind::Project, "Expected a positive integer, got '" + text + "'.",
+                    string("ProjectConfiguration.") + field,
+                    "Set this Project Properties value to a whole number greater than zero.");
+  }
+  return value;
+}
+
+static bool configurationBool(pugi::xml_node configuration, const char* field) {
+  const string value = configurationValue(configuration, field);
+  if (value != "True" && value != "False") {
+    throw CmodError(CmodError::Kind::Project, "Expected True or False, got '" + value + "'.",
+                    string("ProjectConfiguration.") + field,
+                    "Set this option in Project Properties and save the project in LASSIE.");
+  }
+  return value == "True";
+}
+
 Piece::Piece(string _workingPath, string _projectTitle){
   path = _workingPath;
   projectName = _projectTitle;
   //Change working directory.
-  chdir(_workingPath.c_str());
+  std::error_code directoryError;
+  std::filesystem::current_path(_workingPath, directoryError);
+  if (directoryError) {
+    throw CmodError(CmodError::Kind::Project,
+                    "Cannot open project directory: " + directoryError.message(),
+                    _workingPath,
+                    "Check that the project directory exists and is accessible.");
+  }
 
   //Parse .dissco File
   pugi::xml_document disscoDoc;
   string disscoFile = _projectTitle+ ".dissco";
-  disscoDoc.load_file(disscoFile.c_str());
+  const pugi::xml_parse_result parseResult = disscoDoc.load_file(disscoFile.c_str());
+  if (!parseResult) {
+    throw CmodError(CmodError::Kind::Project,
+                    string("Cannot read project XML: ") + parseResult.description(),
+                    disscoFile + " at byte " + to_string(parseResult.offset),
+                    "Check that the .dissco file exists, is readable, and contains valid XML; reopen and save it in LASSIE.");
+  }
 
   pugi::xml_node root = disscoDoc.document_element();
-  pugi::xml_node configurations = GFEC(root);
-  pugi::xml_node element = GFEC(configurations);
-  title = XMLTC(element);
-  element = GNES(element);
-  fileFlags = XMLTC(element);
-  element = GNES(element);
-  fileList = XMLTC(element);
-  element = GNES(element);
-  pieceStartTime = XMLTC(element);
-  element = GNES(element);
-  pieceDuration = XMLTC(element);
-  element = GNES(element);
-  soundSynthesis = (XMLTC(element).compare("True")==0)?true:false;
-  element = GNES(element);
-  scorePrinting = (XMLTC(element).compare("True")==0)?true:false;
-  element = GNES(element);
-
-  // multistaffs
-  grandStaff = (XMLTC(element).compare("True")==0)?true:false;
+  if (string(root.name()) != "ProjectRoot" || !root.child("ProjectConfiguration")) {
+    throw CmodError(CmodError::Kind::Project,
+                    "Expected ProjectRoot containing ProjectConfiguration.",
+                    disscoFile,
+                    "Open a DISSCO .dissco project and save it in LASSIE; other XML files are not projects.");
+  }
+  pugi::xml_node configurations = root.child("ProjectConfiguration");
+  title = configurationValue(configurations, "Title");
+  fileFlags = configurationValue(configurations, "FileFlag");
+  fileList = configurationValue(configurations, "TopEvent");
+  pieceStartTime = configurationValue(configurations, "PieceStartTime");
+  pieceDuration = configurationValue(configurations, "Duration");
+  soundSynthesis = configurationBool(configurations, "Synthesis");
+  scorePrinting = configurationBool(configurations, "Score");
+  grandStaff = configurationBool(configurations, "GrandStaff");
   cout <<"grandStaff: " << grandStaff << endl;
-  element = GNES(element);
-
-  // get the staffs number
-  
-  numberOfStaff = atoi(XMLTC(element).c_str());
+  numberOfStaff = positiveConfigurationInt(configurations, "NumberOfStaff");
   cout <<"numberOfStaff: " << numberOfStaff << endl;
-  element = GNES(element);
-
-  numChannels = atoi(XMLTC(element).c_str());
+  numChannels = positiveConfigurationInt(configurations, "NumberOfChannels");
   cout << "Channel: " << numChannels << "\n";
-  element = GNES(element);
-
-  sampleRate = atoi(XMLTC(element).c_str());
+  sampleRate = positiveConfigurationInt(configurations, "SampleRate");
   cout << "Sample Rate: "<< sampleRate << "\n";
-  element = GNES(element);
-
-  sampleSize = atoi(XMLTC(element).c_str());
+  sampleSize = positiveConfigurationInt(configurations, "SampleSize");
   cout << "Sample Size: "<< sampleSize << "\n";
-  element = GNES(element);
-  numThreads = atoi(XMLTC(element).c_str());
-  element = GNES(element);
-  bool outputParticel = (XMLTC(element).compare("True")==0)?true:false;
+  numThreads = positiveConfigurationInt(configurations, "NumberOfThreads");
+  bool outputParticel = configurationBool(configurations, "OutputParticel");
 
   if (soundSynthesis) {
   PieceHelper::createSoundFilesDirectory("");
@@ -307,7 +337,7 @@ Piece::Piece(string _workingPath, string _projectTitle){
 
   //check if seed exists
   string seed;
-  element = GNES(element);
+  pugi::xml_node element = configurations.child("Seed");
   if(element.first_child()){
     seed = XMLTC(element);
   }
@@ -348,8 +378,22 @@ Piece::Piece(string _workingPath, string _projectTitle){
 
   // setup TimeSpan and Tempo
   TimeSpan pieceSpan;
-  pieceSpan.start = utilities->evaluate(pieceStartTime, NULL);
-  pieceSpan.duration = utilities->evaluate(pieceDuration, NULL);
+  auto evaluateSetting = [this](const string& value, const char* field) {
+    try {
+      return utilities->evaluate(value, NULL);
+    } catch (CmodError& error) {
+      error.addContext(string("ProjectConfiguration.") + field);
+      throw;
+    }
+  };
+  pieceSpan.start = evaluateSetting(pieceStartTime, "PieceStartTime");
+  pieceSpan.duration = evaluateSetting(pieceDuration, "Duration");
+  if (!std::isfinite(pieceSpan.duration) || pieceSpan.duration <= 0) {
+    throw CmodError(CmodError::Kind::Project,
+                    "The piece duration must be finite and greater than zero.",
+                    "ProjectConfiguration.Duration: " + pieceDuration,
+                    "Set Duration to a positive number of seconds, or an expression that produces one.");
+  }
   Tempo mainTempo; //Though we supply this, "Top" will provide its own tempo.
   
   // multistaffs
@@ -395,9 +439,13 @@ Piece::Piece(string _workingPath, string _projectTitle){
     MultiTrack* renderedScore = utilities->doneCMOD();
     string soundFilename = getNextSoundFile();
     //Write to file.
-    if (!AuWriter::write(*renderedScore, soundFilename))
-        buildSucceeded = false;
+    const bool written = AuWriter::write(*renderedScore, soundFilename);
     delete renderedScore;
+    if (!written) {
+      throw CmodError(CmodError::Kind::Output, "Could not write the rendered audio file.",
+                      soundFilename,
+                      "Check the SoundFiles directory, write permission, and free disk space.");
+    }
   }
   if (scorePrinting) {
     cout << "Piece::Piece: " << "Score output " << endl;
@@ -412,17 +460,25 @@ Piece::Piece(string _workingPath, string _projectTitle){
     string temp = projectName + ".ly";
     const char* projectNameCstr = temp.c_str();
     score_file.open(projectNameCstr);
+    if (!score_file) {
+      throw CmodError(CmodError::Kind::Output, "Could not create the score source file.",
+                      temp, "Check write permission and make sure this path is not a directory.");
+    }
     score_file << Output::notation_score_;
     score_file.close();
+    if (!score_file) {
+      throw CmodError(CmodError::Kind::Output, "Could not finish writing the score source file.",
+                      temp, "Check write permission and free disk space, then run the project again.");
+    }
 
   // execute lilypond to create pdf file
   string lilypondCommand = "lilypond \"" + projectName + ".ly\"";
   int lilypondStatus = system(lilypondCommand.c_str());
 
   if (lilypondStatus != 0) {
-    buildSucceeded = false;
-    cerr << "Error: LilyPond failed to generate "
-       << projectName << ".pdf" << endl;
+    throw CmodError(CmodError::Kind::Output, "LilyPond failed to generate the score PDF.",
+                    projectName + ".ly (status " + to_string(lilypondStatus) + ")",
+                    "Check that LilyPond is installed and on PATH, and review its diagnostic above for score errors.");
   }
   else {
     PieceHelper::createScoreFilesDirectory("");
@@ -443,10 +499,10 @@ Piece::Piece(string _workingPath, string _projectTitle){
     string targetPdf = "ScoreFiles/" + projectName + suffix + ".pdf";
 
     if (rename(sourcePdf.c_str(), targetPdf.c_str()) != 0) {
-      buildSucceeded = false;
-      cerr << "Error: could not move " << sourcePdf
-          << " to " << targetPdf
-          << " (" << strerror(errno) << ")" << endl;
+      throw CmodError(CmodError::Kind::Output,
+                      string("Could not move the generated score PDF: ") + strerror(errno),
+                      sourcePdf + " -> " + targetPdf,
+                      "Check the ScoreFiles directory and write permission, and close any program locking the PDF.");
     }
   }
 
@@ -461,7 +517,7 @@ Piece::Piece(string _workingPath, string _projectTitle){
   cout << endl;
   cout << "-----------------------------------------------------------" <<
     endl;
-    cout << (buildSucceeded ? "Build complete." : "Build failed.") << endl;
+    cout << "Build complete." << endl;
   cout << "-----------------------------------------------------------" <<
     endl << endl;
   cout.flush();

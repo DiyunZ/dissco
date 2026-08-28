@@ -1,15 +1,30 @@
 #include "SignalHandlers.h"
 
 void segfaultHandler(int signal) {
+    static const char diagnostic[] =
+        "CMOD internal error: Unexpected invalid memory access (segmentation fault).\n"
+        "Context: CMOD runtime\n"
+        "Suggestion: Send the DISSCO developers the project file, seed, and full output. "
+        "This crash alone does not identify an invalid project setting.\n"
+        "Build failed.\n";
+#ifdef _WIN32
+    _write(STDERR_FILENO, diagnostic, sizeof(diagnostic) - 1);
+#else
+    write(STDERR_FILENO, diagnostic, sizeof(diagnostic) - 1);
+#endif
     void *buf[BACKTRACE_NUM + 2];
     size_t size = backtrace(buf, BACKTRACE_NUM + 2);        // Do a backtrace of the stack
     char **messages = backtrace_symbols(buf, size);
 
     std::cerr << "--------------------------------------------------------------------------------\n";
-    std::cerr << "Segmentation Fault, printing stacktrace of " << BACKTRACE_NUM << " most recent function calls:\n\n";
+    if (size > 2 && messages != nullptr) {
+        std::cerr << "Stack trace (up to " << BACKTRACE_NUM << " most recent function calls):\n\n";
+    } else {
+        std::cerr << "A stack trace is not available on this platform.\n";
+    }
 
 
-    for (size_t i = 2; i < size; ++i) {                     //Skip the first two frames since they are this function and the signal generator
+    for (size_t i = 2; messages != nullptr && i < size; ++i) { //Skip the first two frames since they are this function and the signal generator
         size_t len=std::strlen(messages[i]);
         char* parser;
 

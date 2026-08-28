@@ -29,6 +29,9 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #include "Sieve.h"
 #include "Random.h" 
 #include "Bottom.h"
+#include "CmodError.h"
+#include <cmath>
+#include <limits>
 
 //----------------------------------------------------------------------------//
 //Checked
@@ -53,8 +56,7 @@ Event::Event(pugi::xml_node _element,
   restartsRemaining(0),
   currChildNum(0), childType(0),
   matrix(0),
-  utilities(_utilities),
-  discreteFailedResponse("")
+  utilities(_utilities)
    {
 
   //Initialize parameters
@@ -71,7 +73,14 @@ Event::Event(pugi::xml_node _element,
   maxChildDur = (float)utilities->evaluate(XMLTC(thisEventElement), (void*)this);
 
   thisEventElement = GNES(thisEventElement);
-  int newEDUPerBeat = (int) utilities->evaluate(XMLTC(thisEventElement),(void*)this);
+  const double eduPerBeat = utilities->evaluate(XMLTC(thisEventElement),(void*)this);
+  if (!std::isfinite(eduPerBeat) || eduPerBeat < 1 || eduPerBeat > std::numeric_limits<int>::max()) {
+    throw CmodError(CmodError::Kind::Project,
+                    "EDU Per Beat must produce a positive integer within CMOD's timing range.",
+                    "Event '" + name + "' -> EDU Per Beat: " + to_string(eduPerBeat),
+                    "Set EDU Per Beat to a positive integer, such as 60; zero cannot define the timing grid.");
+  }
+  int newEDUPerBeat = static_cast<int>(eduPerBeat);
   Ratio k(newEDUPerBeat,1);
   Tempo fvTempo; // File-Value Tempo
 
@@ -83,7 +92,45 @@ Event::Event(pugi::xml_node _element,
   thisEventElement = GNES(thisEventElement);
   fvTempo.setTempo(getTempoStringFromDOMElement(thisEventElement));
 
-  fvTempo.getTempoBeat();
+  // Ratio<int> multiplies before reducing. Validate the same intermediate
+  // products in a wider type before timing or score code evaluates them.
+  const Ratio timingEDUs = fvTempo.getEDUPerTimeSignatureBeat();
+  const Ratio timingBeatsPerBar = fvTempo.getTimeSignatureBeatsPerBar();
+  const Ratio timingBeat = fvTempo.getTimeSignatureBeat();
+  const Ratio timingTempoBeat = fvTempo.getTempoBeat();
+  const Ratio timingBPM = fvTempo.getTempoBeatsPerMinute();
+  const string timingContext = "Event '" + name + "' -> Time Signature: " +
+    fvTempo.getTimeSignature() + "; EDU Per Beat: " + timingEDUs.toPrettyString() +
+    "; Tempo: " + timingBPM.toPrettyString();
+  const auto checkedTimingRatio = [&timingContext](Ratio left, Ratio right,
+                                                  bool divide, const string& field) {
+    const long long numerator = static_cast<long long>(left.Num()) *
+                                (divide ? right.Den() : right.Num());
+    const long long denominator = static_cast<long long>(left.Den()) *
+                                  (divide ? right.Num() : right.Den());
+    if (numerator <= 0 || denominator <= 0 ||
+        numerator > std::numeric_limits<int>::max() ||
+        denominator > std::numeric_limits<int>::max()) {
+      throw CmodError(CmodError::Kind::Project,
+                      "The derived " + field + " is outside CMOD's supported integer timing range.",
+                      timingContext + " -> " + field + ": " + to_string(numerator) + "/" + to_string(denominator),
+                      "Reduce EDU Per Beat or the Time Signature values, or simplify the Tempo fraction. "
+                      "Each intermediate timing numerator and denominator must fit within 1 to " +
+                      to_string(std::numeric_limits<int>::max()) + ".");
+    }
+    return Ratio(static_cast<int>(numerator), static_cast<int>(denominator));
+  };
+  checkedTimingRatio(timingEDUs, timingBeatsPerBar, false, "EDU per bar");
+  const Ratio beatsPerTempoBeat = checkedTimingRatio(timingTempoBeat, timingBeat, true, "beats per tempo beat");
+  const Ratio tempoBeatsPerBeat = checkedTimingRatio(timingBeat, timingTempoBeat, true, "tempo beats per beat");
+  checkedTimingRatio(timingBeatsPerBar, tempoBeatsPerBeat, false, "tempo beats per bar");
+  const Ratio beatsPerMinute = checkedTimingRatio(timingBPM, beatsPerTempoBeat, false, "beats per minute");
+  checkedTimingRatio(Ratio(60), timingBPM, true, "tempo beat duration");
+  const Ratio secondsPerBeat = checkedTimingRatio(Ratio(60), beatsPerMinute, true, "time-signature beat duration");
+  checkedTimingRatio(timingEDUs, beatsPerTempoBeat, false, "EDU per tempo beat");
+  const Ratio edusPerMinute = checkedTimingRatio(timingEDUs, beatsPerMinute, false, "EDU per minute");
+  checkedTimingRatio(edusPerMinute, Ratio(60), true, "EDU per second");
+  checkedTimingRatio(secondsPerBeat, timingEDUs, true, "EDU duration");
 
   fvTempo.setStartTime(tempo.getStartTime());
 
@@ -134,23 +181,35 @@ Event::Event(pugi::xml_node _element,
 
     layerElements.push_back(layerElement);
     pugi::xml_node childPackage = GFEC(GNES(GFEC(layerElement)));
+    vector<string> layerNames;
 
     while(childPackage){
       childTypeElements.push_back(childPackage);
+      layerNames.push_back(XMLTC(GFEC(childPackage)));
       childPackage = GNES(childPackage);
     }
+    layerVect.push_back(layerNames);
     layerElement = GNES(layerElement);
   }
 
 
+  const auto checkedChildCount = [this](double value) {
+    if (!std::isfinite(value) || value < 0 || value > std::numeric_limits<int>::max()) {
+      throw CmodError(CmodError::Kind::Project,
+                      "The number of children is outside the supported range.",
+                      "Event '" + name + "' -> NumberOfChildren: " + to_string(value),
+                      "Use a finite value between 0 and " + to_string(std::numeric_limits<int>::max()) + ".");
+    }
+    return static_cast<int>(value);
+  };
   pugi::xml_node flagElement = GFEC(numChildrenElement);
   if (XMLTC(flagElement) =="0"){ // Continuum
     pugi::xml_node entry1Element = GNES(flagElement);
     if (XMLTC(entry1Element)==""){
-      numChildren = childTypeElements.size();
+      numChildren = checkedChildCount(static_cast<double>(childTypeElements.size()));
     }
     else {
-      numChildren =(int) utilities->evaluate(XMLTC(entry1Element), (void*)this);
+      numChildren = checkedChildCount(utilities->evaluate(XMLTC(entry1Element), (void*)this));
     }
   }
   else if (XMLTC(flagElement) == "1"){ // Densitiy
@@ -159,13 +218,19 @@ Event::Event(pugi::xml_node _element,
     pugi::xml_node underOneElement = GNES(areaElement);
     double density = utilities->evaluate( XMLTC(densityElement),(void*)this);
     double area = utilities->evaluate( XMLTC(areaElement),(void*)this);
+    if (area == 0) {
+      throw CmodError(CmodError::Kind::Project,
+                      "The Density calculation divides by an Area of zero.",
+                      "Event '" + name + "' -> Number of Children -> Density -> Area: 0",
+                      "Set Area to a nonzero value, or choose a different method for Number of Children.");
+    }
 //  cout << "areaElement=" << areaElement << endl;
     double underOne = utilities->evaluate( XMLTC(underOneElement),(void*)this);
     double soundsPsec = pow(2, density * area - underOne); //this can't be right..
 //  cout<<"density:"<< density<<", area:"<<area<<", underOne:"<<underOne<<endl;
 
     //not sure which version is the correct one. ask sever
-    numChildren = (int)(soundsPsec * ts.duration + underOne/area);
+    numChildren = checkedChildCount(soundsPsec * ts.duration + underOne/area);
 //  cout << "     numChildren=" << numChildren << endl;
     //numChildren = (int)(soundsPsec * layerElements * ts.duration + 0.5);
 
@@ -173,8 +238,30 @@ Event::Event(pugi::xml_node _element,
   else {// by layer
   numChildren = 0;
     for (unsigned i = 0; i < layerElements.size(); i ++){
-      numChildren +=utilities->evaluate(XMLTC(GFEC(layerElements[i])),(void*)this);
+      const int layerCount = checkedChildCount(utilities->evaluate(XMLTC(GFEC(layerElements[i])),(void*)this));
+      numChildren = checkedChildCount(static_cast<double>(numChildren) + layerCount);
     }
+  }
+
+  if (numChildren > 0 && childTypeElements.empty()) {
+    throw CmodError(CmodError::Kind::Project,
+                    "Children were requested, but no child events are listed in Layers.",
+                    "Event '" + name + "' -> NumberOfChildren",
+                    "Add child events to this event's Layers, or set Number of Children to zero.");
+  }
+
+  if (numChildren > 0 && XMLTC(methodFlagElement) != "2") {
+    const auto validateUnit = [this](pugi::xml_node element, const string& field) {
+      const string value = XMLTC(element);
+      if (value != "0" && value != "1" && value != "2") {
+        throw CmodError(CmodError::Kind::Project,
+                        "The " + field + " is missing or not recognized.",
+                        "Event '" + name + "' -> Child Event Definition -> " + field + ": '" + value + "'",
+                        "Choose Fraction (0), EDU (1), or Seconds (2) for this timing field.");
+      }
+    };
+    validateUnit(childStartTypeFlag, "Start Time Unit");
+    validateUnit(childDurationTypeFlag, "Duration Unit");
   }
 
   if (type <=3){ //top, high, mid, low
@@ -264,6 +351,22 @@ string Event::getTempoStringFromDOMElement(pugi::xml_node _element){
   thisElement = GNES(thisElement);
   double valueEntry = utilities->evaluate(XMLTC(thisElement),(void*)this);
 
+  const auto checkTempoValue = [this](double value, const string& field) {
+    if (!std::isfinite(value) || value <= 0 || value > std::numeric_limits<int>::max()) {
+      throw CmodError(CmodError::Kind::Project,
+                      "A Tempo value is zero, negative, or too large for CMOD's timing representation.",
+                      "Event '" + name + "' -> Tempo -> " + field + ": " + to_string(value),
+                      "Use a positive finite Tempo value no larger than " +
+                      to_string(std::numeric_limits<int>::max()) + ".");
+    }
+  };
+  checkTempoValue(valueEntry, "Value");
+  if (methodFlag != "0" && methodFlag != "1") {
+    throw CmodError(CmodError::Kind::Project,
+                    "The Tempo method is not recognized.",
+                    "Event '" + name + "' -> Tempo -> MethodFlag: '" + methodFlag + "'",
+                    "Choose a note-value Tempo (0) or a fractional Tempo (1).");
+  }
 
   if (prefix == "1"){
       stringbuffer = stringbuffer + "dotted ";
@@ -303,43 +406,26 @@ string Event::getTempoStringFromDOMElement(pugi::xml_node _element){
       stringbuffer = stringbuffer + "thirtysecond = ";
     }
 
-  if (methodFlag == "0") {// tempo as note value
-
-    char tempobuffer[20];
-    sprintf(tempobuffer, "%f", valueEntry);
-    stringbuffer = stringbuffer + string(tempobuffer);
+  // Preserve the existing six-decimal precision without overflowing fixed
+  // buffers or the integer numerator while formatting a Tempo.
+  long long numerator = std::llround(valueEntry * 1000000.0);
+  long long denominator = 1000000;
+  if (methodFlag == "1") {
+    checkTempoValue(fractionEntry1, "Fraction numerator");
+    numerator = std::llround(fractionEntry1 * 60.0 * 1000000.0);
+    denominator = std::llround(valueEntry * 1000000.0);
   }
-
-  else { // tempo as fraction
-    //"entry1" notes in "value" seconds
-    //entry : value = actual number : 60
-    //entry1 * 60 / value = actual number
-
-
-    double entry1 = fractionEntry1 * 60;
-    double den = valueEntry;
-
-    char tempobuffer [20];
-    sprintf(tempobuffer, "%f", entry1);
-    string numString = string(tempobuffer);
-
-    sprintf (tempobuffer,"%f", den);
-    string denString = string(tempobuffer);
-
-    string ratioNumber = numString + "/" + denString;
-    Ratio ratio = Ratio(ratioNumber);
-
-    sprintf(tempobuffer, "%d", ratio.Num());
-
-    if (ratio.Den() ==1){
-     	stringbuffer = stringbuffer + string(tempobuffer) ;
-    }
-    else{
-    	stringbuffer = stringbuffer + string(tempobuffer) + "/";
-    	sprintf(tempobuffer, "%d", ratio.Den());
-    	stringbuffer = stringbuffer + string(tempobuffer);
-    }
+  Rational<long long> ratio(numerator, denominator);
+  if (numerator <= 0 || denominator <= 0 ||
+      ratio.Num() > std::numeric_limits<int>::max() ||
+      ratio.Den() > std::numeric_limits<int>::max()) {
+    throw CmodError(CmodError::Kind::Project,
+                    "The Tempo cannot be represented by CMOD's integer timing ratios.",
+                    "Event '" + name + "' -> Tempo -> Value: " + to_string(valueEntry),
+                    "Use a positive Tempo with fewer decimal places and smaller fractional values; "
+                    "the value must remain positive when rounded to six decimal places.");
   }
+  stringbuffer += ratio.toPrettyString();
   return stringbuffer;
 }
 
@@ -354,15 +440,25 @@ string Event::getTimeSignatureStringFromDOMElement(pugi::xml_node _element){
       </TimeSignature>
   */
 
+  const auto signatureEntry = [this](pugi::xml_node element, const string& field) {
+    const double value = utilities->evaluate(XMLTC(element),(void*)this);
+    if (!std::isfinite(value) || value < 1 || value > std::numeric_limits<int>::max()) {
+      throw CmodError(CmodError::Kind::Project,
+                      "The Time Signature must have a positive numerator and denominator.",
+                      "Event '" + name + "' -> Time Signature -> " + field + ": " + to_string(value),
+                      "Use positive integers for both Time Signature fields, such as 4/4.");
+    }
+    return static_cast<int>(value);
+  };
   pugi::xml_node thisElement = GFEC(_element);
-  int entry1 = utilities->evaluate(XMLTC(thisElement),(void*)this);
+  int entry1 = signatureEntry(thisElement, "Numerator");
 
   char charbuffer[20];
   sprintf(charbuffer, "%d", entry1);
   string stringbuffer =  string(charbuffer);
 
   thisElement = GNES(thisElement);
-  int entry2 = utilities->evaluate(XMLTC(thisElement),(void*)this);
+  int entry2 = signatureEntry(thisElement, "Denominator");
   sprintf(charbuffer, "%d", entry2);
   string returnString = stringbuffer + "/"+ string(charbuffer);
 
@@ -407,9 +503,10 @@ void Event::buildChildren() {
 
   //Make sure that the temporary child events array is clear.
   if(temporaryChildEvents.size() > 0) {
-    cerr << "WARNING: temporaryChildEvents should not contain data." << endl;
-    cerr << "There may be a bug in the code. Please report." << endl;
-    exit(1);
+    throw CmodError(CmodError::Kind::Internal,
+                    "Child generation started with unfinished temporary events.",
+                    "Event '" + name + "' -> child generation",
+                    "Report this error with the project file and the complete diagnostic.");
   }
 
   /*  old code. --Ming-ching May 06, 2013
@@ -429,8 +526,10 @@ void Event::buildChildren() {
     else if (method == "2")
       checkEvent(buildDiscrete());
     else {
-      cerr << "Unknown build method: " << method << endl << "Aborting." << endl;
-      exit(1);
+      throw CmodError(CmodError::Kind::Project,
+                      "The child generation method is not recognized.",
+                      "Event '" + name + "' -> Child Event Definition -> DefinitionFlag: '" + method + "'",
+                      "Choose Continuum (0), Sweep (1), or Discrete (2) as the child generation method.");
     }
   }
 
@@ -516,6 +615,22 @@ void Event::findLeafChildren(vector<Event*> & leafChildren){
 
 //-----------------------------------------------------------------------------
 
+int Event::checkedChildType(double value) const {
+  if (!std::isfinite(value) || value < 0 || value >= childTypeElements.size() ||
+      value > std::numeric_limits<int>::max()) {
+    throw CmodError(CmodError::Kind::Project,
+                    "The child Type selects an event that is not listed in Layers.",
+                    "Event '" + name + "' -> child " + to_string(currChildNum + 1) +
+                    " of " + to_string(numChildren) +
+                    " -> Child Event Definition -> Type: " + to_string(value),
+                    "Choose a Type index from 0 to " +
+                    to_string(static_cast<int>(childTypeElements.size()) - 1) +
+                    " for the " + to_string(childTypeElements.size()) +
+                    " child events listed in Layers, or add the missing child event.");
+  }
+  return static_cast<int>(value);
+}
+
 bool Event::buildContinuum() {
   string startType = XMLTC(childStartTypeFlag);
   string durType = XMLTC(childDurationTypeFlag);
@@ -565,14 +680,14 @@ bool Event::buildContinuum() {
       tsChild.start = rawChildStartTime * ts.duration; // convert to seconds
       tsChild.startEDU = Ratio(0, 0);  // floating point is not exact: NaN
     } else {
-      cerr << "Event::buildContinuum -- invalid or missing start type!" << endl;
-      cerr << "      startType = " << startType << endl;
-      cerr << "      in file " << name << endl;
-      exit(1);
+      throw CmodError(CmodError::Kind::Project,
+                      "The child Start Time unit is missing or not recognized.",
+                      "Event '" + name + "' -> Child Event Definition -> Start Time Unit: '" + startType + "'",
+                      "Choose Fraction (0), EDU (1), or Seconds (2) for Start Time.");
     }
 
     // get the type
-    childType = utilities->evaluate(XMLTC(childTypeElement),(void*)this);
+    childType = checkedChildType(utilities->evaluate(XMLTC(childTypeElement),(void*)this));
     childName = XMLTC(GFEC(childTypeElements[childType]));
 
     // get the duration
@@ -605,10 +720,10 @@ bool Event::buildContinuum() {
         tsChild.duration = maxChildDur; // enforce limit
       tsChild.durationEDU = Ratio(0, 0); // floating point is not exact: NaN
     } else {
-      cerr << "Event::buildContinuum -- invalid or missing duration type!" << endl;
-      cerr << "      durtype = " << durType << endl;
-      cerr << "      in file " << name << endl;
-      exit(1);
+      throw CmodError(CmodError::Kind::Project,
+                      "The child Duration unit is missing or not recognized.",
+                      "Event '" + name + "' -> Child Event Definition -> Duration Unit: '" + durType + "'",
+                      "Choose Fraction (0), EDU (1), or Seconds (2) for Duration.");
     }
   }
 
@@ -698,15 +813,13 @@ bool Event::buildSweep() {
   checkPoint = tsPrevious.end / ts.duration;
 
   if (checkPoint > 1) {
-    cerr << "Event::Sweep -- Error1: tsChild.start outside range of "
-        << "parent duration." << endl;
-    cerr << "      childStime=" << tsChild.start << ", parentDur="
-        << ts.duration << endl;
-    cerr << "      in file: " << name << ", childNum="
-        << currChildNum << endl;
-    cerr << "currChildNum=" << currChildNum << " tsPrevious.end="
-        << tsPrevious.end << " checkPoint=" << checkPoint << endl;
-    exit(1);
+    throw CmodError(CmodError::Kind::Project,
+                    "Sweep cannot place the next child because the preceding children extend beyond the parent duration.",
+                    "Event '" + name + "' -> Sweep -> child " + to_string(currChildNum + 1) +
+                    " of " + to_string(numChildren) + " -> previous end: " + to_string(tsPrevious.end) +
+                    " seconds; parent duration: " + to_string(ts.duration) + " seconds",
+                    "Reduce Number of Children to Create or the child Duration, or extend the parent duration. "
+                    "Check that the Start Time and Duration units match the entered values.");
   }
 
   // get the start time
@@ -752,7 +865,7 @@ bool Event::buildSweep() {
     }
 
   // get the type
-  childType = utilities->evaluate(XMLTC(childTypeElement),(void*)this);
+  childType = checkedChildType(utilities->evaluate(XMLTC(childTypeElement),(void*)this));
   childName = XMLTC(GFEC(childTypeElements[childType]));
 
     // get the duration
@@ -825,13 +938,13 @@ bool Event::buildSweep() {
   checkPoint = tsChild.start / ts.duration;
 
   if (checkPoint > 1) {
-    cerr << "Event::Sweep -- Error2: tsChild.start outside range of "
-        << "parent duration." << endl;
-    cerr << "      childStime=" << tsChild.start << ", parentDur="
-        << ts.duration << endl;
-    cerr << "      in file: " << name << ", childNum="
-        << currChildNum << endl;
-    exit(1);
+    throw CmodError(CmodError::Kind::Project,
+                    "A Sweep child starts after the parent event has ended.",
+                    "Event '" + name + "' -> Sweep -> child " + to_string(currChildNum + 1) +
+                    " of " + to_string(numChildren) + " -> start: " + to_string(tsChild.start) +
+                    " seconds; parent duration: " + to_string(ts.duration) + " seconds",
+                    "Reduce Number of Children to Create or the child Duration, or extend the parent duration. "
+                    "Check the Start Time and Duration units.");
   }
 
   if (utilities->getOutputParticel()){
@@ -894,84 +1007,35 @@ Event::~Event() {
 //----------------------------------------------------------------------------//
 //Checked
 
-string* waitForDiscreteResponse(Event* event){
-  string response = "";
-  cin >>response;
-	string * retval = new string(response);
-
-  event->setDiscreteFailedResponse(response);
-  return retval;
-}
-
-
-//----------------------------------------------------------------------------//
-//Checked
-
 void Event::tryToRestart(void) {
 
-  //Decrement restarts, or if there are none left, ask for fewer children.
+  // Retry random placements, but never change the requested child count.
   if(restartsRemaining > 0) {
     restartsRemaining--;
-    cout << "Failed to build child " << currChildNum << " of " << numChildren
-      << " in file " << name << ". There are " << restartsRemaining
-      << " tries remaining." << endl;
+    cout << "Retrying Discrete generation for event '" << name
+         << "': cannot place child " << currChildNum + 1 << " of " << numChildren
+         << ". " << restartsRemaining << " retries remain." << endl;
   } else {
-    //Ask for permission to build with less children.
-    cout << "Event::tryToRestart - currChildNum=" << currChildNum
-         << " numChildren=" << numChildren << endl;
-    cerr << "No tries remain. Try building with one less child? (Y/n)" << endl;
-
-    bool inputAccepted = false;
-    string answer = "";
-    while (!inputAccepted){
-      discreteFailedResponse = "";
-      string* myfail = nullptr;
-      discreteWaitForInputIfFailedThread = std::thread(
-        [this, &myfail]() { myfail = waitForDiscreteResponse(this); });
-      discreteWaitForInputIfFailedThread.join();
-			string thisfail = *myfail;
-      /*int counter = 30;
-      while (counter != 0){
-        if (discreteFailedResponse !=""){
-          break;
-        }
-        cout<<" Seconds before default action: "<< counter<<"\r"<< flush;
-        sleep(1);
-        counter --;
-      }*/
-
-      //warning! memory leak here! There is a problem killing thread waiting for cin. need to figure this out.
-      // --Ming-ching May 06, 2013)
-      //pthread_cancel(discreteWaitForInputIfFailedThread);
-
-      //answer = (counter ==0)? "y" : discreteFailedResponse;
-			answer = thisfail;
-			delete myfail;
-      if (answer == "y" || answer == "Y" || answer =="n" || answer == "N") inputAccepted = true;
-      else {
-        cout<<"Please enter 'y' or 'n'."<<endl;
-      }
-
-    }
-    if (answer == "n"|| answer == "N") {
-			exit(1);
-    }
-    //Build with one less child.
-    numChildren--; cerr << "Changed numChildren to " << numChildren << endl;
-
-    //Reset the restart count.
-    restartsRemaining = restartsAllowedWithFewerChildren;
+    throw CmodError(CmodError::Kind::Project,
+                    "Discrete generation could not place all requested children after retrying.",
+                    "Event '" + name + "' -> child " + to_string(currChildNum + 1) +
+                    " of " + to_string(numChildren) + " -> parent duration: " +
+                    to_string(ts.duration) + " seconds",
+                    "Reduce Number of Children to Create, shorten the Duration Sieve values, "
+                    "or provide more allowed Attack Sieve positions within the parent duration. "
+                    "Check that the layer weights and probability envelopes allow these placements.");
   }
 
   //Start over by clearing the event arrays and resetting the for-loop index.
 	// NOTE: SHOULD BE -1
   currChildNum = -1;
-  for (unsigned i = 0; i < childEvents.size(); i++)
+  for (unsigned i = 0; i < temporaryChildEvents.size(); i++)
     delete temporaryChildEvents[i];
   temporaryChildEvents.clear();
 
   //Clear the temporary event list.
-  childSoundsAndNotes.clear();			//sever 5/29/2016
+  for (auto* child : childSoundsAndNotes) delete child;
+  childSoundsAndNotes.clear();
 
   patternStorage.clear();
 }
@@ -1105,9 +1169,12 @@ void Event::checkEvent(bool buildResult) {
   }
 
   //Make sure the childType indexes correctly.
-  if (childType >= (int)childTypeElements.size() ) {
-    cerr << "There is a mismatch between childType and typeVect." << endl;
-    exit(1);
+  if (childType < 0 || childType >= (int)childTypeElements.size() ) {
+    throw CmodError(CmodError::Kind::Internal,
+                    "Child generation returned an invalid Type index.",
+                    "Event '" + name + "' -> child " + to_string(currChildNum + 1) +
+                    " -> Type: " + to_string(childType),
+                    "Report this error with the project file and the complete diagnostic.");
   }
 
   //Create new event.
@@ -1117,7 +1184,7 @@ void Event::checkEvent(bool buildResult) {
   string childEventName = XMLTC(GFEC(discretePackage));
   pugi::xml_node childElement = utilities->getEventElement(childEventType, childEventName);
 
-  Event* e;
+  Event* e = NULL;
   if (childEventType == eventBottom){
     e = (Event*) new Bottom(childElement, tsChild, childType, tempo, utilities, spatializationElement, 
                             reverberationElement, filterElement, modifiersIncludingAncestorsElement);
@@ -1136,7 +1203,7 @@ void Event::checkEvent(bool buildResult) {
     }
   }
 
-  temporaryChildEvents.push_back(e);
+  if (e != NULL) temporaryChildEvents.push_back(e);
 }
 
 
@@ -1185,10 +1252,14 @@ int Event::getCurrentLayer() {
   int countInLayer = 0;
   for(unsigned i = 0; i < layerVect.size(); i++) {
     countInLayer += layerVect[i].size();
-    if(childType < countInLayer)
+    if(childType >= 0 && childType < countInLayer)
       return i;
   }
-  cerr << "Unable to get layer number in file " << name << endl; exit(1);
+  throw CmodError(CmodError::Kind::Project,
+                  "CURRENT_LAYER has no available child event to look up.",
+                  "Event '" + name + "' -> CURRENT_LAYER -> Type: " + to_string(childType),
+                  "Add child events to Layers and use CURRENT_LAYER in a child-generation expression "
+                  "after the child Type is available.");
 }
 
 
@@ -1340,24 +1411,53 @@ void Event::buildMatrix(bool discrete) {
   vector<Envelope*> durEnvs;
   vector<int> numTypesInLayers;
 
-  if (discrete) {
-    attackSiv = (Sieve*) utilities->evaluateObject(
-                  XMLTC(AttackSieveElement),
-                  (void*) this, eventSiv);
+  const auto readSieve = [this, discrete](pugi::xml_node element, const string& field) {
+    try {
+      return discrete
+        ? static_cast<Sieve*>(utilities->evaluateObject(XMLTC(element), this, eventSiv))
+        : utilities->evaluateSieve(XMLTC(element), this);
+    } catch (CmodError& error) {
+      error.addContext("Event '" + name + "' -> Child Event Definition -> " + field);
+      throw;
+    }
+  };
+  attackSiv = readSieve(discrete ? AttackSieveElement : childStartTimeElement, "Attack Sieve");
+  durSiv = readSieve(discrete ? DurationSieveElement : childDurationElement, "Duration Sieve");
 
-    durSiv = (Sieve*) utilities->evaluateObject(
-                  XMLTC(DurationSieveElement),
-                  (void*) this, eventSiv);
-  } else {
-    attackSiv = utilities->evaluateSieve(XMLTC(childStartTimeElement), (void*) this);
-    durSiv = utilities->evaluateSieve(XMLTC(childDurationElement), (void*) this);
+  if (attackSiv == NULL || attackSiv->GetNumItems() == 0 ||
+      durSiv == NULL || durSiv->GetNumItems() == 0) {
+    const string field = attackSiv == NULL || attackSiv->GetNumItems() == 0
+                         ? "Attack Sieve" : "Duration Sieve";
+    delete attackSiv;
+    delete durSiv;
+    throw CmodError(CmodError::Kind::Project,
+                    "The " + field + " contains no usable values.",
+                    "Event '" + name + "' -> Child Event Definition -> " + field,
+                    "Check the sieve's Low/High limits, Elements, and Offset so at least one value remains.");
   }
 
   double weightSum = 0;
   for (unsigned i = 0; i < childTypeElements.size(); i ++){
     double prob = utilities->evaluate(XMLTC(GNES(GNES(GFEC(childTypeElements[i])))), (void*) this);
+    if (!std::isfinite(prob) || prob < 0) {
+      delete attackSiv;
+      delete durSiv;
+      throw CmodError(CmodError::Kind::Project,
+                      "A child event's probability Weight is negative or non-finite.",
+                      "Event '" + name + "' -> Layers -> child Type " + to_string(i) +
+                      " -> Weight: " + to_string(prob),
+                      "Use finite, nonnegative weights, with at least one positive child weight.");
+    }
     typeProbs.push_back(prob);
     weightSum += prob;
+  }
+  if (!std::isfinite(weightSum) || weightSum <= 0) {
+    delete attackSiv;
+    delete durSiv;
+    throw CmodError(CmodError::Kind::Project,
+                    "The child event probability weights have no positive finite total.",
+                    "Event '" + name + "' -> Layers -> Weight total: " + to_string(weightSum),
+                    "Give at least one child event a positive Weight and keep all weights finite and nonnegative.");
   }
   for (unsigned i = 0; i < typeProbs.size(); i ++){
     typeProbs[i] = typeProbs[i] / weightSum;
@@ -1443,12 +1543,20 @@ void Event::buildMatrix(bool discrete) {
 //----------------------------------------------------------------------------//
 
 int Event::verify_valid(int endTime){
+  // Numeric EDU timing is already exact; sieve alignment is optional.
+  if (!Utilities::isSieveFunction(childStartTimeElement)) return endTime;
   
   int beatEDUs = tempo.getEDUPerTimeSignatureBeat().Num();
 //cout << "     beatEDUs=" << beatEDUs << endl;
 
   if (sieveSweep == NULL){
      sieveSweep = utilities->evaluateSieve(XMLTC(childStartTimeElement), (void*) this);
+     if (sieveSweep == NULL || sieveSweep->GetNumItems() == 0) {
+       throw CmodError(CmodError::Kind::Project,
+                       "The Sweep Start Time sieve contains no usable values.",
+                       "Event '" + name + "' -> Sweep -> Child Event Definition -> Start Time",
+                       "Check the sieve's Low/High limits, Elements, and Offset so at least one value remains.");
+     }
      vector<double> attProbs;
      vector<int> attTimes;
      sieveSweep->FillInVectors(attTimes, attProbs);
@@ -1463,6 +1571,9 @@ int Event::verify_valid(int endTime){
   }
 
   int length = attackSweep.size();
+  if (length == 0) {
+    return endTime;
+  }
   int low = 0;
   int high = length - 1;
   int eTime = endTime % beatEDUs;

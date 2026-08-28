@@ -18,6 +18,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 */
 
 #include "Output.h"
+#include "CmodError.h"
 #include "Note.h"
 // #include "Note.cpp"
 
@@ -137,6 +138,12 @@ string OutputNode::sanitize(string name) {
 void Output::writeLineToParticel(string line) {
   if(!particelFile) return;
   *particelFile << line << endl;
+  if (!*particelFile) {
+    throw CmodError(CmodError::Kind::Output,
+                    "Could not write the Particel report.",
+                    "Particel output (.particel)",
+                    "Check that the project folder is writable and the disk has free space.");
+  }
 }
 
 
@@ -170,6 +177,14 @@ void Output::initialize(string particelFilename) {
   if(particelFilename != "") {
     particelFile = new ofstream();
     particelFile->open(particelFilename.c_str());
+    if (!*particelFile) {
+      delete particelFile;
+      particelFile = nullptr;
+      throw CmodError(CmodError::Kind::Output,
+                      "Could not create the Particel report.",
+                      particelFilename,
+                      "Check write permissions and make sure the output path is not a folder or a locked file.");
+    }
   }
 }
 
@@ -180,9 +195,20 @@ void Output::free(void)
 {
   delete top;
   top = nullptr;
+  bool reportFailed = false;
+  if (particelFile) {
+    particelFile->close();
+    reportFailed = particelFile->fail();
+  }
   delete particelFile;
   particelFile = nullptr;
   level = -1;
+  if (reportFailed) {
+    throw CmodError(CmodError::Kind::Output,
+                    "Could not finish writing the Particel report.",
+                    "Particel output (.particel)",
+                    "Check write permissions and available disk space before running the project again.");
+  }
 }
 
 

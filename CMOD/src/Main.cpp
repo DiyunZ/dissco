@@ -46,6 +46,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #include <time.h>
 #include "Note.h"
 #include "SignalHandlers.h"
+#include "CmodError.h"
 
 			//added by Sever must be a more elegant way
 #include <filesystem>
@@ -53,7 +54,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #include <fstream>
 using namespace std;
 
-int main(int parameterCount, char **parameterList) {
+static int runCmod(int parameterCount, char **parameterList) {
   // Rubin Du 2024: Installed custom signal handler to print stack trace on segfault
   signal(SIGSEGV, segfaultHandler);
 
@@ -69,12 +70,16 @@ int main(int parameterCount, char **parameterList) {
   if(parameterCount >= 2)
     path = parameterList[1];
   if(path == "--help" || path == "-help" || path == "help") {
-    cout << "Usage: cmod          Runs CMOD in the current directory." << endl;
-    cout << "       cmod <path>   Runs CMOD in the <path> directory." << endl;
+    cout << "Usage: cmod <project.dissco>   Builds the specified project." << endl;
     //cout << "       cmod <path> <process-offset=0> <process-count=1>" << endl;
     //cout << "                     Renders a specific mask of sounds." << endl;
     cout << "       cmod help   Displays this help." << endl;
     return 0;
+  }
+
+  if (path.empty()) {
+    throw CmodError(CmodError::Kind::Project, "No project file was specified.",
+                    "Command line", "Run cmod <path-to-project.dissco>.");
   }
 
     const filesystem::path projectPath(path);
@@ -88,14 +93,8 @@ int main(int parameterCount, char **parameterList) {
   //Determine the project name.
     string projectName = projectPath.stem().string();
 
-  //Determine project sound file output.
-  PieceHelper::createSoundFilesDirectory(workingPath);
-  PieceHelper::createScoreFilesDirectory(workingPath);
-
   //Create the piece!
-  Piece* piece = new Piece(workingPath, projectName);
-  const bool buildSucceeded = piece->completedSuccessfully();
-  delete piece;
+  Piece piece(workingPath, projectName);
   //delete outputFile;		//Sever
 
   time_t endTime;
@@ -108,6 +107,27 @@ int main(int parameterCount, char **parameterList) {
   printf("Computation Time: %02d:%02d:%02d.\n", hr, min, sec);
 
 
-  return buildSucceeded ? 0 : 1;
+  return 0;
 
+}
+
+int main(int parameterCount, char **parameterList) {
+  const char* project = parameterCount >= 2 ? parameterList[1] : "(not specified)";
+  try {
+    return runCmod(parameterCount, parameterList);
+  } catch (const CmodError& error) {
+    error.report(cerr, project);
+    return error.exitCode();
+  } catch (const std::exception& error) {
+    CmodError failure(CmodError::Kind::Internal, error.what(), "Building project",
+                      "Report this problem to the DISSCO developers with the project, seed, and this diagnostic.");
+    failure.report(cerr, project);
+    return failure.exitCode();
+  } catch (...) {
+    CmodError failure(CmodError::Kind::Internal, "An unexpected failure occurred.",
+                      "Building project",
+                      "Report this problem to the DISSCO developers with the project, seed, and this diagnostic.");
+    failure.report(cerr, project);
+    return failure.exitCode();
+  }
 }

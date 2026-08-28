@@ -25,6 +25,7 @@
 //----------------------------------------------------------------------------//
 
 #include "Bottom.h"
+#include "CmodError.h"
 #include "ModifierUsage.hpp"
 #include "Random.h"
 #include "Output.h"
@@ -36,6 +37,7 @@
 #include <limits>
 #include <memory>
 #include <optional>
+#include <sstream>
 #include <unordered_map>
 #include <unordered_set>
 #include <utility>
@@ -48,6 +50,13 @@ struct Bottom::ModifierUsageRuntime {
 };
 
 namespace {
+
+void warnBottom(const string& name, const string& field,
+                const string& message, const string& suggestion) {
+  cerr << "CMOD warning: " << message << '\n'
+       << "Context: Bottom '" << name << "' / " << field << '\n'
+       << "Suggestion: " << suggestion << endl;
+}
 
 bool parseStrictDouble(const char* text, double& value) {
   if (text == NULL || *text == '\0') {
@@ -212,8 +221,10 @@ void Bottom::buildChildren(){
       checkEvent(buildDiscrete());
     }
     else {
-      cerr << "Unknown build method: " << method << endl << "Aborting." << endl;
-      exit(1);
+      throw CmodError(CmodError::Kind::Project,
+                      "Unknown child build method '" + method + "'.",
+                      "Bottom '" + name + "' / Child Event Definition / DefinitionFlag",
+                      "Choose Continuum (0), Sweep (1), or Discrete (2) as the child build method.");
     }
   }
 
@@ -258,7 +269,7 @@ void Bottom::modifyChildren(){            //Incomplete Override
 
 //----------------------------------------------------------------------------//
 
-void Bottom::constructChild(SoundAndNoteWrapper* _soundNoteWrapper) {
+void Bottom::constructChild(SoundAndNoteWrapper* _soundNoteWrapper) try {
   //Just to get the checkpoint. Not used any other time.
   checkPoint = (_soundNoteWrapper->ts.start - ts.start) / ts.duration;
   if (name.substr(0,1) == "s"){
@@ -270,11 +281,19 @@ void Bottom::constructChild(SoundAndNoteWrapper* _soundNoteWrapper) {
     buildNote(_soundNoteWrapper);
     return;
   }
+  throw CmodError(CmodError::Kind::Project,
+                  "Bottom name '" + name + "' does not identify a sound or note event.",
+                  "Bottom Name",
+                  "Start sound Bottom names with 's' and note Bottom names with 'n', then update references to the renamed event.");
   // else if (name.substr(0,2) == "ns" || name.substr(0,2) == "sn"){
   //   buildSound(_soundNoteWrapper);
   //   buildNote(_soundNoteWrapper);
   //   return;
   // }
+} catch (CmodError& error) {
+  error.addContext("Bottom '" + name + "' / child #"
+      + std::to_string(currChildNum + 1) + " ('" + _soundNoteWrapper->name + "')");
+  throw;
 }
 
 //----------------------------------------------------------------------------//
@@ -493,11 +512,19 @@ list<Note> Bottom::getNotes() {
 float Bottom::computeBaseFreq() {
 
   float baseFreqResult;
-  pugi::xml_node freqFlagElement = GFEC(frequencyElement);
-  pugi::xml_node continuumFlagElement = GNES(freqFlagElement);
-  pugi::xml_node valueElement = GNES(continuumFlagElement);
-  pugi::xml_node valueElement2 = GNES(valueElement);
-  if (utilities->evaluate(XMLTC(freqFlagElement),(void*) this)==2) {//contiruum
+  pugi::xml_node freqFlagElement = frequencyElement.child("FrequencyFlag");
+  pugi::xml_node continuumFlagElement = frequencyElement.child("FrequencyContinuumFlag");
+  pugi::xml_node valueElement = frequencyElement.child("FrequencyEntry1");
+  pugi::xml_node valueElement2 = frequencyElement.child("FrequencyEntry2");
+  const string context = "Bottom '" + name + "' / Frequency";
+  const double frequencyMode = utilities->evaluate(XMLTC(freqFlagElement), this);
+  if (frequencyMode != 0 && frequencyMode != 1 && frequencyMode != 2) {
+    throw CmodError(CmodError::Kind::Project,
+                    "Unknown FrequencyFlag value " + std::to_string(frequencyMode) + ".",
+                    context,
+                    "Choose Equal Temperament (0), Fundamental (1), or Continuum (2) in the Bottom event's Frequency settings.");
+  }
+  if (frequencyMode == 2) {//continuum
     /* 2nd arg is a string (HERTZ or POW2) */
 
     if (utilities->evaluate(XMLTC(continuumFlagElement), NULL)==0) { //Hertz
@@ -508,20 +535,44 @@ float Bottom::computeBaseFreq() {
       /* 3rd arg is a float (power of 2) */
       float step = utilities->evaluate(XMLTC(valueElement), (void*)this);
       if(step <= log2(MINFREQ/C0) || step >= log2(CEILING/C0)) {
-        cerr << "BaseFreq: power of 2 out of range: " << step << endl;
-        cerr << "	log2(MINFREQ/C0) > step < log2(CEILING/C0)" << endl;
+        cerr << "CMOD warning: " << context << " / FrequencyEntry1: power-of-two step "
+             << step << " is outside the audible range ("
+             << log2(MINFREQ/C0) << " to " << log2(CEILING/C0) << "). "
+             << "Check the power-of-two expression; partial frequencies outside "
+             << MINFREQ << " to " << CEILING << " Hz are clamped." << endl;
       }
       baseFreqResult = C0 * pow(2, step);
     }
-  } else if (utilities->evaluate(XMLTC(freqFlagElement), (void*) this)==0) { //equal tempered
+  } else if (frequencyMode == 0) { //equal tempered
     /* 2nd arg is an int */
-    wellTempPitch = utilities->evaluate(XMLTC(valueElement), (void*)this);
+    const double pitch = utilities->evaluate(XMLTC(valueElement), this);
+    if (pitch < std::numeric_limits<int>::min()
+        || pitch > std::numeric_limits<int>::max()) {
+      throw CmodError(CmodError::Kind::Project,
+                      "Equal-tempered pitch " + std::to_string(pitch) + " is outside the integer range.",
+                      context + " / FrequencyEntry1",
+                      "Check the pitch expression and choose a pitch that produces a finite, positive frequency.");
+    }
+    wellTempPitch = static_cast<int>(pitch);
     baseFreqResult = C0 * pow(WELL_TEMP_INCR, wellTempPitch);
   } else  {// fundamental
     /* 2nd arg is (float)fundamental_freq, 3rd arg is (int)overtone_num */
     float fund_freq = utilities->evaluate(XMLTC(valueElement), (void*)this);
-    int overtone_step = utilities->evaluate(XMLTC(valueElement2), (void*)this);
+    const double overtone = utilities->evaluate(XMLTC(valueElement2), this);
+    if (overtone < 1 || overtone > std::numeric_limits<int>::max()) {
+      throw CmodError(CmodError::Kind::Project,
+                      "Overtone number evaluated to " + std::to_string(overtone) + ".",
+                      context + " / FrequencyEntry2",
+                      "Set the overtone number to a positive count within the integer range.");
+    }
+    int overtone_step = static_cast<int>(overtone);
     baseFreqResult = fund_freq * overtone_step;
+  }
+  if (!std::isfinite(baseFreqResult) || baseFreqResult <= 0) {
+    throw CmodError(CmodError::Kind::Project,
+                    "Base frequency evaluated to " + std::to_string(baseFreqResult) + " Hz.",
+                    context + " / FrequencyEntry1: " + XMLTC(valueElement),
+                    "Choose a finite frequency greater than zero; check the pitch, power-of-two, or fundamental/overtone expression.");
   }
   return baseFreqResult;
 }
@@ -539,6 +590,12 @@ float Bottom::computeLoudness() {
   // loudval -= 0.4 * diff;
   // cout << "bottom loudness: " << loudval << endl;
   // cout << "bottom expval: " << expVal << endl;
+  if (!std::isfinite(loudval) || loudval < 0) {
+    throw CmodError(CmodError::Kind::Project,
+                    "Loudness evaluated to " + std::to_string(loudval) + " sones.",
+                    "Bottom '" + name + "' / Loudness: " + XMLTC(loudnessElement),
+                    "Use a finite, non-negative loudness in sones and check the expression that computes it.");
+  }
   return loudval;
 }
 
@@ -576,8 +633,18 @@ float Bottom::computeCarrierPhase() {
 
 int Bottom::computeNumPartials(float baseFreq, pugi::xml_node _spectrum) {
 
-  pugi::xml_node numPartialElement = GNES(GNES(GFEC(_spectrum)));
-  int numPartsResult = utilities->evaluate(XMLTC(numPartialElement), (void*) this);
+  pugi::xml_node numPartialElement = _spectrum.child("NumberOfPartials");
+  const double requested = utilities->evaluate(XMLTC(numPartialElement), this);
+  const string context = "Bottom '" + name + "' / spectrum '"
+      + XMLTC(_spectrum.child("Name")) + "' / Number of Partials";
+  if (!std::isfinite(requested) || requested < 1
+      || requested > std::numeric_limits<int>::max()) {
+    throw CmodError(CmodError::Kind::Project,
+                    "Number of Partials evaluated to " + std::to_string(requested) + ".",
+                    context,
+                    "Set Number of Partials to a positive count within the integer range, and check the expression that computes it.");
+  }
+  int numPartsResult = static_cast<int>(requested);
 
   // Decrease numPartials until p < CEILING
   // (CEILING is a global def from define.h)
@@ -586,9 +653,12 @@ int Bottom::computeNumPartials(float baseFreq, pugi::xml_node _spectrum) {
   }
 
   if(numPartsResult <= 0) {
-    cerr << "Error: Bottom::computeNumPartials got 0, baseFrequency="
-         << baseFreq << endl;
-    exit(1);
+    throw CmodError(CmodError::Kind::Project,
+                    "No partials fit below CMOD's frequency ceiling of "
+                        + std::to_string(static_cast<double>(CEILING))
+                        + " Hz; the base frequency is " + std::to_string(baseFreq) + " Hz.",
+                    context,
+                    "Lower the Bottom event's Frequency so at least its fundamental partial fits below the frequency ceiling.");
   }
 
   return numPartsResult;
@@ -631,7 +701,20 @@ void Bottom::setPartialSpectrum(Partial& part, int partNum, pugi::xml_node _elem
       partialEnvElement=GNES(partialEnvElement);
       counter--;
     }
-    Envelope* waveShape = (Envelope*) utilities->evaluateObject(XMLTC(partialEnvElement),(void*)this, eventEnv );
+    const string envelope = XMLTC(partialEnvElement);
+    if (envelope.empty()) {
+      throw CmodError(CmodError::Kind::Project,
+                      "Partial #" + std::to_string(partNum + 1) + " has no wave-shape envelope.",
+                      "Bottom '" + name + "' / spectrum '" + XMLTC(_element.child("Name")) + "' / Spectrum",
+                      "Provide an envelope for each requested partial, or lower Number of Partials to match the configured envelopes.");
+    }
+    Envelope* waveShape = (Envelope*) utilities->evaluateObject(envelope, this, eventEnv);
+    if (waveShape == NULL) {
+      throw CmodError(CmodError::Kind::Project,
+                      "Partial #" + std::to_string(partNum + 1) + " did not resolve to an envelope.",
+                      "Bottom '" + name + "' / spectrum '" + XMLTC(_element.child("Name")) + "' / Spectrum",
+                      "Check the partial's envelope expression and its referenced envelope definition.");
+    }
     part.setParam(WAVE_SHAPE, *waveShape );
     delete waveShape;
 }
@@ -656,6 +739,12 @@ void Bottom::applySpatialization(Sound* s, int numPartials) {
   string apply = XMLTC(applyHowElement);
 
   pugi::xml_node channelsElement = GNES(applyHowElement);
+  if (apply != "SOUND" && apply != "PARTIAL") {
+    throw CmodError(CmodError::Kind::Project,
+                    "Invalid spatialization Apply value '" + apply + "'.",
+                    "Bottom '" + name + "' / Spatialization / Apply",
+                    "Choose SOUND to spatialize the whole sound or PARTIAL to spatialize individual partials.");
+  }
 
   if (method.compare("STEREO")==0) {
     //will be a list of envs, of length 1 if applyhow == SOUND, or
@@ -674,9 +763,10 @@ void Bottom::applySpatialization(Sound* s, int numPartials) {
     spatializationPolar(s, channelsElement, apply, numPartials);
 
   } else {
-    cout << "spat_method = " << method << endl;
-    cout << "SOUND_SPATIALIZATION has invalid method!  Use STEREO, MULTI_PAN, or POLAR" << endl;
-    exit(1);
+    throw CmodError(CmodError::Kind::Project,
+                    "Unknown spatialization Method '" + method + "'.",
+                    "Bottom '" + name + "' / Spatialization / Method",
+                    "Choose STEREO, MULTI_PAN, or POLAR and provide the corresponding channel envelopes.");
   }
 
 }
@@ -699,7 +789,9 @@ void Bottom::spatializationStereo(Sound *s,
   if (applyHow == "SOUND") {
     envstr = XMLTC(envelopeElement);
     if (envstr == "") {
-      cerr << "WARNING: spatializationStereo got empty envelope for sound; ignoring" << endl;
+      warnBottom(name, "Spatialization / STEREO / Channels",
+                 "The sound has no panning envelope; stereo spatialization is skipped.",
+                 "Add the sound's panning envelope to the spatialization definition.");
         // ^ this cannot be wrapped into computeSpatializationStereo
         // since returning an empty Pan object is ambiguous
         // but refactoring the function to return a pointer introduces memory hazards
@@ -713,7 +805,9 @@ void Bottom::spatializationStereo(Sound *s,
     for (int i = 0; i < numParts; i++) {
       envstr = XMLTC(envelopeElement);
       if (envstr == "") {
-        cerr << "WARNING: spatializationStereo got empty envelope for partial " << i << "; ignoring" << endl;
+        warnBottom(name, "Spatialization / STEREO / Channels / partial #" + std::to_string(i + 1),
+                   "This partial has no panning envelope; its spatialization is skipped.",
+                   "Add a panning envelope for this partial if it should be spatialized.");
       } else {
         Pan stereoPan = computeSpatializationStereo(envstr);
         s->get(i).setSpatializer(stereoPan);
@@ -724,12 +818,6 @@ void Bottom::spatializationStereo(Sound *s,
     }
 
   }
-  else {
-    cerr << "Error: " << applyHow << " is an invalid way to apply spatialization! "
-         << "Use SOUND or PARTIAL" << endl;
-
-  }
-
 }
 
 //----------------------------------------------------------------------------//
@@ -797,8 +885,16 @@ void Bottom::spatializationMultiPan(Sound *s,
   }
 
   if (applyHow == "SOUND") {
+    if (isPartialValid.empty()) {
+      throw CmodError(CmodError::Kind::Project,
+                      "MULTI_PAN has no channel envelopes for the sound.",
+                      "Bottom '" + name + "' / Spatialization / Channels",
+                      "Add a non-empty envelope for each channel in the MULTI_PAN spatialization definition.");
+    }
     if (isPartialValid.at(0) == false) {
-      cerr << "WARNING: spatializationMultiPan got empty envelope for sound; ignoring" << endl;
+      warnBottom(name, "Spatialization / MULTI_PAN / Channels",
+                 "At least one channel envelope is empty; spatialization of the sound is skipped.",
+                 "Provide a non-empty envelope for every channel of the sound.");
       return;
     }
     MultiPan multipan = computeSpatializationMultiPan(mults.at(0));
@@ -807,21 +903,20 @@ void Bottom::spatializationMultiPan(Sound *s,
   } else if (applyHow == "PARTIAL") {
     for (unsigned i = 0; (int)i < numParts; i++) { // apply multipan to each partial
       if (mults.size() <= i){
-        cout << "WARNING: spatializationMultiPan got empty envelopes for partial " << i << " and onwards; ignoring" << endl;
+        warnBottom(name, "Spatialization / MULTI_PAN / Channels / partial #" + std::to_string(i + 1),
+                   "No channel envelopes remain; spatialization of this and later partials is skipped.",
+                   "Add channel envelopes for any remaining partials that should be spatialized.");
         break;
       }
       if (isPartialValid.at(i) == false) {
-        cerr << "WARNING: spatializationMultiPan got empty envelope for partial " << i << "; ignoring" << endl;
+        warnBottom(name, "Spatialization / MULTI_PAN / Channels / partial #" + std::to_string(i + 1),
+                   "A channel envelope is empty; spatialization of this partial is skipped.",
+                   "Provide a non-empty envelope for every channel of this partial.");
         continue;
       }
       MultiPan multipan = computeSpatializationMultiPan(mults.at(i));
       s->get(i).setSpatializer(multipan);
     }
-
-  }
-  else {
-    cerr << "Error: " << applyHow << " is an invalid way to apply spatialization! "
-         << "Use SOUND or PARTIAL" << endl;
 
   }
 }
@@ -864,7 +959,9 @@ void Bottom::spatializationPolar(Sound *s,
     theta = XMLTC(thetaElement);
     radius = XMLTC(radiusElement);
     if (theta == "" || radius == "") {
-      cerr << "WARNING: spatializationPolar got empty envelope for sound; ignoring" << endl;
+      warnBottom(name, "Spatialization / POLAR / Channels",
+                 "The sound is missing a theta or radius envelope; polar spatialization is skipped.",
+                 "Provide both theta and radius envelopes in the spatialization definition.");
     } else {
       MultiPan multipan = computeSpatializationPolar(theta, radius);
       s->setSpatializer(multipan);
@@ -876,7 +973,9 @@ void Bottom::spatializationPolar(Sound *s,
       theta = XMLTC(thetaElement);
       radius = XMLTC(radiusElement);
       if (theta == "" || radius == "") {
-        cerr << "WARNING: spatializationPolar got empty envelope for partial " << i << "; ignoring" << endl;
+        warnBottom(name, "Spatialization / POLAR / Channels / partial #" + std::to_string(i + 1),
+                   "This partial is missing a theta or radius envelope; its spatialization is skipped.",
+                   "Provide both envelopes for this partial if it should be spatialized.");
       } else {
         MultiPan multipan = computeSpatializationPolar(theta, radius);
         s->get(i).setSpatializer(multipan);
@@ -886,12 +985,6 @@ void Bottom::spatializationPolar(Sound *s,
     }
 
   }
-  else {
-    cerr << "Error: " << applyHow << " is an invalid way to apply spatialization! "
-         << "Use SOUND or PARTIAL" << endl;
-
-  }
-
 }
 
 //----------------------------------------------------------------------------//
@@ -965,8 +1058,10 @@ void Bottom::applyFilter(Sound* s){
   else if (type == "LSF") typeInt =5;
   else if (type == "HSF") typeInt =6;
   else {
-    cout<<"Filter Type not recognized."<<endl;
-    return;
+    throw CmodError(CmodError::Kind::Project,
+                    "Unknown filter Type '" + type + "'.",
+                    "Bottom '" + name + "' / Filter / Type",
+                    "Choose LPF, HPF, BPF, NF, PBEQF, LSF, or HSF, or remove the filter if it is not needed.");
   }
 
   /**
@@ -1020,6 +1115,7 @@ void Bottom::applyReverberation(Sound *s, int numPartials) {
 	
   // May need to modify utilities...
   pugi::xml_node reverbElement = utilities->evaluateRev((void*) this);
+  if (!reverbElement) return; // Reverberation is optional.
 
 //this call will return a rev function, just in case users use "select" here.
 //The string here is just a dummy since the callee will find the right rev
@@ -1030,6 +1126,12 @@ void Bottom::applyReverberation(Sound *s, int numPartials) {
 
   pugi::xml_node applyHowElement = GNES(GFEC(reverbElement));
   string rev_apply = XMLTC(applyHowElement);
+  if (rev_apply != "SOUND" && rev_apply != "PARTIAL") {
+    throw CmodError(CmodError::Kind::Project,
+                    "Invalid reverb Apply value '" + rev_apply + "'.",
+                    "Bottom '" + name + "' / Reverb / Apply",
+                    "Choose SOUND to reverberate the whole sound or PARTIAL for per-partial reverberation.");
+  }
 
 	// Number of parameters varies between methods. But unlike spatialization,
 	// this "everything else" part is NOT enclosed in a <Channel> element;
@@ -1048,9 +1150,11 @@ void Bottom::applyReverberation(Sound *s, int numPartials) {
     reverberationAdvanced(s, paramsElement, rev_apply, numPartials);
   }
 
-	else {
-    cerr << "WARNING: Invalid method/syntax in reverb!" << endl;
-    cerr << "   Method = " << rev_method << endl;
+  else {
+    throw CmodError(CmodError::Kind::Project,
+                    "Unknown reverb method '" + rev_method + "'.",
+                    "Bottom '" + name + "' / Reverb / Method",
+                    "Choose REV_Simple, REV_Medium, or REV_Advanced, or remove reverberation if it is not needed.");
   }
 
 }
@@ -1079,18 +1183,19 @@ void Bottom::reverberationSimple(Sound *s,
         // Add the reverb obj to the partial. It appears that this is already implemented in LASS/src/Partial.cpp.
         s->get(i).use_reverb(reverbObj);
         sizeElement = GNES(sizeElement);
-        if (!sizeElement) {
-          cerr << "WARNING: reverberationSimple parameters undefined since partial "
-            << i + 1 << "; ignoring" << endl;
+        if (i + 1 < numPartials && !sizeElement) {
+          warnBottom(name, "Reverb / REV_Simple / Sizes",
+                     "Room sizes are missing for partial #" + std::to_string(i + 2)
+                         + " and later partials; their reverberation is skipped.",
+                     "Add room-size entries for the remaining partials if they should have reverberation.");
           break;
         }
 	    }
       if (sizeElement) {
-        cerr << "WARNING: reverberationSimple parameters defined beyond partial "
-          << numPartials - 1 << "; ignoring" << endl;
+        warnBottom(name, "Reverb / REV_Simple / Sizes",
+                   "Extra room-size entries beyond the " + std::to_string(numPartials) + " sound partials are ignored.",
+                   "Remove unused entries or increase Number of Partials if those entries were intended to be used.");
       }
-    } else {
-    	cout << "WARNING: No <Apply> specifier for reverb, cannot apply." << endl;
     }
 
 }
@@ -1104,9 +1209,10 @@ Reverb* Bottom::computeReverberationSimple(pugi::xml_node sizeElement, int iPart
 
   string envstr = XMLTC(sizeElement);
   if (envstr == "") {
-    cerr << "WARNING: Fewer partials set in reverb string than configured in spectrum. Defaulting ";
-    if (iPartial == -1) cerr << "sound to room size 0" << endl;
-    else cerr << "partial " << iPartial << " to room size 0" << endl;
+    warnBottom(name, "Reverb / REV_Simple / Room Size / "
+                   + (iPartial < 0 ? string("sound") : "partial #" + std::to_string(iPartial + 1)),
+               "Room Size is empty; using the default value 0.",
+               "Set Room Size in the reverb definition if a non-default room is intended.");
     roomSize = 0.0;
   } else {
     roomSize = utilities->evaluate(envstr, (void*)this);
@@ -1156,20 +1262,21 @@ void Bottom::reverberationMedium(Sound *s,
       allPassElement = GNES(allPassElement);
       delayElement   = GNES(delayElement);
 
-      if (!percentElement || !spreadElement || !allPassElement || !delayElement) {
-        cerr << "WARNING: reverberationMedium parameters undefined since partial "
-          << i + 1 << "; ignoring" << endl;
+      if (i + 1 < numPartials
+          && (!percentElement || !spreadElement || !allPassElement || !delayElement)) {
+        warnBottom(name, "Reverb / REV_Medium / partial #" + std::to_string(i + 2),
+                   "Reverb parameters are missing for this and later partials; their reverberation is skipped.",
+                   "Provide a Percent envelope, Spread, All Pass gain, and Delay for each remaining partial that should have reverb.");
         break;
       }
     }
 
     if (percentElement || spreadElement || allPassElement || delayElement) {
-      cerr << "WARNING: reverberationMedium parameters defined beyond partial "
-        << numPartials - 1 << "; ignoring" << endl;
+      warnBottom(name, "Reverb / REV_Medium",
+                 "Extra parameter entries beyond the " + std::to_string(numPartials) + " sound partials are ignored.",
+                 "Match the reverb parameter lists to the intended number of partials.");
     }
 
-  } else {
-    cout << "WARNING: No <Apply> specifier for reverb, cannot apply." << endl;
   }
 
 }
@@ -1184,9 +1291,10 @@ Reverb* Bottom::computeReverberationMedium(pugi::xml_node percentElement,
     //second input is percent reverb envelope
     string envstr = XMLTC(percentElement);
     if (envstr == "") {
-      cerr << "WARNING: reverberationMedium got empty envelope for ";
-      if (iPartial == -1) cerr << "sound; ignoring" << endl;
-      else cerr << "partial " << iPartial << "; ignoring" << endl;
+      warnBottom(name, "Reverb / REV_Medium / Percent / "
+                     + (iPartial < 0 ? string("sound") : "partial #" + std::to_string(iPartial + 1)),
+                 "The Percent envelope is empty; this reverberation effect is skipped.",
+                 "Provide a Percent envelope if this sound or partial should have reverberation.");
       return NULL;
     }
     Envelope* percent_rev =
@@ -1197,10 +1305,19 @@ Reverb* Bottom::computeReverberationMedium(pugi::xml_node percentElement,
     float gain_all_pass = utilities->evaluate(XMLTC(allPassElement),this);
     float delay = utilities->evaluate(XMLTC(delayElement),this);
 
+    if (!std::isfinite(delay) || delay < 0) {
+      delete percent_rev;
+      throw CmodError(CmodError::Kind::Project,
+                      "Reverb Delay evaluated to " + std::to_string(delay) + " seconds.",
+                      "Bottom '" + name + "' / Reverb / REV_Medium / Delay",
+                      "Use a finite, non-negative Delay in seconds; zero disables this reverberation effect.");
+    }
     if (delay == 0) {
-      cerr << "WARNING: reverberationMedium got 0 delay for ";
-      if (iPartial == -1) cerr << "sound; ignoring" << endl;
-      else cerr << "partial " << iPartial << "; ignoring" << endl;
+      warnBottom(name, "Reverb / REV_Medium / Delay / "
+                     + (iPartial < 0 ? string("sound") : "partial #" + std::to_string(iPartial + 1)),
+                 "Delay is zero; this reverberation effect is skipped.",
+                 "Use a positive Delay in seconds if reverberation is intended.");
+      delete percent_rev;
       return NULL;
     }
 
@@ -1253,22 +1370,22 @@ void Bottom::reverberationAdvanced(Sound *s,
       allPassElement = GNES(allPassElement);
       delayElement   = GNES(delayElement);
 
-      if (!percentElement || !combGainListElement || !lpGainListElement ||
-          !allPassElement || !delayElement) {
-        cerr << "WARNING: reverberationAdvanced parameters undefined since partial "
-          << i + 1 << "; ignoring" << endl;
+      if (i + 1 < numPartials && (!percentElement || !combGainListElement
+          || !lpGainListElement || !allPassElement || !delayElement)) {
+        warnBottom(name, "Reverb / REV_Advanced / partial #" + std::to_string(i + 2),
+                   "Reverb parameters are missing for this and later partials; their reverberation is skipped.",
+                   "Provide Percent, Comb Gain List, LP Gain List, All Pass gain, and Delay entries for each remaining partial that should have reverb.");
         break;
       }
     }
 
     if (percentElement || combGainListElement || lpGainListElement ||
         allPassElement || delayElement) {
-      cerr << "WARNING: reverberationAdvanced parameters defined beyond partial "
-        << numPartials - 1 << "; ignoring" << endl;
+      warnBottom(name, "Reverb / REV_Advanced",
+                 "Extra parameter entries beyond the " + std::to_string(numPartials) + " sound partials are ignored.",
+                 "Match the reverb parameter lists to the intended number of partials.");
     }
 
-  } else {
-    cout << "WARNING: No <Apply> specifier for reverb, cannot apply." << endl;
   }
 
 }
@@ -1283,9 +1400,10 @@ Reverb* Bottom::computeReverberationAdvanced(pugi::xml_node percentElement,
     //second input is percent reverb envelope
     string envstr = XMLTC(percentElement);
     if (envstr == "") {
-      cerr << "WARNING: reverberationAdvanced got empty envelope for ";
-      if (iPartial == -1) cerr << "sound; ignoring" << endl;
-      else cerr << "partial " << iPartial << "; ignoring" << endl;
+      warnBottom(name, "Reverb / REV_Advanced / Percent / "
+                     + (iPartial < 0 ? string("sound") : "partial #" + std::to_string(iPartial + 1)),
+                 "The Percent envelope is empty; this reverberation effect is skipped.",
+                 "Provide a Percent envelope if this sound or partial should have reverberation.");
       return NULL;
     }
     Envelope* percent_rev =
@@ -1295,10 +1413,11 @@ Reverb* Bottom::computeReverberationAdvanced(pugi::xml_node percentElement,
     vector<std::string> stringListC =
 			utilities->listElementToStringVector(combGainListElement);
     if (stringListC.size() != 6) {
-      cerr << "WARNING: reverb comb gain list for ";
-      if (iPartial == -1) cerr << "sound must contain 6 items!" << endl;
-      else cerr << "partial " << iPartial << " must contain 6 items!" << endl;
-      return NULL;
+      delete percent_rev;
+      throw CmodError(CmodError::Kind::Project,
+                      "Comb Gain List has " + std::to_string(stringListC.size()) + " entries; expected 6.",
+                      "Bottom '" + name + "' / Reverb / REV_Advanced / Comb Gain List",
+                      "Provide exactly six comma-separated comb-filter gain values.");
     }
     vector<float> comb_gain_list;
 
@@ -1311,10 +1430,11 @@ Reverb* Bottom::computeReverberationAdvanced(pugi::xml_node percentElement,
     vector<std::string> stringListG =
               		utilities->listElementToStringVector(lpGainListElement);
     if (stringListG.size() != 6) {
-      cerr << "WARNING: reverb lp gain list for ";
-      if (iPartial == -1) cerr << "sound must contain 6 items!" << endl;
-      else cerr << "partial " << iPartial << " must contain 6 items!" << endl;
-      return NULL;
+      delete percent_rev;
+      throw CmodError(CmodError::Kind::Project,
+                      "LP Gain List has " + std::to_string(stringListG.size()) + " entries; expected 6.",
+                      "Bottom '" + name + "' / Reverb / REV_Advanced / LP Gain List",
+                      "Provide exactly six comma-separated low-pass gain values.");
     }
     vector<float> lp_gain_list;
 
@@ -1327,10 +1447,19 @@ Reverb* Bottom::computeReverberationAdvanced(pugi::xml_node percentElement,
     float gain_all_pass = utilities->evaluate(XMLTC(allPassElement),this);
     float delay = utilities->evaluate(XMLTC(delayElement),this);
 
+    if (!std::isfinite(delay) || delay < 0) {
+      delete percent_rev;
+      throw CmodError(CmodError::Kind::Project,
+                      "Reverb Delay evaluated to " + std::to_string(delay) + " seconds.",
+                      "Bottom '" + name + "' / Reverb / REV_Advanced / Delay",
+                      "Use a finite, non-negative Delay in seconds; zero disables this reverberation effect.");
+    }
     if (delay == 0) {
-      cerr << "WARNING: reverberationAdvanced got 0 delay for ";
-      if (iPartial == -1) cerr << "sound; ignoring" << endl;
-      else cerr << "partial " << iPartial << "; ignoring" << endl;
+      warnBottom(name, "Reverb / REV_Advanced / Delay / "
+                     + (iPartial < 0 ? string("sound") : "partial #" + std::to_string(iPartial + 1)),
+                 "Delay is zero; this reverberation effect is skipped.",
+                 "Use a positive Delay in seconds if reverberation is intended.");
+      delete percent_rev;
       return NULL;
     }
 
@@ -1512,19 +1641,21 @@ void Bottom::initializeModifierUsage(pugi::xml_node modifierUsageElement) {
   CompileOptions compileOptions;
   compileOptions.overallUsageMode = OverallUsageMode::Skip;
   CompileResult compiled = compile(std::move(config), compileOptions);
+  string diagnostics;
   for (const string& diagnostic : adapterDiagnostics) {
-    cerr << "Bottom::ModifierUsage configuration error in " << name
-         << ": " << diagnostic << endl;
+    diagnostics += diagnostic + " ";
   }
   for (const Diagnostic& diagnostic : compiled.diagnostics) {
-    cerr << "Bottom::ModifierUsage configuration error in " << name
-         << ": " << diagnostic.message << endl;
+    diagnostics += diagnostic.message + " ";
   }
 
-  if (adapterDiagnostics.empty() && compiled.program.has_value()) {
-    modifierUsageRuntime->program.emplace(
-        std::move(*compiled.program));
+  if (!diagnostics.empty() || !compiled.program.has_value()) {
+    throw CmodError(CmodError::Kind::Project,
+                    "Invalid Modifier Usage configuration: " + diagnostics,
+                    "Bottom '" + name + "' / Modifier Usage",
+                    "Correct the listed Modifier Usage settings: version 1, per-sound or per-bottom scope, unique IDs, and ON chances between 0 and 1.");
   }
+  modifierUsageRuntime->program.emplace(std::move(*compiled.program));
 }
 
 //-----------------------------------------------------------------------------/
@@ -1533,22 +1664,17 @@ void Bottom::applyModifierUsage(Sound *s, int numPartials) {
   using dissco::modifier_usage::ModifierId;
   using dissco::modifier_usage::Selection;
 
-  if (!modifierUsageRuntime->program.has_value()) {
-    // Diagnostics were emitted once when this Bottom was constructed.
-    return;
-  }
-
   struct RuntimeModifier {
     std::unique_ptr<Modifier> effect;
     bool applyByPartial = false;
   };
 
   std::unordered_map<ModifierId, vector<RuntimeModifier>> modifiersById;
-  bool runtimeValid = true;
-  auto runtimeError = [this, &runtimeValid](const string& message) {
-    runtimeValid = false;
-    cerr << "Bottom::ModifierUsage runtime error in " << name
-         << ": " << message << endl;
+  auto runtimeError = [this](const string& message) {
+    throw CmodError(CmodError::Kind::Project,
+                    message,
+                    "Bottom '" + name + "' / Modifiers",
+                    "Correct the named modifier's type, application mode, or required parameters in the Bottom event (including inherited modifiers), then run again.");
   };
 
   pugi::xml_document mergedModifiersDoc;
@@ -1582,8 +1708,17 @@ void Bottom::applyModifierUsage(Sound *s, int numPartials) {
       continue;
     }
 
-    const int modTypeCode = static_cast<int>(
-        utilities->evaluate(XMLTC(modifierElement.child("Type")), this));
+    const string typeExpression = XMLTC(modifierElement.child("Type"));
+    const double typeValue = utilities->evaluate(typeExpression, this);
+    if (!std::isfinite(typeValue) || typeValue < 0 || typeValue > 7
+        || std::floor(typeValue) != typeValue) {
+      std::ostringstream value;
+      value << typeValue;
+      runtimeError("modifier '" + usageId + "' has invalid Type " + value.str()
+                   + " (expression: " + typeExpression + "); choose an integer type "
+                     "from 0 (TREMOLO) through 7 (PHASE_MOD).");
+    }
+    const int modTypeCode = static_cast<int>(typeValue);
     string modType;
     switch (modTypeCode) {
       case 0: modType = "TREMOLO"; break;
@@ -1596,17 +1731,20 @@ void Bottom::applyModifierUsage(Sound *s, int numPartials) {
       case 7: modType = "PHASE_MOD"; break;
       default:
         runtimeError("modifier '" + usageId
-                     + "' has an unknown Type value.");
+                     + "' has unknown Type " + std::to_string(modTypeCode)
+                     + "; choose a modifier type from 0 (TREMOLO) through 7 (PHASE_MOD).");
         continue;
     }
 
-    const int applyHowCode = static_cast<int>(
-        utilities->evaluate(XMLTC(modifierElement.child("ApplyHow")), this));
-    if (applyHowCode != 0 && applyHowCode != 1) {
-      runtimeError("modifier '" + usageId
-                   + "' has an invalid ApplyHow value.");
-      continue;
+    const string applyExpression = XMLTC(modifierElement.child("ApplyHow"));
+    const double applyValue = utilities->evaluate(applyExpression, this);
+    if (!std::isfinite(applyValue) || (applyValue != 0 && applyValue != 1)) {
+      std::ostringstream value;
+      value << applyValue;
+      runtimeError("modifier '" + usageId + "' has invalid ApplyHow " + value.str()
+                   + " (expression: " + applyExpression + "); use 0 (SOUND) or 1 (PARTIAL).");
     }
+    const int applyHowCode = static_cast<int>(applyValue);
     const bool applyByPartial = applyHowCode == 1;
 
     const string ampStr = XMLTC(modifierElement.child("Amplitude"));
@@ -1695,7 +1833,10 @@ void Bottom::applyModifierUsage(Sound *s, int numPartials) {
       }
       if (envelopeCount < requiredEnvelopeCount) {
         runtimeError("modifier '" + usageId
-                     + "' is missing a required parameter envelope.");
+                     + "' (" + modType + ") is missing a required parameter envelope: "
+                     + (isUnavailable(ampStr) ? "Amplitude " : "")
+                     + (requiredEnvelopeCount >= 2 && isUnavailable(rateStr) ? "Rate " : "")
+                     + (requiredEnvelopeCount >= 3 && isUnavailable(widthStr) ? "Width " : ""));
         continue;
       }
       modifiersById[usageId].push_back(
@@ -1799,17 +1940,17 @@ void Bottom::applyModifierUsage(Sound *s, int numPartials) {
                    + "' has no runtime effect.");
     }
   }
-  if (!runtimeValid) {
-    return;
-  }
-
   Selection selection;
   try {
     selection = modifierUsageRuntime->program->select(
         []() { return Random::Rand(); });
+  } catch (const CmodError&) {
+    throw;
   } catch (const std::exception& error) {
-    runtimeError(error.what());
-    return;
+    throw CmodError(CmodError::Kind::Internal,
+                    "Modifier selection failed: " + string(error.what()),
+                    "Bottom '" + name + "' / Modifier Usage selection",
+                    "Report this diagnostic to the DISSCO developers with the project and seed.");
   }
 
   // Selection IDs are already in Program order. A selected PARTIAL logical
@@ -1890,7 +2031,10 @@ void Bottom::generatePartials(Sound* newsound, float frequency, float loudness, 
   float strength = loudness*distance/256*2;   //strength is normalized between 0 and 2
 
   if ((frequency < 233) || frequency > 932){
-    cout << "Error in genratePartials: frequency out of range" << endl;
+    warnBottom(name, "Generate Spectrum / Frequency",
+               "Frequency is " + std::to_string(frequency)
+                   + " Hz, outside Spectrum_Gen's reference range of 233 to 932 Hz; generation continues.",
+               "Check the Bottom event's Frequency, or use explicit spectrum partial envelopes if this wider range is intentional.");
   }
   //calculate scale for Partials
   double scaleTable[3][3][20] = {

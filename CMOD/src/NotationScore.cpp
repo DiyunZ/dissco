@@ -1,4 +1,5 @@
 #include "NotationScore.h"
+#include "CmodError.h"
 
 NotationScore::NotationScore() : 
     score_title_("Score"),
@@ -62,7 +63,7 @@ void NotationScore::RegisterTempo(Tempo& tempo,int staffNum) {
     ++section_iter;
   }
 
-  if (score_staff[staffNum].empty() || *section_iter != ts) {
+  if (section_iter == score_staff[staffNum].end() || *section_iter != ts) {
     score_staff[staffNum].insert(section_iter, Section(ts));
   }
 }
@@ -89,16 +90,20 @@ void NotationScore::InsertNote(Note* n) {
     n->setStaffNum(staffSum-1);
   }
   if (score_staff[n->getStaffNum()].empty()) {
-    cerr << "Cannot add note to score without any sections!" << endl;
-    exit(1);
+    throw CmodError(CmodError::Kind::Internal,
+                    "A note was generated before its score tempo was registered.",
+                    "Score output, staff " + to_string(n->getStaffNum()),
+                    "Report this error to the DISSCO developers with the project file, seed, and full output.");
   }
 
   vector<Section>::iterator section_iter = score_staff[n->getStaffNum()].begin();
   while (section_iter != score_staff[n->getStaffNum()].end() && !(*section_iter).InsertNote(n)) ++section_iter;
 
   if (section_iter == score_staff[n->getStaffNum()].end()) {
-    cerr << "Note does not belong to any section in the score!" << endl;
-    exit(1);
+    throw CmodError(CmodError::Kind::Internal,
+                    "A note could not be assigned to a registered tempo section.",
+                    "Score output, staff " + to_string(n->getStaffNum()),
+                    "Report this error to the DISSCO developers with the project file, seed, and full output.");
   }
 }
 
@@ -128,6 +133,13 @@ void NotationScore::InsertNote(Note* n) {
 void NotationScore::Build() {
   if (!is_built_) {
     for(int i=0 ; i<staffSum; i++){
+      try {
+      if (score_staff[i].empty()) {
+        throw CmodError(CmodError::Kind::Project,
+                        "No note events were generated for staff " + to_string(i) + ".",
+                        "Score output",
+                        "Add note events assigned to this staff, correct the staff settings, or disable score output.");
+      }
       // Since all tempos are registered, calculate their start times 
       // in terms of the previous tempo's EDU's
       vector<Section>::iterator iter = score_staff[i].begin();
@@ -153,6 +165,10 @@ void NotationScore::Build() {
       string current_time_signature = iter->GetTimeSignature().time_signature_;
       bool print_time_signature = first_section || current_time_signature != previous_time_signature;
       iter->Build(print_time_signature);
+      } catch (CmodError& error) {
+        error.addContext("Score output, staff " + to_string(i));
+        throw;
+      }
     }
     is_built_ = true;
   }
@@ -245,6 +261,13 @@ ostream& operator<<(ostream& output_stream,
             avePitchNum = avePitchNum + cur_note->getPitchNum();
             pitchSum = pitchSum + 1;
           }
+        }
+        if (pitchSum == 0) {
+          throw CmodError(CmodError::Kind::Project,
+                          "No notes with a notatable duration remain in this score section.",
+                          "Score output, staff " + to_string(i) + ", section starting at " +
+                              to_string(iter->GetStartTimeGlobal()) + " seconds",
+                          "Check note durations and EDU settings. Give notes a positive duration that can be represented in the score, or disable score output.");
         }
         avePitchNum = avePitchNum / pitchSum;
         // if the average pitch number isn't smaller than 48, choose treble

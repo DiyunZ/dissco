@@ -33,6 +33,7 @@ private:
     QTextEdit *textEdit;
     QProcess *proc;
     bool autoscroll = true;
+    bool stopRequested = false;
     QStringDecoder stdoutDecoder{QStringDecoder::Utf8};
     QStringDecoder stderrDecoder{QStringDecoder::Utf8};
     QVector<TextRange> stderrRanges;
