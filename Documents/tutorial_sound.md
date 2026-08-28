@@ -2,11 +2,13 @@
 
 ## 1. Download DISSCO
 
-- To Download and Install DISSCO, look at the [Downloading DISSCO page](https://github.com/cmp-illinois/DISSCO/blob/main/DOWNLOAD.md). The latest releases of DISSCO are [available here](https://github.com/cmp-illinois/DISSCO/releases/latest).
+- Download and install the complete DISSCO application (`DISSCO-*`) by following the [Downloading DISSCO page](../DOWNLOAD.md). This includes LASSIE, which is required for this tutorial.
 
-## 2. Launch LASSIE (if you already downloaded and compiled DISSCO start here)
+> **macOS:** A macOS release is not yet available. The downloadable packages for this tutorial currently support Windows and Linux only. See [macOS availability](../DOWNLOAD.md#macos).
 
-- Open up the DISSCO application.
+## 2. Launch LASSIE (if DISSCO is already installed, start here)
+
+- Open LASSIE using the instructions for your operating system on the [Downloading DISSCO page](../DOWNLOAD.md).
 
 - Wait for the LASSIE window to appear.
 
@@ -137,8 +139,8 @@ window** and click OK
 
 - The .aiff output is in the folder **SoundFiles**, in the same folder as the project (ex.
 Tutorial/SoundFiles/Tutorial.aiff)
-  1. To listen to the file, it can be opened in a Audacity (or any sound editor/media
-player/digital audio workstation)  (In terminal: cd SoundFiles --> **open tutorial_0**  )
+  1. To listen to the file, open the `.aiff` file in Audacity (or any sound editor/media
+player/digital audio workstation).
 
 <img width="2246" height="1438" alt="image" src="https://github.com/user-attachments/assets/454450e5-8812-4f55-943d-b379d15b86c6" />
   2. How can we make a more interesting piece..?
