@@ -1,8 +1,8 @@
 # DISSCO
 
-DISSCO combines the LASSIE graphical editor with the CMOD composition and synthesis engine.
+DISSCO combines the LASSIE graphical editor, the CMOD composition and synthesis engine, and the LASS sound synthesis library.
 
-- [Download DISSCO or CMOD](DOWNLOAD.md) for Linux, macOS, and Windows
+- [Download DISSCO](DOWNLOAD.md) for Linux and Windows. macOS downloads are [temporarily unavailable](DOWNLOAD.md#macos).
 - Build from source on [Linux](BUILDING_LINUX.md), [macOS](BUILDING_MACOS.md), or [Windows](BUILDING_WINDOWS.md)
 
 ## Contributing

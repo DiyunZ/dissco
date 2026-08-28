@@ -1,35 +1,16 @@
 ## Simple DISSCO Project with LASSIE: Score Output
 
-## 0. Download DISSCO
+## 1. Download DISSCO
 
-- Clone the repository: **git clone https://github.com/cmp-illinois/dissco.git**
+- Download and install the complete DISSCO application (`DISSCO-*`) by following the [Downloading DISSCO page](../DOWNLOAD.md). This includes LASSIE, which is required for this tutorial.
 
-- Enter the project directory: **cd dissco**
+- For score and PDF output, also install LilyPond and make it available on `PATH`, as described in [Score and PDF output](../DOWNLOAD.md#score-and-pdf-output).
 
-(Linux)
-## 1. Build DISSCO 
+> **macOS:** A macOS release is not yet available. The downloadable packages for this tutorial currently support Windows and Linux only. See [macOS availability](../DOWNLOAD.md#macos).
 
-- Create a build directory and enter it:
+## 2. Launch LASSIE (if DISSCO is already installed, start here)
 
-mkdir build
-
-cd build
-
-- Generate the build files:
-
-cmake ..
-
-- Compile the program:
-
-cmake --build .
-
-(Be patient, as compiling may take a few minutes.)
-
-## 2. Launch LASSIE (if you already downloaded and compiled DISSCO start here)
-
-- Make sure you are inside the build directory: cd ~/dissco/build
-
-- Open the application: **./LASSIE/LASSIE**
+- Open LASSIE using the instructions for your operating system on the [Downloading DISSCO page](../DOWNLOAD.md).
 
 - Wait for the LASSIE window to appear.
 

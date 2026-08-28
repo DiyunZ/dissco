@@ -1,12 +1,18 @@
-# Download DISSCO and CMOD
+# Download DISSCO
 
 Go to the [latest DISSCO release](https://github.com/cmp-illinois/DISSCO/releases/latest) page and scroll down to the assets section for the downloads. Below are detailed the specific install instructions for each operating system.
 
-DISSCO includes the LASSIE graphical editor and CMOD. Download a `DISSCO-*` asset for the complete application. Download a `CMOD-*` asset only when you want the command-line composition and synthesis tool without LASSIE.
+DISSCO includes three components:
 
-AppImage is a Linux format. The equivalent standalone CMOD downloads are a `.tar.gz` archive on macOS and a `.zip` archive on Windows.
+- **CMOD**: the composition and synthesis engine.
+- **LASS**: the sound synthesis library used by CMOD. It is built into the application and needs no separate download or installation.
+- **LASSIE**: the graphical editor for creating and running DISSCO projects.
 
-The automated release currently produces Windows x64, Linux x86_64, and macOS arm64 (Apple silicon) binaries. If there is no asset for your CPU architecture, use the source-build guides instead of running a mismatched binary.
+Download a `DISSCO-*` asset for the complete application. The optional `CMOD-*` assets provide CMOD with LASS for command-line use, without LASSIE.
+
+AppImage is a Linux format. The standalone CMOD download for Windows is a `.zip` archive.
+
+Released binaries are currently available for Windows x64 and Linux x86_64. macOS downloads are [temporarily unavailable](#macos). If there is no asset for your CPU architecture, use the [source-build guides](#building-from-source) instead of running a mismatched binary.
 
 ## Windows 10 or 11 (x64)
 
@@ -16,7 +22,7 @@ The automated release currently produces Windows x64, Linux x86_64, and macOS ar
 2. Run the installer and follow its prompts. Windows may request administrator approval because the installer registers `.dissco` files for all users.
 3. Start LASSIE from the Start menu or by opening a `.dissco` file.
 
-The installer includes LASSIE, CMOD, Qt, and CMOD's audio libraries.
+The installer includes all three DISSCO components, Qt, and CMOD's audio libraries.
 
 ### Standalone CMOD
 
@@ -33,26 +39,7 @@ The archive includes the Microsoft Visual C++ runtime and CMOD's audio libraries
 
 ## macOS
 
-### Complete DISSCO application
-
-1. On an Apple silicon Mac, download `DISSCO-<version>-Darwin.dmg`.
-2. Open the DMG and drag LASSIE to Applications.
-3. Open LASSIE from Applications.
-
-The current release is not signed or notarized. If macOS blocks it, first try to open it, then go to **System Settings > Privacy & Security** and choose **Open Anyway** only after confirming that the file came from the official DISSCO release and its checksum matches. See [Apple's current safety guidance](https://support.apple.com/102445).
-
-### Standalone CMOD
-
-1. Download `CMOD-<version>-Darwin-<architecture>.tar.gz`. The current automated release uses `arm64` for Apple silicon.
-2. Extract the archive and run:
-
-   ```bash
-   cd CMOD-<version>-Darwin-<architecture>
-   ./bin/cmod --help
-   ./bin/cmod /path/to/project.dissco
-   ```
-
-CMOD's audio libraries are included in the archive. The command-line binary is also unsigned, so the same Gatekeeper guidance may apply the first time it runs.
+> **macOS downloads are temporarily unavailable.** No macOS release has been published yet. Developers can still [build from source](BUILDING_MACOS.md).
 
 ## Linux
 
@@ -91,12 +78,6 @@ On Linux:
 
 ```bash
 sha256sum DISSCO-<version>-Linux-<architecture>.AppImage
-```
-
-On macOS:
-
-```bash
-shasum -a 256 DISSCO-<version>-Darwin.dmg
 ```
 
 On Windows PowerShell:
