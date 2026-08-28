@@ -4,7 +4,10 @@ cd /d "%~dp0"
 
 echo Building and validating the DISSCO portable package...
 echo.
-powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass ^
+rem A PowerShell 7 parent can pass incompatible module paths through CMD.
+rem Let Windows PowerShell recreate its own defaults for this child only.
+set "PSModulePath="
+"%SystemRoot%\System32\WindowsPowerShell\v1.0\powershell.exe" -NoLogo -NoProfile -ExecutionPolicy Bypass ^
   -File "%~dp0Make-Portable-for-Windows.ps1" %*
 
 if errorlevel 1 (

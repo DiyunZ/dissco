@@ -1,399 +1,304 @@
-Building on Windows
-===================
+# Build and install LASSIE on Windows
 
-This guide explains how to build and run DISSCO on Windows using MSVC, CMake, Ninja, Qt, vcpkg, Git for Windows, and LilyPond.
+This guide builds **LASSIE**, the graphical editor, and **CMOD**, its composition
+and sound engine, from `DiyunZ/dissco`'s `main` branch. It then creates a portable
+application: a complete folder you can copy to another computer and run.
 
-Looking for a released application instead of a source build? See [DOWNLOAD.md](DOWNLOAD.md).
+**Only want the released application?** Follow [DOWNLOAD.md](DOWNLOAD.md).
+A release may be older than `main`. If someone gives you the portable ZIP made
+by this guide, skip to [Install LASSIE](#7-install-lassie). You do not need build
+tools to use that ZIP.
 
-DISSCO contains three main parts:
+## Which computers does this cover?
 
-- **LASS**: sound synthesis library
-- **CMOD**: composition module
-- **LASSIE**: Qt GUI for editing `.dissco` files
+| Computer | Scope |
+| --- | --- |
+| Windows 11, Intel/AMD x64 | Recommended for building and running. |
+| Windows 10 version 1809 or later, Intel/AMD x64 | Runtime compatibility target; the complete package needs a separate test on that Windows version. |
+| Windows on Arm, 32-bit Windows, Windows 7/8/8.1 | Not covered by this guide or this x64 package. |
 
-LASSIE can run CMOD, and CMOD can generate LilyPond score output.
+Check **Settings > System > About > System type**: you want an **x64-based
+processor** and a **64-bit operating system**. ARM64 is different.
 
-Before You Start
-----------------
+Qt 6.8 and 6.11 list Windows 10 **1809+** and Windows 11 as supported x64 platforms.
+That dependency requirement does not certify the complete DISSCO package.
+Do not assume future Qt versions have the same requirements.
+[Qt 6.8 support](https://doc.qt.io/qt-6.8/supported-platforms.html#windows),
+[Qt 6.11 support](https://doc.qt.io/qt-6.11/supported-platforms.html#windows).
 
-Use **x64 Native Tools Command Prompt for VS** for all build commands.
+Use an updated Windows 11 computer for a new build setup. Windows 10's ordinary
+Home/Pro support ended in October 2025; ESU and LTSC have separate lifecycles.
+[Microsoft release information](https://learn.microsoft.com/en-us/windows/release-health/release-information).
+School or company restrictions still apply; ask the administrator rather than
+disabling security controls.
 
-This guide uses **CMD syntax**. PowerShell uses different syntax for line continuation and environment variables.
+## 1. Install the tools once
 
-The commands below assume these default paths:
+Skip tools you already have. Allow several gigabytes for downloads and build
+files, in addition to the space requested by each installer.
 
-```cmd
+| Tool | What to choose |
+| --- | --- |
+| [Git for Windows](https://git-scm.com/downloads/win) | Use the normal installer and allow Git to be used from the command line. |
+| [Visual Studio Build Tools](https://visualstudio.microsoft.com/downloads/#build-tools-for-visual-studio) or Visual Studio Community | Select **Desktop development with C++**, including **MSVC x64/x86 build tools**, a **Windows SDK**, and **C++ CMake tools for Windows**. The full editor is optional. |
+| [Qt Online Installer](https://www.qt.io/development/download-open-source) | Choose the **MSVC 2022 64-bit** desktop component. The tested version is **Qt 6.11.1**. Do not choose MinGW or ARM64. |
+| [LilyPond for Windows](https://lilypond.org/download.html) | Extract the **entire** Windows x86_64 ZIP. The tested version is **2.26.0**. Keep its `bin`, `lib`, and `share` folders together. |
+
+The Visual Studio CMake component supplies CMake and Ninja. This project needs
+**CMake 3.25 or later**; check the version in step 2 before installing another copy.
+[Microsoft C++ workload components](https://learn.microsoft.com/en-us/visualstudio/install/workload-component-id-vs-build-tools?view=vs-2022#desktop-development-with-c).
+
+Qt lists MSVC 2022. Visual Studio 2026 also passed the local build with Qt's
+`msvc2022_64` kit. If you have several Visual Studio installations, use matching
+x64 tools consistently: the final linker and packaged runtime must be at least
+as new as the tools that built the dependencies. vcpkg normally selects the newest
+installed Visual Studio.
+[Microsoft binary compatibility](https://learn.microsoft.com/en-us/cpp/porting/binary-compat-2015-2017),
+[vcpkg toolset selection](https://learn.microsoft.com/en-us/vcpkg/users/platforms/windows#selecting-a-msvc-toolset).
+
+LilyPond's complete Windows ZIP does not need separate Python, Guile, or
+Ghostscript installations.
+[LilyPond setup](https://lilypond.org/doc/v2.26/Documentation/learning/command-line-setup).
+
+## 2. Open the right terminal and set four paths
+
+Search the Start menu for **x64 Native Tools Command Prompt for VS** and open it.
+Use that window for all commands below. Administrator mode is not needed for
+building in a folder you own.
+
+**These are CMD commands, not PowerShell commands.** If the prompt starts with
+`PS`, open the command prompt named above instead. Paste each complete block,
+press Enter, and wait for it to finish. Stop if a command reports an error.
+
+~~~cmd
+echo %VSCMD_ARG_TGT_ARCH%
+where git
+where cl
+cmake --version
+ninja --version
+~~~
+
+The first command should print `x64`; the others should show tool locations or
+versions. If a tool is missing, check the components in step 1 and reopen the
+x64 command prompt.
+
+Edit these four paths to match your computer, then paste the block:
+
+~~~cmd
 set "DISSCO_ROOT=C:\dev\DISSCO-2.2.0"
 set "VCPKG_ROOT=C:\dev\vcpkg"
 set "QT_ROOT=C:\Qt\6.11.1\msvc2022_64"
-set "LILYPOND_BIN=C:\Program Files\LilyPond\usr\bin"
-```
+set "LILYPOND_ROOT=C:\Tools\lilypond-2.26.0"
+set "PATH=%QT_ROOT%\bin;%LILYPOND_ROOT%\bin;%PATH%"
+~~~
 
-You may install these tools anywhere. If your paths are different, update the `set` commands and use your paths consistently.
+DISSCO_ROOT is the source folder. VCPKG_ROOT is a separate folder for the C++
+dependency manager. QT_ROOT must contain `bin\qmake.exe`. LILYPOND_ROOT must
+contain `bin\lilypond.exe`; check for an extra outer folder after extracting the
+ZIP. Short paths such as `C:\dev` or `D:\dev` help avoid Windows path-length limits.
 
-Required Software
------------------
+These settings affect only this terminal. **Repeat this step after reopening
+it.** You do not need permanent PATH edits or Git's Unix tools (`rm` and `mv`).
 
-Install:
+~~~cmd
+"%QT_ROOT%\bin\qmake.exe" -query QT_VERSION
+"%LILYPOND_ROOT%\bin\lilypond.exe" --version
+~~~
 
-- Git for Windows
-- Visual Studio or Visual Studio Build Tools with **Desktop development with C++**
-- CMake 3.25 or newer
-- Ninja
-- Qt 6.8 or newer, **MSVC 64-bit** build
-- vcpkg
-- LilyPond for Windows
+Expect a Qt version and `GNU LilyPond`. Fix any missing-file error before continuing.
 
-The repository already includes:
+## 3. Get the source
 
-- muParser
-- pugixml
+For a **new, empty source folder**:
 
-Install Git
------------
+~~~cmd
+if not exist "%DISSCO_ROOT%" mkdir "%DISSCO_ROOT%"
+git clone --depth 1 --branch main --single-branch https://github.com/DiyunZ/dissco.git "%DISSCO_ROOT%"
+~~~
 
-Using winget:
+The explicit destination avoids confusion about the downloaded folder's name.
+The shallow clone omits old history to reduce the download.
 
-```cmd
-winget install --id Git.Git -e
-```
+**Already have the repository?** Skip cloning. Do not delete an existing folder
+just to make the clone command work. Check the remote and branch:
 
-Git for Windows usually provides Unix-style tools such as `rm` and `mv` in:
-
-```text
-C:\Program Files\Git\usr\bin
-```
-
-Add this directory to User PATH later.
-
-Install Visual Studio C++ Tools
--------------------------------
-
-Install Visual Studio Community or Visual Studio Build Tools.
-
-Select:
-
-```text
-Desktop development with C++
-```
-
-Make sure these components are installed:
-
-- MSVC x64/x86 build tools
-- Windows SDK
-- C++ CMake tools for Windows
-
-Open **x64 Native Tools Command Prompt for VS** and check:
-
-```cmd
-cl
-```
-
-You should see Microsoft C/C++ compiler information.
-
-Install Qt
-----------
-
-Install Qt using the Qt Online Installer.
-
-Select a Qt version with the MSVC 64-bit component, for example:
-
-```text
-Qt 6.x -> MSVC 2022 64-bit
-```
-
-Set `QT_ROOT` to your Qt MSVC 64-bit directory:
-
-```cmd
-set "QT_ROOT=C:\Qt\6.11.1\msvc2022_64"
-```
-
-If your Qt is installed somewhere else, change the path.
-
-Install vcpkg Dependencies
---------------------------
-
-Choose where to install vcpkg. This guide assumes `C:\dev\vcpkg`:
-
-```cmd
-cd /d C:\dev
-git clone https://github.com/microsoft/vcpkg.git
-cd vcpkg
-bootstrap-vcpkg.bat
-```
-
-Set `VCPKG_ROOT`:
-
-```cmd
-set "VCPKG_ROOT=C:\dev\vcpkg"
-```
-
-Install required packages:
-
-```cmd
-cd /d "%VCPKG_ROOT%"
-vcpkg install libsndfile:x64-windows
-vcpkg install dirent:x64-windows
-```
-
-Optional: save `VCPKG_ROOT` as a user environment variable:
-
-```cmd
-setx VCPKG_ROOT "%VCPKG_ROOT%"
-```
-
-Verify:
-
-```cmd
-dir "%VCPKG_ROOT%\installed\x64-windows\include\sndfile.h"
-dir "%VCPKG_ROOT%\installed\x64-windows\include\dirent.h"
-dir "%VCPKG_ROOT%\installed\x64-windows\lib\*sndfile*.lib"
-```
-
-Install LilyPond
-----------------
-
-Install or extract LilyPond for Windows.
-
-Set `LILYPOND_BIN` to the directory containing `lilypond.exe`:
-
-```cmd
-set "LILYPOND_BIN=C:\Program Files\LilyPond\usr\bin"
-```
-
-If LilyPond is installed somewhere else, change the path.
-
-Test:
-
-```cmd
-"%LILYPOND_BIN%\lilypond.exe" --version
-```
-
-Update PATH
------------
-
-Add these directories to your **User PATH**:
-
-```text
-%QT_ROOT%\bin
-%LILYPOND_BIN%
-C:\Program Files\Git\usr\bin
-```
-
-You can edit PATH from:
-
-```text
-System Properties -> Environment Variables -> User variables -> Path -> Edit
-```
-
-After editing PATH, close and reopen all terminals.
-
-Verify:
-
-```cmd
-where qmake
-where lilypond
-where rm
-where mv
-lilypond --version
-```
-
-Clone DISSCO
-------------
-
-Choose where to put the source code. This guide assumes `C:\dev\DISSCO-2.2.0`:
-
-```cmd
-cd /d C:\dev
-git clone https://github.com/cmp-illinois/DISSCO.git
-cd DISSCO-2.2.0
-```
-
-Set `DISSCO_ROOT`:
-
-```cmd
-set "DISSCO_ROOT=C:\dev\DISSCO-2.2.0"
-```
-
-If the repository uses submodules, run:
-
-```cmd
-git submodule update --init --recursive
-```
-
-Configure with CMake
---------------------
-
-Open **x64 Native Tools Command Prompt for VS**.
-
-Set your paths. Change them if your installation paths are different:
-
-```cmd
-set "DISSCO_ROOT=C:\dev\DISSCO-2.2.0"
-set "VCPKG_ROOT=C:\dev\vcpkg"
-set "QT_ROOT=C:\Qt\6.11.1\msvc2022_64"
-```
-
-Go to the source directory:
-
-```cmd
+~~~cmd
 cd /d "%DISSCO_ROOT%"
-```
+git remote -v
+git branch --show-current
+~~~
 
-Remove any old build directory:
+The intended remote is `https://github.com/DiyunZ/dissco.git` and the branch is
+`main`. muParser and pugixml are included; no submodule setup is needed.
 
-```cmd
-rmdir /s /q build
-```
+## 4. Install the C++ libraries
 
-Configure:
+For a **new vcpkg folder**:
 
-```cmd
-cmake -S . -B build -G Ninja ^
+~~~cmd
+if not exist "%VCPKG_ROOT%" mkdir "%VCPKG_ROOT%"
+git clone --depth 1 https://github.com/microsoft/vcpkg.git "%VCPKG_ROOT%"
+call "%VCPKG_ROOT%\bootstrap-vcpkg.bat"
+~~~
+
+If vcpkg is already installed, skip that block. Then run:
+
+~~~cmd
+"%VCPKG_ROOT%\vcpkg.exe" install libsndfile:x64-windows dirent:x64-windows
+~~~
+
+Wait for successful completion; the first installation may take a while.
+Already installed packages are reused. Keep `x64-windows` so the libraries
+match the compiler and Qt.
+[vcpkg setup](https://learn.microsoft.com/en-us/vcpkg/get_started/get-started).
+
+## 5. Configure, build, and test
+
+Keep using the same x64 command prompt. Paste this **whole block**. Each `^`
+continues the command on the next line; do not add spaces after it.
+
+~~~cmd
+cmake -S "%DISSCO_ROOT%" -B "%DISSCO_ROOT%\build" -G Ninja ^
   -DCMAKE_BUILD_TYPE=Release ^
   -DCMAKE_TOOLCHAIN_FILE="%VCPKG_ROOT%/scripts/buildsystems/vcpkg.cmake" ^
   -DVCPKG_TARGET_TRIPLET=x64-windows ^
-  -DQt6_DIR="%QT_ROOT%/lib/cmake/Qt6" ^
   -DCMAKE_PREFIX_PATH="%QT_ROOT%" ^
   -DBUILD_SHARED_LIBS=OFF ^
-  -DCMAKE_CXX_FLAGS="/EHsc /DNOMINMAX /DNOGDI /DMUPARSER_STATIC /D_CRT_SECURE_NO_WARNINGS" ^
-  -DSNDFILE_INCLUDE_DIR="%VCPKG_ROOT%/installed/x64-windows/include" ^
-  -DSNDFILE_LIBRARY="%VCPKG_ROOT%/installed/x64-windows/lib/sndfile.lib"
-```
+  -DBUILD_TESTING=ON ^
+  -DCMAKE_CXX_FLAGS="/EHsc /DNOMINMAX /DNOGDI /D_CRT_SECURE_NO_WARNINGS"
+~~~
 
-Notes:
+Wait for **Configuring done** and **Generating done**. CMake finds libsndfile
+through vcpkg and Qt through QT_ROOT; you do not need paths to individual `.lib`
+files. The repository sets muParser's static-library definition itself.
 
-- Qt, vcpkg packages, and MSVC must all be 64-bit.
-- `MUPARSER_STATIC` is required for static muParser builds on MSVC.
-- `NOMINMAX` avoids Windows `min` and `max` macro conflicts.
-- `NOGDI` avoids Windows GDI name conflicts.
-- `_CRT_SECURE_NO_WARNINGS` suppresses MSVC warnings for older C library calls.
-- `/EHsc` enables standard C++ exception handling.
+~~~cmd
+cmake --build "%DISSCO_ROOT%\build" --parallel 2
+ctest --test-dir "%DISSCO_ROOT%\build" --output-on-failure --no-tests=error
+~~~
 
-Build
------
+Two parallel jobs keep memory use modest. If memory runs out, retry with
+`--parallel 1`. Warnings are not necessarily build failures; check the final
+result. The test command should report **100% tests passed**.
 
-Build:
+The build creates `build\LASSIE\lassie.exe` and `build\CMOD\cmod.exe`. Do not copy
+either EXE alone to install it: the application still needs supporting files.
 
-```cmd
-cmake --build build --parallel
-```
+## 6. Make the complete portable application
 
-A successful build should produce:
-
-```text
-%DISSCO_ROOT%\build\CMOD\cmod.exe
-%DISSCO_ROOT%\build\LASSIE\lassie.exe
-```
-
-Verify:
-
-```cmd
-dir "%DISSCO_ROOT%\build\CMOD\cmod.exe"
-dir "%DISSCO_ROOT%\build\LASSIE\lassie.exe"
-```
-
-Run LASSIE
-----------
-
-Run:
-
-```cmd
-"%DISSCO_ROOT%\build\LASSIE\lassie.exe"
-```
-
-If LASSIE opens, the GUI build is working.
-
-If Windows reports missing Qt DLLs, run:
-
-```cmd
-"%QT_ROOT%\bin\windeployqt.exe" "%DISSCO_ROOT%\build\LASSIE\lassie.exe"
-```
-
-Then run LASSIE again.
-
-Run CMOD Manually
------------------
-
-CMOD can be run directly with a `.dissco` file:
-
-```cmd
-"%DISSCO_ROOT%\build\CMOD\cmod.exe" "<path-to-project>\your_file.dissco"
-```
-
-Generate Score Output
----------------------
-
-Before generating score output, make sure the project folder has a `ScoreFiles` directory:
-
-```cmd
-mkdir "<path-to-project>\ScoreFiles"
-```
-
-Then open the `.dissco` project in LASSIE and run score output.
-
-If LilyPond is correctly installed and PATH is set, CMOD should be able to generate score files.
-
-Cleaning and Rebuilding
------------------------
-
-Clean and rebuild:
-
-```cmd
+~~~cmd
 cd /d "%DISSCO_ROOT%"
-cmake --build build --clean-first
-```
+Make-Portable-for-Windows.bat -LilyPondRoot "%LILYPOND_ROOT%"
+~~~
 
-Fully reset the build directory:
+The script loads the build environment, checks the build and tests, bundles
+Qt, CMOD, audio DLLs, the Microsoft C++ runtime, and LilyPond, and checks startup
+with developer-tool paths removed. Wait for **Portable package created
+successfully**. Press a key when the batch window asks.
 
-```cmd
+~~~text
+dist\DISSCO-Windows-x64\             Complete application folder
+dist\DISSCO-Windows-x64.zip          Distribution ZIP
+dist\DISSCO-Windows-x64.zip.sha256   ZIP checksum
+~~~
+
+Double-clicking `Make-Portable-for-Windows.bat` also works if LilyPond is on PATH
+or in a standard installation location. The command above handles custom paths.
+For an explicitly selected Qt installation, add `-QtBin "%QT_ROOT%\bin"` to it.
+Do not use `-SkipTests` or `-SkipSmokeTest` for a package you give to someone else.
+
+The portable folder contains permitted Release C++ runtime DLLs, so a separate
+Visual C++ Redistributable installation is not normally needed. Maintainers must
+keep those bundled DLLs updated.
+[Microsoft application-local deployment](https://learn.microsoft.com/en-us/cpp/windows/choosing-a-deployment-method).
+
+## 7. Install LASSIE
+
+1. If you received the ZIP, right-click it and choose **Extract All**. Do not run
+   the application from inside the ZIP.
+2. Paste `%LOCALAPPDATA%\Programs` into File Explorer's address bar. Create that
+   folder if necessary. Copy the **whole** `DISSCO-Windows-x64` folder there.
+   Use an empty destination; do not mix files from different versions.
+3. Double-click **lassie.exe** in the copied folder. Keep all DLLs and subfolders
+   with it. Administrator access and permanent PATH changes are not normally needed.
+4. To add a desktop shortcut, right-click `lassie.exe` and choose **Show more
+   options > Send to > Desktop (create shortcut)**. Older Windows versions show
+   **Send to** directly.
+
+The usual installed path is
+`%LOCALAPPDATA%\Programs\DISSCO-Windows-x64\lassie.exe`. This portable installation
+does not replace another DISSCO installer or change `.dissco` file associations.
+Open projects from the new LASSIE window to be sure you are using this copy.
+
+Check the installed copy from File Explorer, **not just the developer terminal**:
+
+- Create a project in a separate writable folder, such as
+  `Documents\DISSCO Projects\InstallCheck`. In **Project Properties**, enter
+  `1` for **Piece Duration**, then click **OK**. Save, close LASSIE, and reopen
+  the project from **Recent Projects**. Confirm the duration is still `1`.
+- Follow the [sound tutorial](Documents/tutorial_sound.md) or
+  [score tutorial](Documents/tutorial_score.md), starting at the LASSIE steps,
+  for a first composition. An empty project is not yet playable.
+- Sound and score output go into `SoundFiles` and `ScoreFiles` beside the project.
+  CMOD creates these folders automatically. The portable application uses its
+  bundled LilyPond for PDFs.
+
+Keep projects outside the application and source folders. If Windows blocks
+execution, verify the source and checksum and follow your device's security policy.
+
+## Updating and cleaning up
+
+For an unchanged checkout of the intended `main` branch, reopen the x64 command
+prompt, repeat the four-path setup, and run:
+
+~~~cmd
 cd /d "%DISSCO_ROOT%"
-rmdir /s /q build
-```
+git pull --ff-only
+~~~
 
-Then rerun the CMake configure command and build again.
+If Git reports local changes or a diverged branch, stop and decide what to keep.
+Repeat steps 5 and 6, close the old LASSIE, and test a new portable folder before
+removing the old copy.
 
-Create a Portable Package
--------------------------
+After checking the installed copy:
 
-After configuring the `build` directory once, double-click:
+- Delete temporary test projects and their generated output.
+- You may delete **build** and **dist** in the source folder using File Explorer.
+  Confirm you are in DISSCO_ROOT first. Keep the installed application and real projects.
+- Keep the source, documentation, and `.git` folder for future updates. Keep the
+  ZIP and checksum only if you need a distribution copy.
 
-```text
-Make-Portable-for-Windows.bat
-```
+Changing the compiler, Qt kit, or architecture requires a fresh **build** folder.
+Ordinary edits can reuse it. Do not delete source or project files to reset a build.
 
-The script automatically:
+## Common problems
 
-- loads the x64 Visual Studio build environment
-- finds CMake and Qt from `build/CMakeCache.txt`
-- finds LilyPond from `PATH`, a previous portable package, or its standard
-  installation directory
-- builds the current Release binaries and runs the tests
-- bundles Qt, CMOD, LilyPond, libsndfile, and app-local MSVC runtime DLLs
-- validates the package with developer tool paths removed
-- creates `dist/DISSCO-Windows-x64/` and
-  `dist/DISSCO-Windows-x64.zip`
+| What you see | What to do |
+| --- | --- |
+| `cmake`, `ninja`, or `cl` not found | Reopen the x64 Native Tools Command Prompt and check the Visual Studio components. |
+| Qt not found | Check QT_ROOT and its `lib\cmake\Qt6` folder. Choose the MSVC x64 kit, not MinGW. |
+| Generator/toolchain mismatch | Remove only the old **build** folder and configure again. |
+| Missing DLL or Qt platform plugin | Use the complete portable folder, not an EXE copied out of it. Recreate the package if files are missing. |
+| `Get-FileHash` or `Compress-Archive` missing when the batch file is started from PowerShell 7 | Use the current batch file. It resets only its child's module search path. No global execution-policy change is needed. |
+| LilyPond missing or PDFs fail | Pass the actual LilyPond root in step 6 and retain the complete archive, including fonts. Read the CMOD output for the specific error. |
 
-The target computer only needs 64-bit Windows 10 or Windows 11. It does not
-need Qt, LilyPond, Visual Studio, the Visual C++ Redistributable, or
-administrator access. Extract the complete ZIP and double-click `lassie.exe`;
-`Run-DISSCO.bat` remains available as a compatibility launcher.
+The PowerShell issue is explained in
+[Microsoft's module-path documentation](https://learn.microsoft.com/en-us/powershell/module/microsoft.powershell.core/about/about_psmodulepath#starting-windows-powershell-from-powershell-7).
 
-For non-default paths or automation, run the PowerShell entry point directly:
+## Verification record — 2026-08-27
 
-```powershell
-.\Make-Portable-for-Windows.ps1 `
-  -BuildDirectory build `
-  -QtBin "C:\Qt\6.11.1\msvc2022_64\bin" `
-  -LilyPondRoot "C:\Program Files\LilyPond"
-```
+Tested on Windows 11 x64 (build 26200), Visual Studio 2026 18.7.3 / MSVC 19.51,
+CMake 4.3.1, Ninja 1.13.2, Qt 6.11.1, and LilyPond 2.26.0. Git, Visual Studio,
+Qt, LilyPond, and the vcpkg libraries were already installed; their first-time
+installer screens were not tested on a clean Windows machine.
 
-Use `Get-Help .\Make-Portable-for-Windows.ps1 -Detailed` to view the accepted switches.
+- A fresh GitHub clone in a path containing spaces configured and built with
+  the commands above; the repository's one CTest test passed.
+- The batch entry point was tested from PowerShell 7, including an explicit
+  Qt path and a build environment without Qt/LilyPond on its inherited PATH.
+- The ZIP checksum and all 1,272 extracted files matched the package. Installed
+  LASSIE opened and saved/reopened a project with developer paths removed.
+  Installed CMOD displayed help, and bundled LilyPond generated a one-page PDF.
 
-To create only the standalone CMOD package from an existing Release build:
-
-```cmd
-cmake --build build --target cmod-package
-```
-
-This produces `build\CMOD-<version>-Windows-x64.zip`. It includes CMOD, the Microsoft Visual C++ runtime, and CMOD's audio-library DLLs, but not LASSIE, Qt, or LilyPond.
+These checks cover installation and startup, not every composition feature.
+Windows 10, ARM64, and a clean virtual machine were not tested.

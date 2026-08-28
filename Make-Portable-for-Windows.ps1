@@ -437,7 +437,6 @@ if (-not (Test-Path -LiteralPath $CTestExe -PathType Leaf)) {
     $CTestExe = $ctestCommand.Source
 }
 
-$QtBin = $null
 $LilyPond = $null
 if (-not $CmodOnly) {
     $QtBin = Find-QtBin -RequestedQtBin $QtBin -CachePath $CachePath
@@ -496,9 +495,19 @@ try {
 
     if (-not $SkipTests) {
         Write-Host "[2/10] Running tests..." -ForegroundColor Cyan
-        & $CTestExe --test-dir $BuildRoot -C $Configuration --output-on-failure
-        if ($LASTEXITCODE -ne 0) {
-            throw "Tests failed."
+        $testPath = $env:PATH
+        try {
+            # Build-tree GUI tests need Qt before the portable deployment exists.
+            if (-not $CmodOnly) {
+                $env:PATH = "$QtBin;$testPath"
+            }
+            & $CTestExe --test-dir $BuildRoot -C $Configuration --output-on-failure
+            if ($LASTEXITCODE -ne 0) {
+                throw "Tests failed."
+            }
+        }
+        finally {
+            $env:PATH = $testPath
         }
     }
     else {
@@ -678,7 +687,9 @@ RUN
   Run-DISSCO.bat is also provided as a compatibility launcher.
 
 REQUIREMENTS
-  - 64-bit Windows 10 or Windows 11
+  - Intel/AMD x64 PC; Windows 11 is recommended
+  - Windows 10 version 1809 or later is a compatibility target, not certified
+  - Windows on Arm, 32-bit Windows, and Windows 7/8 are not covered
   - Extract the entire ZIP before running it
   - Keep every file and folder together
 
