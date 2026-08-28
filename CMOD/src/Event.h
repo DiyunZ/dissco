@@ -371,9 +371,9 @@ protected:
     virtual void outputProperties();
 
     /**
-    * Adds pointers to any notes in this Event (or any children) to a vector
+    * Collects the notes from this Event's descendants.
     *
-    * \param noteVect a reference to a vector of notes
+    * \return a list containing copies of the descendant notes
     **/
     virtual list<Note> getNotes();
 
@@ -406,7 +406,6 @@ protected:
     *  actually, a discrete value..
     *
     *   Follows aq slightly different procedure than Sweep and Discrete.  Why?
-    *  \param iter FileValues to pass in for new objects
     **/
     bool buildContinuum();
 
@@ -416,14 +415,12 @@ protected:
      *  For stime and duration two different methods are used, one for integer
      *  values the other for float values.  Type being a discrete value, the
      *  integer values method is used for it.
-     *  \param iter FileValues to pass in for new objects
      **/
     bool buildSweep();
 
     /**
     *   Wrapper for assigning values for stimeMatrix, type and durMatrix
     *   using a matrix.  Calls ObjCoordinates, Adjustments, and TimeConvert.
-    *   \param iter FileValues to pass in for new objects
     **/
     virtual bool buildDiscrete();
 
@@ -446,7 +443,7 @@ protected:
     /**
      * Checks if time is valid, if it is not, change it to closest
      *  valid value
-     *  \param: int endTime time to be verified
+     *  \param endTime end time in EDUs to check against the start-time sieve
      *  similar to a function in Note class
      **/
     int verify_valid(int endTime); 

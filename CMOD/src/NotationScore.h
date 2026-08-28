@@ -59,6 +59,9 @@ public:
    * Construct a notation score with the provided title.
    * 
    * @param score_title The title of this score
+   * @param grandStaff Whether to create a two-staff grand staff
+   * @param numberOfStaff Staff count when grandStaff is false; nonpositive
+   * values fall back to one staff
   **/
   // NotationScore(const string& score_title);
   // multistaffs
@@ -68,6 +71,8 @@ public:
    * Insert a Tempo into this score.
    * 
    * @param tempo The tempo to insert
+   * @param numberOfStaff Zero-based index of the staff receiving the tempo,
+   * clamped to the available staff range (not a staff count)
   **/
   // void RegisterTempo(Tempo& tempo);
   // multistaffs
@@ -90,7 +95,7 @@ public:
   /**
    * Output the text representation of a score.
    * 
-   * @param out_stream The stream to which the text will be appended
+   * @param output_stream The stream to which the text will be appended
    * @param notation_score The score whose text representation to output
    * @returns The modified stream
   **/

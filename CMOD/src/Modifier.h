@@ -67,6 +67,7 @@ class Modifier {
      *  \param modType the type of modifier
      *  \param prob probability envelope
      *  \param modApplyHow apply to SOUND or PARTIAL
+     *  \param modPartialNum partial index to modify when applying to PARTIAL
     **/
     Modifier(string modType, Envelope* prob, string modApplyHow, int modPartialNum=0);
 
@@ -95,19 +96,19 @@ class Modifier {
     
    /**
      *  Add detune spread to detune Modifier.
-     *  \param detune spread to add
+     *  \param spread_ detune spread to add
     **/
     void addSpread(double spread_);
   
    /**
      *  Add detune direction to detune Modifier.
-     *  \param detune direction to add
+     *  \param dir_ detune direction to add
     **/
     void addDirection(double dir_);
 
     /**
      *  Add detune velocity to detune Modifier.
-     *  \param detune velocity to add
+     *  \param vel detune velocity to add
     **/
     void addVelocity(double vel);
   
@@ -148,7 +149,6 @@ class Modifier {
    /**
      *  Apply the modifier to a sound
      *  \param snd pointer to the sound to add this modifier to
-     *  \param partNum the number of partials in the sound (only used if applyHow == "PARTIAL")
     **/
     void applyModifier(Sound* snd);
 

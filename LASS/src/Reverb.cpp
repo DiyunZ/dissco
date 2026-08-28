@@ -170,7 +170,7 @@ Reverb::Reverb(Envelope *percentReverb, float *combGainList, float *lpGainList,
 		    delay, samplingRate);
 }
 
-/**
+/*
  * constructor common - this code is used to unify code from the two
  *   constructors. Both do the same work, but based on varying degrees
  *   of user specification of parameters

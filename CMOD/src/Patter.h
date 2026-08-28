@@ -116,7 +116,8 @@ class Patter {
 
     /**
      *  Returns the next value from the pattern
-     *  \param method which way to compute the return value
+     *  \param method selection method; currently only IN_ORDER is supported
+     *  \param newOrigin origin to move the pattern to before reading its next value
      **/
     int GetNextValue(std::string method, int newOrigin = 0);
 

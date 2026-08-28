@@ -60,7 +60,11 @@ public:
 
 	/**
 	 * This is a constructor.
-	 * \param gain for the 3 tap low-pass feedback gain
+	 * \param type The filter type: LPF, HPF, BPF, NOTCH, PEQ, LSH, or HSH
+	 * \param dbGain The gain in decibels for peaking and shelving filters
+	 * \param freq The center or cutoff frequency in Hz
+	 * \param srate The sampling rate in samples per second
+	 * \param bandwidth The bandwidth in octaves
 	 **/
 	BiQuadFilter(int type, m_sample_type dbGain, /* gain of filter */
                           m_sample_type freq,             /* center frequency */

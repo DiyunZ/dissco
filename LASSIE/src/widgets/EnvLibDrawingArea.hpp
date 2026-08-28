@@ -37,8 +37,8 @@ public:
     void resetFields();
 
     /**
-     * @brief Trigger a redraw of the given envelope
-     * @param _envelope  envelope to display
+     * @brief Trigger a redraw of the envelope library's active envelope
+     * @param _envelope  unused; the active envelope is read when painting
      */
     void showGraph(EnvelopeLibraryEntry* _envelope);
 
@@ -63,7 +63,7 @@ public:
 protected:
     /**
      * @brief Paint the envelope graph
-     * @param event  paint event
+     * @param event  paint event (unused)
      */
     void paintEvent(QPaintEvent* event) override;
 

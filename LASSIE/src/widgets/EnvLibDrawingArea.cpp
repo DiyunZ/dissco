@@ -86,9 +86,9 @@ void EnvLibDrawingArea::resetFields()
     lowerY = 0.0;
 }
 
-/**
- * @brief Trigger a redraw of the given envelope
- * @param _envelope  envelope to display (unused parameter)
+/*
+ * Trigger a redraw of the envelope library's active envelope.
+ * The _envelope parameter is unused.
  */
 void EnvLibDrawingArea::showGraph(EnvelopeLibraryEntry* /*_envelope*/)
 {
@@ -169,9 +169,8 @@ void EnvLibDrawingArea::adjustBoundary(EnvelopeLibraryEntry* _envelope)
                   .arg(QString::number(lowerY, 'f', 3));
 }
 
-/**
- * @brief Paint the envelope graph
- * @param event  paint event (unused)
+/*
+ * Paint the envelope graph. The event parameter is unused.
  */
 void EnvLibDrawingArea::paintEvent(QPaintEvent* event)
 {

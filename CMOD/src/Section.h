@@ -46,7 +46,7 @@ public:
   **/
   Section(const Section& other);
 
-  /**
+  /*
    * Move a Section.
    * 
    * @param source The Section to move from
@@ -61,7 +61,7 @@ public:
   **/
   Section& operator=(const Section& other);
 
-  /**
+  /*
    * Move a Section using assignment operator.
    * 
    * @param source The Section to move from

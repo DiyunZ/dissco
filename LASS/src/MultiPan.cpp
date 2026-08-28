@@ -34,7 +34,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 
 //----------------------------------------------------------------------------//
 
-/** Simple constructor:
+/* Simple constructor:
  * 
  * If you use this constructor, you must call addEntry or
  * addEntryLocation one or more times to set the spatialization
@@ -60,7 +60,7 @@ MultiPan::MultiPan(int nChans)
 	useEnvDirectly = false;
 }
    
-/** Advanced constructor:
+/* Advanced constructor:
  *
  * If you use this constructor, you pass in a list of
  * env's (one per channel).  If you want to call
@@ -195,7 +195,7 @@ void MultiPan::print(){
 	cout<<"segCollectionsList size = "<< segCollectionsList.size()<<endl;
 }
 
-/** Add another spatialization point (using percents)
+/* Add another spatialization point (using percents)
  * 
  * Add another point to the dynamic variables (using
  * the parameters as ratios of speaker volumes).  Pass in the
@@ -228,7 +228,7 @@ void MultiPan::addEntry(double t, ...)
 	va_end(marker);
 }
    
-/** Add another spatialization point (using location)
+/* Add another spatialization point (using location)
  *
  * Add another point to the dynamic variables (using
  * the parameters as a location within a circular
@@ -242,7 +242,7 @@ void MultiPan::addEntry(double t, ...)
  *  sound will appear to originate from.  An angle of zero
  *  is directly in front of you.  Positive angles rotate to
  *  your left, with positive pi (3.14...) being directly
- *  behind you.  Negative angles rotate to your left and 
+ *  behind you.  Negative angles rotate to your right and
  *  negative pi (-3.14) is another name for the angle directly
  *  behind you.  For reference, pi/2 is straight left and
  *  -pi/2 is straight right.  To use pi, math.h defines
@@ -327,17 +327,15 @@ void MultiPan::addEntryLocation(float t, float theta, float radius)
 	//delete SpeakerList;
 }
 
-/** Spatialize a track
+/* Spatialize a track
  *
  * Will return a new MultiTrack object with numTracks.
  * the track will be panned accross the channels
  * by the passed in Dynamic Variable  
  *
  * @param t a track to spatialize
- * @param numTracks the number of tracks to spatialize to. (This
- *  is redundant, but is kept for similarity of interface with
- *  the regular pan object.  MultiPan already knows because you
- *  have to pass in nChans in the constructor)
+ * @param numTracks the number of output tracks; must match the
+ *  nChans value passed to the constructor
  * @return the track, spatialized to 'numTracks' number of tracks
  **/
 MultiTrack* MultiPan::spatialize_Track(Track& t, int numTracks)
