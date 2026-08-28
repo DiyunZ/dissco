@@ -41,7 +41,7 @@ files, in addition to the space requested by each installer.
 | --- | --- |
 | [Git for Windows](https://git-scm.com/downloads/win) | Use the normal installer and allow Git to be used from the command line. |
 | [Visual Studio Build Tools](https://visualstudio.microsoft.com/downloads/#build-tools-for-visual-studio) or Visual Studio Community | Select **Desktop development with C++**, including **MSVC x64/x86 build tools**, a **Windows SDK**, and **C++ CMake tools for Windows**. The full editor is optional. |
-| [Qt Online Installer](https://www.qt.io/development/download-open-source) | Choose the **MSVC 2022 64-bit** desktop component. The tested version is **Qt 6.11.1**. Do not choose MinGW or ARM64. |
+| [Qt Online Installer](https://www.qt.io/development/download-open-source) | Choose the **MSVC 2022 64-bit** desktop component. **Qt 6.8.1 or newer is required**; 6.8.0 has a Windows font-matching bug. The tested version is **Qt 6.11.1**. Do not choose MinGW or ARM64. |
 | [LilyPond for Windows](https://lilypond.org/download.html) | Extract the **entire** Windows x86_64 ZIP. The tested version is **2.26.0**. Keep its `bin`, `lib`, and `share` folders together. |
 
 The Visual Studio CMake component supplies CMake and Ninja. This project needs
