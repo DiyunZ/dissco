@@ -35,6 +35,39 @@
 
 namespace LayerRefs {
 
+// Clipboard packages outlive their source view. Do not reintroduce a reference
+// whose event was renamed or deleted after Copy.
+inline bool referenceExists(const Package& package) {
+    auto* pm = Inst::get_project_manager();
+    if (!pm->get_curr_project()) return false;
+    bool validType = false;
+    const int type = package.event_type.toInt(&validType);
+    if (!validType) return false;
+    const auto containsName = [&](const auto& list) {
+        return std::any_of(list.cbegin(), list.cend(), [&](const auto& event) {
+            return event.name == package.event_name;
+        });
+    };
+    switch (type) {
+        case top:     return pm->topevent().name == package.event_name;
+        case high:    return containsName(pm->highevents());
+        case mid:     return containsName(pm->midevents());
+        case low:     return containsName(pm->lowevents());
+        case bottom:
+            return std::any_of(pm->bottomevents().cbegin(), pm->bottomevents().cend(),
+                [&](const BottomEvent& event) { return event.event.name == package.event_name; });
+        case sound:   return containsName(pm->spectrumevents());
+        case note:    return containsName(pm->noteevents());
+        case env:     return containsName(pm->envelopeevents());
+        case sieve:   return containsName(pm->sieveevents());
+        case spa:     return containsName(pm->spaevents());
+        case pattern: return containsName(pm->patternevents());
+        case reverb:  return containsName(pm->reverbevents());
+        case filter:  return containsName(pm->filterevents());
+        default:      return false;
+    }
+}
+
 /**
  * @brief Identifies one specific layer inside one specific HEvent.
  *

@@ -19,6 +19,7 @@
 #endif
 #include "widgets/ComboBoxWheelGuard.hpp"
 #include "widgets/TextOverflowDisplayPolicy.hpp"
+#include "widgets/WindowShortcutPolicy.hpp"
 #include "windows/MainWindow.hpp"
 
 void registerAllFunctions();
@@ -41,6 +42,7 @@ int main(int argc, char *argv[])
 #endif
     ComboBoxWheelGuard comboBoxWheelGuard(a);
     TextOverflowDisplayPolicy textOverflowDisplayPolicy(a);
+    WindowShortcutPolicy windowShortcutPolicy(a);
 
 #ifdef DISSCO_ENABLE_UI_LAYOUT_TESTS
 #ifdef Q_OS_WIN

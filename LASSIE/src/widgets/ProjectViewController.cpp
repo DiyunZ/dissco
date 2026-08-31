@@ -14,6 +14,8 @@
 #include <QDebug>
 #include <QTextStream>
 #include <QUuid>
+#include <optional>
+#include <variant>
 
 #include <QDialog>
 #include <QVBoxLayout>
@@ -33,6 +35,7 @@
 #include "../core/LayerReferenceUtils.hpp"
 #include "../core/EnvelopeLibraryEntry.hpp"
 #include "../core/ProjectXmlWriter.hpp"
+#include "../core/ProjectClipboard.hpp"
 #include "../dialogs/ProjectPropertiesDialog.hpp"
 #include "../ui/ui_ProjectPropertiesDialog.h"
 #include "../dialogs/FunctionGenerator.hpp"
@@ -49,7 +52,42 @@
 
 using enum FunctionReturnType;
 
+struct PaletteEventCopy {
+    Eventtype type;
+    std::variant<HEvent, BottomEvent, SpectrumEvent, NoteEvent, EnvelopeEvent,
+        SieveEvent, SpaEvent, PatternEvent, ReverbEvent, FilterEvent> value;
+};
+
 namespace PVCHelper {
+    template<typename Visitor>
+    void visitEventList(ProjectManager* pm, Eventtype type, Visitor visit) {
+        switch (type) {
+            case high:    visit(pm->highevents()); break;
+            case mid:     visit(pm->midevents()); break;
+            case low:     visit(pm->lowevents()); break;
+            case bottom:  visit(pm->bottomevents()); break;
+            case sound:   visit(pm->spectrumevents()); break;
+            case note:    visit(pm->noteevents()); break;
+            case env:     visit(pm->envelopeevents()); break;
+            case sieve:   visit(pm->sieveevents()); break;
+            case spa:     visit(pm->spaevents()); break;
+            case pattern: visit(pm->patternevents()); break;
+            case reverb:  visit(pm->reverbevents()); break;
+            case filter:  visit(pm->filterevents()); break;
+            default: break; // Top is a singleton, not a duplicable object.
+        }
+    }
+
+    std::optional<PaletteEventCopy> copyEvent(ProjectManager* pm,
+                                              Eventtype type, int index) {
+        std::optional<PaletteEventCopy> result;
+        visitEventList(pm, type, [&](const auto& list) {
+            if (index >= 0 && index < list.size())
+                result = PaletteEventCopy{type, list[index]};
+        });
+        return result;
+    }
+
     QList<QStandardItem*> make_child_palette_tuple(const QString& type, const QString& name) {
         auto* typeItem = new QStandardItem(type);
         auto* nameItem = new QStandardItem(name);
@@ -1216,6 +1254,7 @@ void ProjectView::deleteEvent(const QString& typeStr, int index)
     else if (etype == pattern) pm->patternevents().removeAt(index);
     else if (etype == reverb)  pm->reverbevents().removeAt(index);
     else if (etype == filter)  pm->filterevents().removeAt(index);
+    pm->markModified();
 
     // Remove from the palette model. Use the quiet variant because the
     // backend removeAt above has already synced state — letting the
@@ -1228,182 +1267,118 @@ void ProjectView::deleteEvent(const QString& typeStr, int index)
 
 void ProjectView::duplicateEvent(const QString& typeStr, int index)
 {
-    ProjectManager* pm = Inst::get_project_manager();
+    auto* pm = Inst::get_project_manager();
+    if (!pm->get_curr_project() || typeStr == "Top") return;
+    if (!eventAttributesView->saveCurrentShownEventData()) return;
+    const auto copy = PVCHelper::copyEvent(pm, eventtypeFromString(typeStr), index);
+    if (copy) insertEventCopy(*copy);
+}
 
+void ProjectView::copyEvent(const QString& typeStr, int index)
+{
+    auto* pm = Inst::get_project_manager();
+    if (!pm->get_curr_project() || typeStr == "Top") return;
+    // Capture the selected source index before this flush can re-sort its name.
+    if (!eventAttributesView->saveCurrentShownEventData()) return;
+    const auto copy = PVCHelper::copyEvent(pm, eventtypeFromString(typeStr), index);
+    if (copy)
+        ProjectClipboard::copy(pm->get_curr_project(), *copy, tr("%1 object").arg(typeStr));
+}
+
+bool ProjectView::canPasteEvent() const
+{
+    return ProjectClipboard::get<PaletteEventCopy>(
+        Inst::get_project_manager()->get_curr_project()) != nullptr;
+}
+
+void ProjectView::pasteEvent()
+{
+    const auto* copy = ProjectClipboard::get<PaletteEventCopy>(
+        Inst::get_project_manager()->get_curr_project());
+    if (!copy) return;
+    // The naming dialog can process clipboard changes; do not retain its pointer.
+    const PaletteEventCopy snapshot = *copy;
+    if (!eventAttributesView->saveCurrentShownEventData()) return;
+    insertEventCopy(snapshot);
+}
+
+void ProjectView::insertEventCopy(const PaletteEventCopy& snapshot)
+{
+    auto* pm = Inst::get_project_manager();
+    const QString typeStr = eventtypeToDisplayString(snapshot.type);
     QStandardItem* folder = paletteView->folderForType(typeStr);
-    if (!folder) return;
+    if (!folder || !pm->get_curr_project()) return;
 
-    Eventtype etype = eventtypeFromString(typeStr);
-
-    /*QString newName;
-    if      (etype == high)    newName = dup(pm->highevents());
-    else if (etype == mid)     newName = dup(pm->midevents());
-    else if (etype == low)     newName = dup(pm->lowevents());
-    else if (etype == bottom) {
-        BottomEvent copy = pm->bottomevents()[index];
-        copy.event.name += " (copy)";
-        newName = copy.event.name;
-        pm->bottomevents().append(copy);
-    }
-    else if (etype == sound)   newName = dup(pm->spectrumevents());
-    else if (etype == note)    newName = dup(pm->noteevents());
-    else if (etype == env)     newName = dup(pm->envelopeevents());
-    else if (etype == sieve)   newName = dup(pm->sieveevents());
-    else if (etype == spa)     newName = dup(pm->spaevents());
-    else if (etype == pattern) newName = dup(pm->patternevents());
-    else if (etype == reverb)  newName = dup(pm->reverbevents());
-    else if (etype == filter)  newName = dup(pm->filterevents());
-    else return; */
-
-    // Get original name
-    QString oldName;
-    switch (etype) {
-        case high: 
-           oldName = pm->highevents()[index].name;
-           break;
-        case mid: 
-            oldName = pm->midevents()[index].name;
-            break;
-        case low: 
-            oldName = pm->lowevents()[index].name;
-            break;
-        case bottom: 
-            oldName = pm->bottomevents()[index].event.name;
-            break;
-        case sound: 
-            oldName = pm->spectrumevents()[index].name;
-            break;
-        case note: 
-            oldName = pm->noteevents()[index].name;
-            break;
-        case env: 
-            oldName = pm->envelopeevents()[index].name;
-            break;
-        case sieve: 
-            oldName = pm->sieveevents()[index].name;
-            break;
-        case spa:
-            oldName = pm->spaevents()[index].name;
-            break;
-        case pattern: 
-            oldName = pm->patternevents()[index].name;
-            break;
-        case reverb: 
-            oldName = pm->reverbevents()[index].name;
-            break;
-        case filter: 
-            oldName = pm->filterevents()[index].name;
-            break;
-        default: 
-            return;
+    const QList<Layer>* layers = nullptr;
+    if (const auto* event = std::get_if<HEvent>(&snapshot.value))
+        layers = &event->event_layers;
+    else if (const auto* event = std::get_if<BottomEvent>(&snapshot.value))
+        layers = &event->event.event_layers;
+    if (layers) {
+        for (const Layer& layer : *layers) {
+            for (const Package& package : layer.discrete_packages) {
+                if (!LayerRefs::referenceExists(package)) {
+                    QMessageBox::warning(mainWindow, tr("Copy Object"),
+                        tr("The referenced %1/%2 no longer exists. Copy the updated object again.")
+                            .arg(eventtypeToDisplayString(package.event_type.toInt()), package.event_name));
+                    return;
+                }
+            }
+        }
     }
 
+    const QString oldName = std::visit([](const auto& event) {
+        if constexpr (std::is_same_v<std::decay_t<decltype(event)>, BottomEvent>)
+            return event.event.name;
+        else
+            return event.name;
+    }, snapshot.value);
 
-    // Ask user for new name
+    auto nameExists = [&](const QString& name) {
+        for (int i = 0; i < folder->rowCount(); ++i) {
+            const auto* item = folder->child(i, 1);
+            if (item && item->text() == name) return true;
+        }
+        return false;
+    };
+    QString suggestedName = oldName + "_copy";
+    for (int suffix = 2; nameExists(suggestedName); ++suffix)
+        suggestedName = oldName + "_copy" + QString::number(suffix);
+
     bool ok = false;
     QString newName = QInputDialog::getText(
-        nullptr,
-        "lassie",
-        QString("You are about to duplicate this object:\n\n"
-                "%1/%2\n\n"
-                "Please name the newly created copy object")
-            .arg(typeStr, oldName),
-        QLineEdit::Normal,
-        oldName + "_copy",
-        &ok
-    );
-
-    if (!ok || newName.trimmed().isEmpty()) {
+        mainWindow, tr("Copy Object"),
+        tr("Name the new copy of %1/%2:").arg(typeStr, oldName),
+        QLineEdit::Normal, suggestedName, &ok).trimmed();
+    if (!ok || newName.isEmpty()) return;
+    if (nameExists(newName)) {
+        QMessageBox::warning(mainWindow, tr("Copy Object"),
+                             tr("Object with the same name exists."));
+        return;
+    }
+    if (snapshot.type == bottom && !newName.startsWith('s') && !newName.startsWith('n')) {
+        QMessageBox::warning(mainWindow, tr("Copy Object"),
+                             tr("Bottom Event names must start with 's' or 'n'."));
         return;
     }
 
-    newName = newName.trimmed();
-
-    auto nameExists = [&](const QString& name) -> bool {
-    for (int i = 0; i < folder->rowCount(); ++i) {
-        QStandardItem* nameItem = folder->child(i, 1);
-        if (nameItem && nameItem->text() == name) {
-            return true;
-        }
-    }
-    return false;
-};
-
-if (nameExists(newName)) {
-    QMessageBox::warning(
-        nullptr,
-        "lassie",
-        "Object with the same name exists."
-    );
-    return;
-}
-
-    // Copies element at index, appends " (copy)" to .name, appends to list, returns new name
-    /*auto dup = [index](auto& list) -> QString {
-        auto copy = list[index];
-        copy.name += " (copy)";
-        list.append(copy);
-        return copy.name;
-    };*/
-
-    // Duplicate object with user-given name
-    auto dup = [index, &newName](auto& list) {
-        auto copy = list[index];
-        copy.name = newName;
-        list.append(copy);
-    };
-
-    switch (etype) {
-        case high:
-            dup(pm->highevents());
-            PVCHelper::renewModifierIds(
-                pm->highevents().last().modifiers);
-            break;
-        case mid: 
-            dup(pm->midevents());
-            PVCHelper::renewModifierIds(
-                pm->midevents().last().modifiers);
-            break;
-        case low: 
-            dup(pm->lowevents());
-            PVCHelper::renewModifierIds(
-                pm->lowevents().last().modifiers);
-            break;
-        case bottom: {
-            BottomEvent copy = pm->bottomevents()[index];
+    PVCHelper::visitEventList(pm, snapshot.type, [&](auto& list) {
+        using Event = typename std::decay_t<decltype(list)>::value_type;
+        Event copy = std::get<Event>(snapshot.value);
+        if constexpr (std::is_same_v<Event, BottomEvent>) {
             copy.event.name = newName;
+            PVCHelper::renewModifierIds(copy.event.modifiers);
             PVCHelper::renewModifierIds(copy.extra_info.modifiers);
-            pm->bottomevents().append(copy);
-            break;
-        } case sound:
-            dup(pm->spectrumevents());
-            break; 
-        case note:
-            dup(pm->noteevents());
-            break; 
-        case env: 
-            dup(pm->envelopeevents());
-            break;
-        case sieve:
-            dup(pm->sieveevents());
-            break; 
-        case spa: 
-            dup(pm->spaevents());
-            break;
-        case pattern:
-            dup(pm->patternevents());
-            break; 
-        case reverb:
-            dup(pm->reverbevents());
-            break; 
-        case filter:
-            dup(pm->filterevents());
-            break;
-        default: 
-            return;
-    }
-
+        } else {
+            copy.name = newName;
+            if constexpr (std::is_same_v<Event, HEvent>)
+                PVCHelper::renewModifierIds(copy.modifiers);
+        }
+        list.append(copy);
+    });
+    // The palette's insertion callback expects the backend to be updated first.
     folder->appendRow(PVCHelper::make_child_palette_tuple(typeStr, newName));
+    pm->markModified();
 }
 
 void ProjectView::updatePaletteItemName(const QString& typeStr, int index, const QString& name)

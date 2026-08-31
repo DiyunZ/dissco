@@ -27,7 +27,12 @@ Partials::Partials(unsigned eventIndex, int partialIndex, QWidget* parent)
     connect(m_row, &FunctionEntryRow::deleteRequested, this,
             [this](FunctionEntryRow*){ emit deleteRequested(this); });
     connect(m_row, &FunctionEntryRow::textChanged, this,
-            [this](FunctionEntryRow*){ getBackendLayer().partials[m_partialIndex] = m_row->getText(); });
+            [this](FunctionEntryRow*){
+                QString& partial = getBackendLayer().partials[m_partialIndex];
+                if (partial == m_row->getText()) return;
+                partial = m_row->getText();
+                Inst::get_project_manager()->markModified();
+            });
 
     m_mainLayout->addWidget(m_row);
     setSizePolicy(QSizePolicy::Preferred, QSizePolicy::Fixed);

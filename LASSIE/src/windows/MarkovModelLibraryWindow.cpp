@@ -41,10 +41,15 @@
 #include <limits>
 
 #include "MarkovModel.h"
+#include "../core/ProjectClipboard.hpp"
 #include "../utilities.hpp"
 #include "../widgets/ProjectViewController.hpp"
 
 namespace {
+
+struct MarkovModelClipboard {
+    QString serialized;
+};
 
 // Item delegate restricting input to nonnegative real numbers (ints/doubles).
 class NonNegativeRealDelegate : public QStyledItemDelegate {
@@ -371,6 +376,10 @@ MarkovModelLibraryWindow::MarkovModelLibraryWindow(QWidget* parent)
                                                  this, &MarkovModelLibraryWindow::createNewModel);
     m_duplicateAction = m_contextMenu->addAction(tr("Duplicate Model"),
                                                  this, &MarkovModelLibraryWindow::duplicateModel);
+    m_copyAction = m_contextMenu->addAction(tr("Copy Model"),
+                                             this, &MarkovModelLibraryWindow::copyModel);
+    m_pasteAction = m_contextMenu->addAction(tr("Paste Model"),
+                                              this, &MarkovModelLibraryWindow::pasteModel);
     m_deleteAction    = m_contextMenu->addAction(tr("Delete Model"),
                                                  this, &MarkovModelLibraryWindow::removeModel);
     updateContextMenuEnablement();
@@ -394,6 +403,20 @@ MarkovModelLibraryWindow::MarkovModelLibraryWindow(QWidget* parent)
             this, &MarkovModelLibraryWindow::onItemChanged);
     connect(m_matrixModel, &QStandardItemModel::itemChanged,
             this, &MarkovModelLibraryWindow::onItemChanged);
+    connect(QApplication::clipboard(), &QClipboard::dataChanged,
+            this, &MarkovModelLibraryWindow::updateContextMenuEnablement);
+
+    auto* copyModelShortcut = new QShortcut(m_treeView);
+    copyModelShortcut->setKeys(QKeySequence::keyBindings(QKeySequence::Copy));
+    copyModelShortcut->setContext(Qt::WidgetShortcut);
+    connect(copyModelShortcut, &QShortcut::activated,
+            this, &MarkovModelLibraryWindow::copyModel);
+
+    auto* pasteModelShortcut = new QShortcut(m_treeView);
+    pasteModelShortcut->setKeys(QKeySequence::keyBindings(QKeySequence::Paste));
+    pasteModelShortcut->setContext(Qt::WidgetShortcut);
+    connect(pasteModelShortcut, &QShortcut::activated,
+            this, &MarkovModelLibraryWindow::pasteModel);
 
     installCopyPasteShortcuts(m_distView);
     installCopyPasteShortcuts(m_valueView);
@@ -413,10 +436,6 @@ MarkovModelLibraryWindow::MarkovModelLibraryWindow(QWidget* parent)
     winRedo->setContext(Qt::WindowShortcut);
     connect(winRedo, &QShortcut::activated,
             this, &MarkovModelLibraryWindow::attemptRedo);
-
-    auto* winClose = new QShortcut(QKeySequence::Close, this);
-    winClose->setContext(Qt::WindowShortcut);
-    connect(winClose, &QShortcut::activated, this, &MarkovModelLibraryWindow::close);
 }
 
 MarkovModelLibraryWindow::~MarkovModelLibraryWindow() = default;
@@ -665,6 +684,33 @@ void MarkovModelLibraryWindow::duplicateModel() {
         serialized));
 }
 
+void MarkovModelLibraryWindow::copyModel() {
+    if (!activeProject || currentSelection < 0) return;
+    ProjectManager* pm = Inst::get_project_manager();
+    if (!pm->get_curr_project()) return;
+
+    ProjectClipboard::copy(pm->get_curr_project(),
+        MarkovModelClipboard{serializeEditor()},
+        tr("Markov model %1").arg(currentSelection));
+}
+
+void MarkovModelLibraryWindow::pasteModel() {
+    if (!activeProject) return;
+    ProjectManager* pm = Inst::get_project_manager();
+    const auto* copied =
+        ProjectClipboard::get<MarkovModelClipboard>(pm->get_curr_project());
+    if (!copied) return;
+    const QString serialized = copied->serialized;
+
+    if (currentSelection >= 0) saveEditorIntoModel(currentSelection);
+
+    const int newIdx = pm->markovmodels().size();
+    m_undoStack->push(new CreateModelCommand(
+        this, newIdx,
+        tr("Create Markov model %1 from clipboard").arg(newIdx),
+        serialized));
+}
+
 void MarkovModelLibraryWindow::removeModel() {
     if (!activeProject || currentSelection < 0) return;
     ProjectManager* pm = Inst::get_project_manager();
@@ -684,6 +730,10 @@ void MarkovModelLibraryWindow::removeModel() {
 void MarkovModelLibraryWindow::updateContextMenuEnablement() {
     const bool hasSelection = currentSelection >= 0;
     if (m_duplicateAction) m_duplicateAction->setEnabled(hasSelection);
+    if (m_copyAction) m_copyAction->setEnabled(hasSelection);
+    if (m_pasteAction) m_pasteAction->setEnabled(activeProject
+        && ProjectClipboard::get<MarkovModelClipboard>(
+            Inst::get_project_manager()->get_curr_project()));
     if (m_deleteAction)    m_deleteAction->setEnabled(hasSelection);
     if (m_removeButton)    m_removeButton->setEnabled(hasSelection);
 }

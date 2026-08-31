@@ -1,4 +1,5 @@
 #include "FunctionGenerator.hpp"
+#include "FunctionXmlFormat.hpp"
 #include "../ui/ui_FunctionGenerator.h"
 
 #include "functions/FunctionRegistry.hpp"
@@ -6,6 +7,8 @@
 
 #include <QComboBox>
 #include <QDialogButtonBox>
+#include <QFontDatabase>
+#include <QFontInfo>
 #include <QStackedWidget>
 #include <QTextEdit>
 #include <QVariant>
@@ -41,7 +44,7 @@ FunctionGenerator::~FunctionGenerator()
 
 QString FunctionGenerator::getResultString()
 {
-    m_result = ui->resultTextEdit->toPlainText();
+    m_result = FunctionXmlFormat::compact(ui->resultTextEdit->toPlainText());
     return m_result;
 }
 
@@ -59,8 +62,20 @@ void FunctionGenerator::setupUi()
     ui->functionOptions->setCurrentIndex(0);
 
     ui->resultLabel->setAlignment(Qt::AlignCenter);
-    ui->resultTextEdit->setMinimumHeight(60);
-    ui->resultTextEdit->setMaximumHeight(100);
+    QFont resultFont = QFontDatabase::systemFont(QFontDatabase::FixedFont);
+    if (!QFontInfo(resultFont).fixedPitch()) {
+        for (const QString& family : QFontDatabase::families()) {
+            if (QFontDatabase::isFixedPitch(family)) {
+                resultFont.setFamily(family);
+                break;
+            }
+        }
+    }
+    resultFont.setStyleHint(QFont::Monospace);
+    ui->resultTextEdit->setFont(resultFont);
+    ui->resultTextEdit->setAcceptRichText(false);
+    ui->resultTextEdit->setMinimumHeight(ui->resultTextEdit->fontMetrics().lineSpacing() * 8);
+    ui->resultTextEdit->setMaximumHeight(ui->resultTextEdit->fontMetrics().lineSpacing() * 12);
     connect(ui->buttonBox, &QDialogButtonBox::accepted, this, &QDialog::accept);
     connect(ui->buttonBox, &QDialogButtonBox::rejected, this, &QDialog::reject);
 
@@ -70,14 +85,14 @@ void FunctionGenerator::setupUi()
     // The matching FunctionWidget consumes the remaining children.
     QXmlStreamReader r(m_originalString);
     if (!r.readNextStartElement() || !r.readNextStartElement()) { // <Fun>, <Name>
-        ui->resultTextEdit->setText(m_originalString);
+        ui->resultTextEdit->setPlainText(FunctionXmlFormat::preview(m_originalString));
         return;
     }
     const QString functionName = FunctionWidget::readInner(r);
 
     const CMODFunction id = reg.idFromXmlName(functionName);
     if (id == NOT_A_FUNCTION) {
-        ui->resultTextEdit->setText(m_originalString);
+        ui->resultTextEdit->setPlainText(FunctionXmlFormat::preview(m_originalString));
         return;
     }
     FunctionWidget* w = ensureRegisteredWidget(id);
@@ -93,6 +108,9 @@ void FunctionGenerator::setupUi()
         }
     }
     w->populateFromXML(r);
+    // Populating the controls may emit xmlChanged, but opening the dialog
+    // must not replace manual XML edits or fields unknown to the form.
+    ui->resultTextEdit->setPlainText(FunctionXmlFormat::preview(m_originalString));
 }
 
 FunctionWidget* FunctionGenerator::ensureRegisteredWidget(CMODFunction id)
@@ -105,7 +123,7 @@ FunctionWidget* FunctionGenerator::ensureRegisteredWidget(CMODFunction id)
     m_registeredWidgets.insert(id, w);
     m_registeredPageIndex.insert(id, pageIndex);
     connect(w, &FunctionWidget::xmlChanged, this, [this, w]() {
-        ui->resultTextEdit->setText(w->buildXMLString());
+        ui->resultTextEdit->setPlainText(FunctionXmlFormat::preview(w->buildXMLString()));
     });
     return w;
 }
@@ -125,7 +143,7 @@ void FunctionGenerator::handleFunctionChanged(int index)
 
     if (FunctionWidget* w = ensureRegisteredWidget(id)) {
         ui->functionStackedWidget->setCurrentIndex(m_registeredPageIndex.value(id));
-        ui->resultTextEdit->setText(w->buildXMLString());
+        ui->resultTextEdit->setPlainText(FunctionXmlFormat::preview(w->buildXMLString()));
         resizeToFitCurrentPage();
     }
 }

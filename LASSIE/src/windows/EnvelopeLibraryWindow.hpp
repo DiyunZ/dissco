@@ -116,6 +116,9 @@ protected:
     void keyPressEvent(QKeyEvent* event) override;
 
 private:
+    void copyEnvelope();
+    void pasteEnvelope();
+
     QTreeView*              envelopeLibrary;  ///< lists envelopes
     QStandardItemModel*     refModel;         ///< model backing the tree
     EnvLibDrawingArea*      drawingArea;      ///< custom canvas widget

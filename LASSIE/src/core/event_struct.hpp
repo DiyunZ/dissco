@@ -58,6 +58,7 @@ typedef struct TimeSignature TimeSignature;
 struct TimeSignature {
     QString bar_value = "4";
     QString note_value = "4";
+    bool operator==(const TimeSignature&) const = default;
 };
 
 typedef struct Tempo Tempo;
@@ -68,6 +69,7 @@ struct Tempo {
     QString frentry_1; /* as fraction */
     QString frentry_2; /* as fraction */
     QString valentry = "60"; /* as note */
+    bool operator==(const Tempo&) const = default;
 };
 
 /*
@@ -84,6 +86,7 @@ struct NumChildren {
     QString entry_1;
     QString entry_2;
     QString entry_3;
+    bool operator==(const NumChildren&) const = default;
 };
 
 /*
@@ -110,6 +113,7 @@ struct ChildDef {
     unsigned definition_flag = 0; /* from Childdefnflag */
     unsigned starttype_flag = 2; /* from Childdeftimeflag */
     unsigned durationtype_flag = 2; /* from Childdeftimeflag */
+    bool operator==(const ChildDef&) const = default;
 };
 
 /// Convert an Eventtype enum value to a human-readable display string.
@@ -161,6 +165,7 @@ struct Package {
     QString attackenvelope_scale;
     QString duration_envelope;
     QString durationenvelope_scale;
+    bool operator==(const Package&) const = default;
 };
 
 /* oddly, there's a ByLayer tag, which to me, appears to never contain anything
@@ -169,6 +174,7 @@ typedef struct Layer Layer;
 struct Layer {
     QString by_layer;
     QList<Package> discrete_packages;
+    bool operator==(const Layer&) const = default;
 };
 
 /*
@@ -190,6 +196,7 @@ struct FreqInfo {
     unsigned continuum_flag = 0; /* from Freqinfocontflag */
     QString entry_1;
     QString entry_2;
+    bool operator==(const FreqInfo&) const = default;
 };
 
 enum class ModifierSamplingScope {
@@ -218,11 +225,13 @@ inline bool hasCompleteMetadata(const QString& stableId,
 struct ModifierCondition {
     QString modifier_id;
     bool required_on = true;
+    bool operator==(const ModifierCondition&) const = default;
 };
 
 struct ModifierChanceRule {
     QList<ModifierCondition> conditions;
     QString on_chance;
+    bool operator==(const ModifierChanceRule&) const = default;
 };
 
 typedef struct Modifier Modifier;
@@ -247,6 +256,7 @@ struct Modifier {
     QString detune_direction;
     QString detune_velocity;
     QString partialresult_string;
+    bool operator==(const Modifier&) const = default;
 };
 
 typedef struct ExtraInfo ExtraInfo;
@@ -264,6 +274,7 @@ struct ExtraInfo {
     // Transient import warning. It is true only while an older file without a
     // <ModifierUsage> marker is open and is deliberately never serialized.
     bool modifier_usage_needs_review = false;
+    bool operator==(const ExtraInfo&) const = default;
 };
 
 /* HEvents are Top, High, Mid, or Low events */
@@ -283,17 +294,20 @@ struct HEvent {
     QString reverb;
     QString filter;
     QList<Modifier> modifiers;
+    bool operator==(const HEvent&) const = default;
 };
 
 typedef struct BottomEvent BottomEvent;
 struct BottomEvent {
     HEvent event;
     ExtraInfo extra_info;
+    bool operator==(const BottomEvent&) const = default;
 };
 
 typedef struct Spectrum Spectrum;
 struct Spectrum {
     QList<QString> partials = {""};
+    bool operator==(const Spectrum&) const = default;
 };
 
 typedef struct SpectrumEvent SpectrumEvent;
@@ -305,12 +319,14 @@ struct SpectrumEvent {
     QString deviation;
     QString generate_spectrum;
     Spectrum spectrum;
+    bool operator==(const SpectrumEvent&) const = default;
 };
 
 typedef struct NoteInfo NoteInfo;
 struct NoteInfo {
     QString staffs;
     QList<QString> modifiers; /* not to be confused with struct Modifier! */
+    bool operator==(const NoteInfo&) const = default;
 };
 
 typedef struct NoteEvent NoteEvent;
@@ -318,6 +334,7 @@ struct NoteEvent {
     QString orderinpalette;
     QString name;
     NoteInfo note_info;
+    bool operator==(const NoteEvent&) const = default;
 };
 
 typedef struct EnvelopeEvent EnvelopeEvent;
@@ -326,6 +343,7 @@ struct EnvelopeEvent {
     QString orderinpalette;
     QString name;
     QString envelope_builder;
+    bool operator==(const EnvelopeEvent&) const = default;
 };
 
 typedef struct SieveEvent SieveEvent;
@@ -333,6 +351,7 @@ struct SieveEvent {
     QString orderinpalette;
     QString name;
     QString sieve_builder;
+    bool operator==(const SieveEvent&) const = default;
 };
 
 typedef struct SpaEvent SpaEvent;
@@ -340,6 +359,7 @@ struct SpaEvent {
     QString orderinpalette;
     QString name;
     QString spatialization;
+    bool operator==(const SpaEvent&) const = default;
 };
 
 typedef struct PatternEvent PatternEvent;
@@ -347,6 +367,7 @@ struct PatternEvent {
     QString orderinpalette;
     QString name;
     QString pattern_builder;
+    bool operator==(const PatternEvent&) const = default;
 };
 
 typedef struct ReverbEvent ReverbEvent;
@@ -354,6 +375,7 @@ struct ReverbEvent {
     QString orderinpalette;
     QString name;
     QString reverberation;
+    bool operator==(const ReverbEvent&) const = default;
 };
 
 typedef struct FilterEvent FilterEvent;
@@ -361,6 +383,7 @@ struct FilterEvent {
     QString orderinpalette;
     QString name;
     QString filter_builder;
+    bool operator==(const FilterEvent&) const = default;
 };
 
 #endif
