@@ -287,11 +287,11 @@ void EventAttributesViewController::onEventDeleted(Eventtype type, int deletedIn
     }
 }
 
-void EventAttributesViewController::saveCurrentShownEventData() {
-    if(m_curreventindex == -1) return;
+bool EventAttributesViewController::saveCurrentShownEventData() {
+    if(m_curreventindex == -1) return true;
     //qDebug() << "saveCurrentShownEventData called on type" << (int)m_curreventtype << "of index" << m_curreventindex;
     
-    if (!m_hasCurrentEvent) return;
+    if (!m_hasCurrentEvent) return true;
 
     qDebug() << "saveCurrentShownEventData called";
 
@@ -352,16 +352,40 @@ void EventAttributesViewController::saveCurrentShownEventData() {
             QMessageBox::warning(this, "Duplicate Name",
                 QString("An event named \"%1\" already exists for this type. Please choose a different name.")
                     .arg(newName));
-            return;
+            return false;
         }
 
 	if (type == bottom && !newName.isEmpty() &&
             newName[0] != QLatin1Char('s') && newName[0] != QLatin1Char('n')) {
             QMessageBox::warning(this, "Invalid Name",
                 "Bottom Event names must start with 's' or 'n'.");
-            return;
+            return false;
         }
     }
+
+    // Compare values, not focus/dirty flags: Copy must flush real pending edits
+    // without making an unchanged displayed object dirty.
+    const auto captureChangeCheck = [](auto& event) {
+        return [before = event, &event]() { return event != before; };
+    };
+    const std::function<bool()> eventChanged = [&]() -> std::function<bool()> {
+        switch (type) {
+            case top:     return captureChangeCheck(pm->topevent());
+            case high:    return captureChangeCheck(pm->highevents()[m_curreventindex]);
+            case mid:     return captureChangeCheck(pm->midevents()[m_curreventindex]);
+            case low:     return captureChangeCheck(pm->lowevents()[m_curreventindex]);
+            case bottom:  return captureChangeCheck(pm->bottomevents()[m_curreventindex]);
+            case sound:   return captureChangeCheck(pm->spectrumevents()[m_curreventindex]);
+            case env:     return captureChangeCheck(pm->envelopeevents()[m_curreventindex]);
+            case sieve:   return captureChangeCheck(pm->sieveevents()[m_curreventindex]);
+            case spa:     return captureChangeCheck(pm->spaevents()[m_curreventindex]);
+            case pattern: return captureChangeCheck(pm->patternevents()[m_curreventindex]);
+            case reverb:  return captureChangeCheck(pm->reverbevents()[m_curreventindex]);
+            case note:    return captureChangeCheck(pm->noteevents()[m_curreventindex]);
+            case filter:  return captureChangeCheck(pm->filterevents()[m_curreventindex]);
+            default:      return []() { return false; };
+        }
+    }();
 
     if (type == bottom) {
         BottomEvent& bottom_event = pm->bottomevents()[m_curreventindex];
@@ -561,7 +585,9 @@ void EventAttributesViewController::saveCurrentShownEventData() {
     if (!typeStr.isEmpty())
         e_projectView->updatePaletteItemName(typeStr, m_curreventindex, savedName);
 
-    MUtilities::modified();
+    if (eventChanged())
+        MUtilities::modified();
+    return true;
 }
 
 void EventAttributesViewController::showCurrentEventData() {
@@ -1195,6 +1221,7 @@ void EventAttributesViewController::addLayerBoxUI(int layerIndex) {
         int idx = m_layerBoxes.indexOf(b);
         if (idx >= 0 && idx < he->event_layers.size()) {
             he->event_layers.removeAt(idx);
+            pm2->markModified();
         }
         m_layerBoxes.removeOne(b);
         ui->layersLayout->removeWidget(b);
@@ -1223,6 +1250,7 @@ void EventAttributesViewController::addNewLayerButtonClicked() {
     else                                hevent = &pm->bottomevents()[m_curreventindex].event;
 
     hevent->event_layers.append(Layer());
+    pm->markModified();
     addLayerBoxUI(hevent->event_layers.size() - 1);
 }
 
@@ -1236,6 +1264,7 @@ void EventAttributesViewController::addPartialsUI(int partialIndex) {
         int idx = m_partials.indexOf(p);
         if (idx >= 0 && idx < partials2.size()) {
             partials2.removeAt(idx);
+            pm2->markModified();
         }
         m_partials.removeAt(idx);
         ui->partialsLayout->removeWidget(p);
@@ -1262,6 +1291,7 @@ void EventAttributesViewController::addPartialButtonClicked() {
 
     Spectrum* sevent = &pm->spectrumevents()[m_curreventindex].spectrum;
     sevent->partials.append("");
+    pm->markModified();
 
     addPartialsUI(sevent->partials.size()-1);
     ui->spectrumNumPartialEntry->setText(

@@ -1,6 +1,7 @@
 #include "EnvelopeLibraryWindow.hpp"
 #include "../widgets/EnvLibDrawingArea.hpp"
 #include "../core/EnvelopeLibraryEntry.hpp"
+#include "../core/ProjectClipboard.hpp"
 
 #include <QTreeView>
 #include <QItemSelectionModel>
@@ -13,13 +14,28 @@
 #include <QAction>
 #include <QKeyEvent>
 #include <QHeaderView>
-#include <QShortcut>
 #include <QPushButton>
 #include <QHBoxLayout>
 #include <QFormLayout>
 #include <QDebug>
+#include <QShortcut>
 
 #include "../utilities.hpp"
+
+namespace {
+
+struct EnvelopeClipboardNode {
+    double x;
+    double y;
+    envSegmentType type = envSegmentTypeLinear;
+    envSegmentProperty property = envSegmentPropertyFlexible;
+};
+
+struct EnvelopeClipboard {
+    QList<EnvelopeClipboardNode> nodes;
+};
+
+} // namespace
 
 /**
  * @brief Constructor: builds the UI
@@ -108,6 +124,30 @@ EnvelopeLibraryWindow::EnvelopeLibraryWindow(QWidget* parent)
     popupMenu = new QMenu(this);
     popupMenu->addAction(actionAdd);
     popupMenu->addAction(actionDuplicate);
+    popupMenu->addSeparator();
+    auto* copyAction = popupMenu->addAction("Copy Envelope",
+        this, &EnvelopeLibraryWindow::copyEnvelope);
+    auto* pasteAction = popupMenu->addAction("Paste Envelope",
+        this, &EnvelopeLibraryWindow::pasteEnvelope);
+    connect(popupMenu, &QMenu::aboutToShow, this, [this, copyAction, pasteAction] {
+        copyAction->setEnabled(activeProject
+            && envelopeLibrary->selectionModel()->hasSelection());
+        pasteAction->setEnabled(activeProject
+            && ProjectClipboard::get<EnvelopeClipboard>(
+                Inst::get_project_manager()->get_curr_project()));
+    });
+
+    auto* copyShortcut = new QShortcut(envelopeLibrary);
+    copyShortcut->setKeys(QKeySequence::keyBindings(QKeySequence::Copy));
+    copyShortcut->setContext(Qt::WidgetShortcut);
+    connect(copyShortcut, &QShortcut::activated,
+            this, &EnvelopeLibraryWindow::copyEnvelope);
+
+    auto* pasteShortcut = new QShortcut(envelopeLibrary);
+    pasteShortcut->setKeys(QKeySequence::keyBindings(QKeySequence::Paste));
+    pasteShortcut->setContext(Qt::WidgetShortcut);
+    connect(pasteShortcut, &QShortcut::activated,
+            this, &EnvelopeLibraryWindow::pasteEnvelope);
 
     // Connect tree signals
     connect(envelopeLibrary, &QTreeView::activated,
@@ -124,9 +164,6 @@ EnvelopeLibraryWindow::EnvelopeLibraryWindow(QWidget* parent)
     envelopeLibrary->setContextMenuPolicy(Qt::CustomContextMenu);
     connect(envelopeLibrary, &QWidget::customContextMenuRequested,
             this, &EnvelopeLibraryWindow::onRightClick);
-
-    auto* closeShortcut = new QShortcut(QKeySequence::Close, this);
-    connect(closeShortcut, &QShortcut::activated, this, &EnvelopeLibraryWindow::close);
 
     setCentralWidget(central);
     drawingArea->setMinimumSize(200, 200); // Ensure it has a visible size
@@ -208,6 +245,71 @@ void EnvelopeLibraryWindow::duplicateEnvelope()
     refModel->appendRow(newItem);
 }
 
+void EnvelopeLibraryWindow::copyEnvelope()
+{
+    if (!activeProject) return;
+    const auto rows = envelopeLibrary->selectionModel()->selectedRows();
+    if (rows.isEmpty()) return;
+    auto* item = refModel->itemFromIndex(rows.first());
+    auto* entry = static_cast<EnvelopeLibraryEntry*>(
+        item->data(Qt::UserRole).value<void*>());
+    if (!entry) return;
+
+    EnvelopeClipboard copied;
+    for (auto* node = entry->head; node;) {
+        EnvelopeClipboardNode value{node->x, node->y};
+        if (node->rightSeg) {
+            value.type = node->rightSeg->segmentType;
+            value.property = node->rightSeg->segmentProperty;
+        }
+        copied.nodes.append(value);
+        node = node->rightSeg ? node->rightSeg->rightNode : nullptr;
+    }
+    ProjectClipboard::copy(Inst::get_project_manager()->get_curr_project(),
+        std::move(copied), tr("Envelope %1").arg(entry->number));
+}
+
+void EnvelopeLibraryWindow::pasteEnvelope()
+{
+    if (!activeProject) return;
+    auto* pm = Inst::get_project_manager();
+    const auto* copied =
+        ProjectClipboard::get<EnvelopeClipboard>(pm->get_curr_project());
+    if (!copied || copied->nodes.size() < 2) return;
+
+    auto* last = pm->envlibentries();
+    while (last && last->next) last = last->next;
+    auto* entry = new EnvelopeLibraryEntry(last ? last->number + 1 : 1);
+    auto* node = entry->head;
+    for (qsizetype index = 0; index < copied->nodes.size(); ++index) {
+        const auto& value = copied->nodes[index];
+        node->x = value.x;
+        node->y = value.y;
+        if (index + 1 == copied->nodes.size()) break;
+
+        // Reuse the default envelope's two endpoints and add any others.
+        if (!node->rightSeg) {
+            node->rightSeg = new EnvLibEntrySeg;
+            node->rightSeg->leftNode = node;
+            node->rightSeg->rightNode = new EnvLibEntryNode(0.0, 0.0);
+            node->rightSeg->rightNode->leftSeg = node->rightSeg;
+        }
+        node->rightSeg->segmentType = value.type;
+        node->rightSeg->segmentProperty = value.property;
+        node = node->rightSeg->rightNode;
+    }
+
+    entry->prev = last;
+    if (last) last->next = entry;
+    else pm->envlibentries() = entry;
+
+    auto* item = new QStandardItem(entry->getNumberString());
+    item->setData(QVariant::fromValue<void*>(entry), Qt::UserRole);
+    refModel->appendRow(item);
+    envelopeLibrary->setCurrentIndex(refModel->index(refModel->rowCount() - 1, 0));
+    MUtilities::modified();
+}
+
 /**
  * @brief Delete the selected envelope
  */
@@ -287,7 +389,7 @@ void EnvelopeLibraryWindow::onCursorChanged()
 void EnvelopeLibraryWindow::onRightClick(const QPoint& pos)
 {
     QModelIndex idx = envelopeLibrary->indexAt(pos);
-    if (!idx.isValid()) return;
+    if (idx.isValid()) envelopeLibrary->setCurrentIndex(idx);
     popupMenu->exec(envelopeLibrary->viewport()->mapToGlobal(pos));
 }
 

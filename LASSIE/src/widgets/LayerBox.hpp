@@ -101,8 +101,6 @@ private:
     int       m_eventIndex;
     int       m_layerIndex;
 
-    QList<Package> m_clipboard;
-
     // UI elements
     QVBoxLayout*        m_mainLayout = nullptr;
     QTreeView*          m_treeView = nullptr;

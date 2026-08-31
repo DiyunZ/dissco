@@ -70,6 +70,7 @@ public:
 
 private slots:
     void onContextMenuRequested(const QPoint& pos);
+    void copySelection();
 
 private:
     ProjectView* projectView;

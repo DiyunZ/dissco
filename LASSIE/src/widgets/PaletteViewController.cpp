@@ -14,6 +14,7 @@
 #include <QMessageBox>
 #include <QPair>
 #include <QPushButton>
+#include <QShortcut>
 #include <algorithm>
 
 
@@ -58,6 +59,15 @@ PaletteViewController::PaletteViewController(ProjectView* projectView)
     treeView->header()->setSectionResizeMode(QHeaderView::Fixed);
     layout->addWidget(treeView, 1);
     treeView->setDragEnabled(true);
+
+    auto* copyShortcut = new QShortcut(treeView);
+    copyShortcut->setKeys(QKeySequence::keyBindings(QKeySequence::Copy));
+    copyShortcut->setContext(Qt::WidgetShortcut);
+    connect(copyShortcut, &QShortcut::activated, this, &PaletteViewController::copySelection);
+    auto* pasteShortcut = new QShortcut(treeView);
+    pasteShortcut->setKeys(QKeySequence::keyBindings(QKeySequence::Paste));
+    pasteShortcut->setContext(Qt::WidgetShortcut);
+    connect(pasteShortcut, &QShortcut::activated, projectView, &ProjectView::pasteEvent);
 
     // Adds folder events to tree view
     folderTop = new QStandardItem("Folder");
@@ -284,30 +294,47 @@ void PaletteViewController::updateItemName(const QString& typeStr, int index, co
 void PaletteViewController::onContextMenuRequested(const QPoint& pos)
 {
     QModelIndex proxyIndex = treeView->indexAt(pos);
-    if (!proxyIndex.isValid()) return;
-
     QModelIndex index = proxyModel->mapToSource(proxyIndex);
     QStandardItem* item = model->itemFromIndex(index);
-    if (!item || !item->parent()) return; // folder row — ignore
-
-    // Type string lives in column 0 of this row
-    QString typeStr = model->itemFromIndex(index.sibling(index.row(), 0))->text();
-    if (typeStr == "Top") return; // Top is a singleton — cannot delete/duplicate
-
-    int eventIndex = index.row(); // row within folder == index in PM list
+    const QString typeStr = item && item->parent()
+        ? index.siblingAtColumn(0).data().toString() : QString();
+    const bool canCopy = !typeStr.isEmpty() && typeStr != "Top";
+    const int eventIndex = index.row();
 
     QMenu menu(this);
+    QAction* copyAct = menu.addAction(tr("Copy") + "\t"
+        + QKeySequence(QKeySequence::Copy).toString(QKeySequence::NativeText));
+    QAction* pasteAct = menu.addAction(tr("Paste") + "\t"
+        + QKeySequence(QKeySequence::Paste).toString(QKeySequence::NativeText));
+    copyAct->setEnabled(canCopy);
+    pasteAct->setEnabled(projectView->canPasteEvent());
+    menu.addSeparator();
     QAction* deleteAct    = menu.addAction("Delete");
     QAction* duplicateAct = menu.addAction("Duplicate");
+    deleteAct->setEnabled(canCopy);
+    duplicateAct->setEnabled(canCopy);
 
     QAction* chosen = menu.exec(treeView->viewport()->mapToGlobal(pos));
     if (!chosen) return;
 
-    if (chosen == deleteAct) {
+    if (chosen == copyAct) {
+        projectView->copyEvent(typeStr, eventIndex);
+    } else if (chosen == pasteAct) {
+        projectView->pasteEvent();
+    } else if (chosen == deleteAct) {
         projectView->deleteEvent(typeStr, eventIndex);
     } else if (chosen == duplicateAct) {
         projectView->duplicateEvent(typeStr, eventIndex);
     }
+}
+
+void PaletteViewController::copySelection()
+{
+    const QModelIndex current = treeView->currentIndex();
+    if (!current.isValid() || !treeView->selectionModel()->isSelected(current)) return;
+    const QModelIndex source = proxyModel->mapToSource(current);
+    if (!source.parent().isValid()) return;
+    projectView->copyEvent(source.siblingAtColumn(0).data().toString(), source.row());
 }
 
 void PaletteViewController::onItemChanged(QStandardItem* item)

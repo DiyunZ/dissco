@@ -2,7 +2,6 @@
 
 #include <QMessageBox>
 #include <QCloseEvent>
-#include <QShortcut>
 //#include <QOverload>
 
 #include <QVBoxLayout>
@@ -136,9 +135,6 @@ PostWindow::PostWindow(QProcess *process, QWidget *parent)
     // feed output to window
     connect(proc, &QProcess::readyReadStandardOutput, this, &PostWindow::handleStdout);
     connect(proc, &QProcess::readyReadStandardError,  this, &PostWindow::handleStderr);
-
-    auto* closeShortcut = new QShortcut(QKeySequence::Close, this);
-    connect(closeShortcut, &QShortcut::activated, this, &PostWindow::close);
 }
 
 void PostWindow::closeEvent(QCloseEvent *event)

@@ -14,6 +14,7 @@ class MainWindow;
 class EnvelopeLibraryEntry;
 class EventAttributesViewController;
 class PaletteViewController;
+struct PaletteEventCopy;
 
 class ProjectView : public QObject {
     Q_OBJECT
@@ -50,6 +51,11 @@ class ProjectView : public QObject {
         // Append a copy of the event at index to the backend and the palette.
         void duplicateEvent(const QString& typeStr, int index);
 
+        // Copy a value snapshot; paste stays within the originating project.
+        void copyEvent(const QString& typeStr, int index);
+        void pasteEvent();
+        bool canPasteEvent() const;
+
         // Two-way name sync between palette and attributes view
         void updatePaletteItemName(const QString& typeStr, int index, const QString& name);
         void updateAttributesNameEntry(const QString& typeStr, int index, const QString& name);
@@ -60,6 +66,7 @@ class ProjectView : public QObject {
         //void showAttributes(class IEvent* event);
 
     private:
+        void insertEventCopy(const PaletteEventCopy& copy);
         /* storing pointers */
         MainWindow* mainWindow = nullptr;
         ProjectPropertiesDialog* projectPropertiesDialog = nullptr;

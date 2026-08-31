@@ -1,5 +1,8 @@
 #include "LayerBox.hpp"
 #include "../inst.hpp"
+#include "../core/ProjectClipboard.hpp"
+#include "../core/LayerReferenceUtils.hpp"
+#include <QMessageBox>
 #include <algorithm>
 
 LayerBox::LayerBox(Eventtype eventType, int eventIndex, int layerIndex, QWidget* parent)
@@ -64,20 +67,14 @@ LayerBox::LayerBox(Eventtype eventType, int eventIndex, int layerIndex, QWidget*
     connect(m_treeView, &QTreeView::customContextMenuRequested,
             this, &LayerBox::onContextMenu);
 
-    // Widget-scope shortcuts override the window-level copyAct/pasteAct in MainWindow
+    // Only the object view owns these shortcuts; cell editors keep text editing.
     auto* copyShortcut = new QShortcut(QKeySequence::Copy, m_treeView);
     copyShortcut->setContext(Qt::WidgetShortcut);
-    connect(copyShortcut, &QShortcut::activated, this, [this](){
-        qDebug() << "[DEBUG] LayerBox widget-scope copy shortcut activated";
-        onCopySelected();
-    });
+    connect(copyShortcut, &QShortcut::activated, this, &LayerBox::onCopySelected);
 
     auto* pasteShortcut = new QShortcut(QKeySequence::Paste, m_treeView);
     pasteShortcut->setContext(Qt::WidgetShortcut);
-    connect(pasteShortcut, &QShortcut::activated, this, [this](){
-        qDebug() << "[DEBUG] LayerBox widget-scope paste shortcut activated";
-        onPasteClipboard();
-    });
+    connect(pasteShortcut, &QShortcut::activated, this, &LayerBox::onPasteClipboard);
 
     m_mainLayout->addWidget(m_treeView);
 
@@ -111,12 +108,14 @@ LayerBox::LayerBox(Eventtype eventType, int eventIndex, int layerIndex, QWidget*
     // Sync editable package-field columns back to the backend on edit
     connect(m_model, &QStandardItemModel::dataChanged,
             this, [this](const QModelIndex& topLeft, const QModelIndex& bottomRight) {
+        bool changed = false;
+        Layer& layer = getBackendLayer();
         for (int row = topLeft.row(); row <= bottomRight.row(); ++row) {
+            if (row < 0 || row >= layer.discrete_packages.size()) continue;
+            Package& pkg = layer.discrete_packages[row];
+            const Package before = pkg;
             for (int col = topLeft.column(); col <= bottomRight.column(); ++col) {
                 if (col < 3) continue;
-                Layer& layer = getBackendLayer();
-                if (row < 0 || row >= layer.discrete_packages.size()) continue;
-                Package& pkg = layer.discrete_packages[row];
                 QString val = m_model->item(row, col)->text();
                 switch (col) {
                     case 3: pkg.weight                  = val; break;
@@ -126,7 +125,9 @@ LayerBox::LayerBox(Eventtype eventType, int eventIndex, int layerIndex, QWidget*
                     case 7: pkg.durationenvelope_scale  = val; break;
                 }
             }
+            changed |= pkg != before;
         }
+        if (changed) Inst::get_project_manager()->markModified();
     });
 
     // Package-field columns are hidden until Discrete mode is active
@@ -300,6 +301,7 @@ bool LayerBox::eventFilter(QObject* obj, QEvent* event) {
             pkg.event_name = droppedName;
             pkg.event_type = displayStringToEventtypeString(droppedType);
             getBackendLayer().discrete_packages.append(pkg);
+            Inst::get_project_manager()->markModified();
 
             qDebug() << "Added package" << droppedName
                      << "- total packages:" << getBackendLayer().discrete_packages.size();
@@ -311,7 +313,9 @@ bool LayerBox::eventFilter(QObject* obj, QEvent* event) {
 }
 
 void LayerBox::onWeightChanged(const QString& text) {
+    if (getBackendLayer().by_layer == text) return;
     getBackendLayer().by_layer = text;
+    Inst::get_project_manager()->markModified();
 }
 
 void LayerBox::onDeleteLayerClicked() {
@@ -328,21 +332,31 @@ QList<int> LayerBox::selectedRows() const {
 }
 
 void LayerBox::onCopySelected() {
-    qDebug() << "[DEBUG] LayerBox::onCopySelected called, selected rows:" << selectedRows();
     QList<int> rows = selectedRows();
     if (rows.isEmpty()) return;
     Layer& layer = getBackendLayer();
-    m_clipboard.clear();
+    QList<Package> packages;
     for (int row : rows) {
-        m_clipboard.append(layer.discrete_packages[row]);
+        packages.append(layer.discrete_packages[row]);
     }
+    ProjectClipboard::copy(Inst::get_project_manager()->get_curr_project(),
+        packages, tr("%1 child event(s)").arg(packages.size()));
 }
 
 void LayerBox::onPasteClipboard() {
-    qDebug() << "[DEBUG] LayerBox::onPasteClipboard called, clipboard size:" << m_clipboard.size();
-    if (m_clipboard.isEmpty()) return;
+    auto* pm = Inst::get_project_manager();
+    const auto* packages = ProjectClipboard::get<QList<Package>>(pm->get_curr_project());
+    if (!packages || packages->isEmpty()) return;
+    for (const Package& package : *packages) {
+        if (!LayerRefs::referenceExists(package)) {
+            QMessageBox::warning(this, tr("Paste Child Events"),
+                tr("The referenced %1/%2 no longer exists. Copy the updated child events again.")
+                    .arg(eventtypeToDisplayString(package.event_type.toInt()), package.event_name));
+            return;
+        }
+    }
     Layer& layer = getBackendLayer();
-    for (const Package& pkg : m_clipboard) {
+    for (const Package& pkg : *packages) {
         int index = m_model->rowCount();
         auto* rowItem  = new QStandardItem(QString::number(index));
         auto* typeItem = new QStandardItem(eventtypeToDisplayString(pkg.event_type.toInt()));
@@ -359,6 +373,7 @@ void LayerBox::onPasteClipboard() {
         });
         layer.discrete_packages.append(pkg);
     }
+    pm->markModified();
 }
 
 void LayerBox::onDeleteSelected() {
@@ -375,22 +390,29 @@ void LayerBox::onDeleteSelected() {
     for (int i = 0; i < m_model->rowCount(); ++i) {
         m_model->item(i, 0)->setText(QString::number(i));
     }
+    Inst::get_project_manager()->markModified();
 }
 
 void LayerBox::onContextMenu(const QPoint& pos) {
     bool hasSelection = !selectedRows().isEmpty();
     QMenu menu(this);
-    //QAction* dupAction  = menu.addAction("Duplicate");
+    QAction* copyAction = menu.addAction(tr("Copy") + "\t"
+        + QKeySequence(QKeySequence::Copy).toString(QKeySequence::NativeText));
+    QAction* pasteAction = menu.addAction(tr("Paste") + "\t"
+        + QKeySequence(QKeySequence::Paste).toString(QKeySequence::NativeText));
+    copyAction->setEnabled(hasSelection);
+    pasteAction->setEnabled(ProjectClipboard::get<QList<Package>>(
+        Inst::get_project_manager()->get_curr_project()) != nullptr);
+    menu.addSeparator();
     QAction* delAction  = menu.addAction("Delete");
-    //dupAction->setEnabled(hasSelection);
     delAction->setEnabled(hasSelection);
 
     QAction* chosen = menu.exec(m_treeView->viewport()->mapToGlobal(pos));
-    /*if (chosen == dupAction) {
+    if (chosen == copyAction) {
         onCopySelected();
+    } else if (chosen == pasteAction) {
         onPasteClipboard();
-    } else */ 
-    if (chosen == delAction) {
+    } else if (chosen == delAction) {
         onDeleteSelected();
     }
 }

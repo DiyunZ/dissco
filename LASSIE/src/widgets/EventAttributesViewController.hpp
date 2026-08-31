@@ -71,7 +71,8 @@ public:
     //  */
     void showAttributesOfEvent(Eventtype type, int index); //IEvent* event
 
-    void saveCurrentShownEventData();
+    // Returns false if validation prevents saving the currently displayed edits.
+    bool saveCurrentShownEventData();
 
     // Update the displayed name entry if typeStr/index matches the currently shown event
     void updateNameEntryIfShowing(const QString& typeStr, int index, const QString& name);

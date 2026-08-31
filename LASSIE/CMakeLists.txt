@@ -26,6 +26,7 @@ qt_add_executable(LASSIE
     src/core/ProjectXmlWriter.cpp src/core/ProjectXmlWriter.hpp
     src/core/ModifierUsageQtAdapter.cpp src/core/ModifierUsageQtAdapter.hpp
     src/dialogs/FunctionGenerator.cpp src/dialogs/FunctionGenerator.hpp src/ui/FunctionGenerator.ui
+    src/dialogs/FunctionXmlFormat.cpp src/dialogs/FunctionXmlFormat.hpp
     src/dialogs/PartialModifierDialog.cpp src/dialogs/PartialModifierDialog.hpp
     src/dialogs/ModifierDetailsDialog.cpp src/dialogs/ModifierDetailsDialog.hpp
     src/dialogs/ModifierRulesDialog.cpp src/dialogs/ModifierRulesDialog.hpp
@@ -81,6 +82,7 @@ qt_add_executable(LASSIE
     src/widgets/generic/FunctionEntryRow.cpp src/widgets/generic/FunctionEntryRow.hpp
     src/widgets/ComboBoxWheelGuard.cpp src/widgets/ComboBoxWheelGuard.hpp
     src/widgets/TextOverflowDisplayPolicy.cpp src/widgets/TextOverflowDisplayPolicy.hpp
+    src/widgets/WindowShortcutPolicy.cpp src/widgets/WindowShortcutPolicy.hpp
     src/core/Updater.cpp src/core/Updater.hpp
 )
 

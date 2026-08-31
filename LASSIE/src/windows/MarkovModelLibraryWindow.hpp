@@ -66,6 +66,8 @@ private slots:
     void onItemChanged(QStandardItem* item);
     void createNewModel();
     void duplicateModel();
+    void copyModel();
+    void pasteModel();
     void removeModel();
     void onEditorClosed();
 
@@ -115,6 +117,8 @@ private:
     QMenu* m_contextMenu = nullptr;
     QAction* m_createAction = nullptr;
     QAction* m_duplicateAction = nullptr;
+    QAction* m_copyAction = nullptr;
+    QAction* m_pasteAction = nullptr;
     QAction* m_deleteAction = nullptr;
 
     QUndoStack* m_undoStack = nullptr;
