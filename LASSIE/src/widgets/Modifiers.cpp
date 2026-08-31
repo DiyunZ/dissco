@@ -35,7 +35,9 @@ Modifiers::Modifiers(Eventtype eventType, unsigned eventIndex,
       m_modifierIndex(modifierIndex)
 {
     ui->setupUi(this);
-    setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Fixed);
+    QSizePolicy rowPolicy(QSizePolicy::Expanding, QSizePolicy::Preferred);
+    rowPolicy.setHeightForWidth(true);
+    setSizePolicy(rowPolicy);
 
     for (int index = 0; index < modifierTypeCount; ++index)
         ui->modifierType->setItemData(index, modifierTypesByDisplayOrder[index]);
