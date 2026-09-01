@@ -14,7 +14,14 @@
 
 - Click **New Project** in the toolbar.
 
-- Choose a folder, name your project tutorial, and click **Save**.
+In the New Project dialog, choose your home directory as the project location
+(for example, `/home/yourNetID` on Linux or `/Users/yourname` on macOS).
+Avoid saving the project inside the DISSCO or LASSIE application/source folder.
+
+- Name your project `tutorial` and click **Save**.
+<img width="600" height="400" alt="image" src="https://github.com/user-attachments/assets/246bf997-d6d6-48d0-8669-adec0122aee4" />
+
+(Note: Once you choose a folder for your project, do not move or rename it later. Otherwise, DISSCO may not be able to locate the project files.)
 
 (**Note:** Once you choose a folder for your project, do not move or rename it later. Otherwise, DISSCO may not be able to locate the project files.)
 
@@ -67,7 +74,7 @@
 - Moving around the node, you should notice the X and Y values below the graph
 changing accordingly. Drag the node to the top center or input the X and Y values to
 be **X value: 0.5000** and **Y value: 1.0000**
-<img width="1194" height="888" alt="image" src="https://github.com/user-attachments/assets/d9077d6b-199b-4797-9e99-91c50bfe8421" />
+<img width="500" height="300" alt="image" src="https://github.com/user-attachments/assets/e0b0ffbb-b9a0-4f25-913e-46c5febfbe69" />
 
 - In the bottom left and right corners of the graph, there are 2 nodes. Be sure their
 values are **X value: 0.0000** and **Y value: 0.0000**, **X value: 1.0000** and **Y value: 0.0000** to
@@ -95,16 +102,18 @@ avoid clipping in your piece
 - Double click on the **Bottom s1** event to bring it back
 - Scrolling down, drag your **Spectrum sp1** into the white box underneath where it says
 **Child Type | Class | Name**
-<img width="1978" height="1252" alt="image" src="https://github.com/user-attachments/assets/c98f13a1-2cc0-4834-8475-eb8f0206654a" />
+<img width="3020" height="1714" alt="image" src="https://github.com/user-attachments/assets/018ab324-5774-4776-a467-19915ad28992" />
 
 - Click **Insert Function** in the Value field below **Frequency** and choose **RandomInt**
 - 
   1. Set **Lower Bound** to 30
   2. Set **Higher Bound** to 90, hit OK
 (Note: as reference, 48 = C4) - this randomly assigns pitch values to each child between MIDI 27 - 78 (F#2 - F#7)
-<img width="2012" height="1046" alt="image" src="https://github.com/user-attachments/assets/d8138913-133d-4503-9ad8-45308132ad00" />
+<img width="3024" height="1648" alt="image" src="https://github.com/user-attachments/assets/0238657e-0d15-4671-917d-1da545c0b74b" />
 
-- (Loudness) Set **Loudness** to 100
+- (Loudness) Set **Loudness** to 200
+<img width="2292" height="1236" alt="image" src="https://github.com/user-attachments/assets/1b44bf57-3483-4c13-b133-14045af0c5d3" />
+
 <img width="600" height="300" alt="image" src="https://github.com/user-attachments/assets/d3bc8f6a-c846-47a9-b6a8-fb5cf38499c6" />
 
 - (Spatialization) Click **Insert Function** next to **Spatialization** and choose **SPA**  (determines the locations of sounds in space)
@@ -112,26 +121,27 @@ avoid clipping in your piece
    1. Click the **fn (function) button** next to the Envelope
    2. Select the **EnvLib** function
    3. Set **Envelope Number** to 1 (the envelope you created), **Scaling Factor** to 1.0, then hit OK (on both **Function Generator** and **SPA** windows)
-<img width="290" height="310" alt="image" src="https://github.com/user-attachments/assets/df101459-f9d8-4d47-8054-75acef0b081a" />
+<img width="2308" height="1286" alt="image" src="https://github.com/user-attachments/assets/bf130fbb-ac57-4b91-9294-15e40aec0365" />
 
 - (Reverb) Click **Insert Function** next to **Reverb** and choose **REV_Simple**  (this sets the reverberation quality of the room)
   1. Set **Room Size** to 0.5, hit OK
 <img width="290" height="310" alt="image" src="https://github.com/user-attachments/assets/b341ea34-482b-4958-b37b-fa9f64ccf00c" />
 
 - What we have now: 
-<img width="2014" height="1220" alt="image" src="https://github.com/user-attachments/assets/ab985592-b908-41dc-ba4f-579d6d0e8ebc" />
+<img width="3010" height="1698" alt="image" src="https://github.com/user-attachments/assets/baaa3505-8159-4cf6-b9e8-eb49e6225071" />
 
 ## 8. Return to the Top event and add Bottom as child of Top
 
 - Double click on the **Top 0** event
 - Drag **Bottom s1** into the white box underneath where it says **Child Type |Class |Name**
-<img width="1988" height="1218" alt="image" src="https://github.com/user-attachments/assets/0a317960-904a-4575-b23b-ebd2f0ef1444" />
+<img width="1988" height="1218" alt="image" src="https://github.com/user-attachments/assets/c9bedcae-4e9c-404e-9a5e-ffd18fe7dd21" />
+
 
 ## 9.  Save Project and Synthesize
 
 - Click the **Save** button in the toolbar
 - From the **Project** menu in the toolbar, select **run**
-<img width="600" height="240" alt="image" src="https://github.com/user-attachments/assets/0ec8bc75-73d5-4b3e-8462-3ff1caacb9b9" />
+<img width="2304" height="1280" alt="image" src="https://github.com/user-attachments/assets/f930f219-c79e-4396-9577-0ce1542bfa22" />
 
 - Type apple (or any sequence of letters and/or numbers) into the **Random Seed
 window** and click OK
@@ -157,6 +167,7 @@ player/digital audio workstation).
 - Click **Insert Function** next to **Child Start Time** and choose **Random**
 - Keep **Lower Bound** at **0**
 - Set **Higher Bound** to **30**, hit OK
+<img width="2302" height="1240" alt="image" src="https://github.com/user-attachments/assets/e576a161-ca44-4048-afca-d0e9785f72ff" />
 - Save Project and Synthesize (Step 9)
 
 <img width="2218" height="1402" alt="image" src="https://github.com/user-attachments/assets/73d3af6d-c7f8-4f08-b0d8-a3e611119913" />
