@@ -133,18 +133,16 @@ void Note::setPitchWellTempered(int absPitchNum) {
 
 int Note::HertzToPitch(float freqHz) {
 
-  int pitchNum;
-
   if ( freqHz >= CEILING || freqHz <= MINFREQ) {
     cerr << "Warning: Note Frequency is " << freqHz << " Hz, outside the nominal "
          << MINFREQ << " to " << CEILING << " Hz range; using the nearest tempered pitch. "
          << "Suggestion: Check the Bottom event's Frequency setting if this pitch is not intended." << endl;
   }
 
-  pitchNum = rint(12 * log2(freqHz / C0));
-  setPitchNum(pitchNum);
+  const int nearestPitch = static_cast<int>(rint(12 * log2(freqHz / C0)));
+  setPitchNum(nearestPitch);
 
-  return pitchNum;
+  return nearestPitch;
 }
 
 //----------------------------------------------------------------------------//

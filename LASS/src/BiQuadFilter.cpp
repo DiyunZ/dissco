@@ -40,6 +40,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 
 #include <math.h>
 #include <stdlib.h>
+#include <stdexcept>
 #include "SoundSample.h"
 #include "Track.h"
 #include "MultiTrack.h"
@@ -58,11 +59,11 @@ BiQuadFilter::BiQuadFilter(int type, m_sample_type dbGain, m_sample_type freq,m_
 
 	
    	/* setup variables */
-    	A = pow(10, dbGain /40);
-    	omega = 2 * M_PI * freq /srate;
+	A = static_cast<m_sample_type>(pow(10, dbGain /40));
+	omega = static_cast<m_sample_type>(2 * M_PI * freq /srate);
     	sn = sin(omega);
     	cs = cos(omega);
-    	alpha = sn * sinh(M_LN2 /2 * bandwidth * omega /sn);
+	alpha = static_cast<m_sample_type>(sn * sinh(M_LN2 /2 * bandwidth * omega /sn));
     	beta = sqrt(A + A);
 
 
@@ -124,7 +125,7 @@ BiQuadFilter::BiQuadFilter(int type, m_sample_type dbGain, m_sample_type freq,m_
 	        a2 = (A + 1) - (A - 1) * cs - beta * sn;
 	        break;
 	    default:
-		 cout << "Wrong Filter type selection. Please choose between 0-6" << endl;
+		 throw std::invalid_argument("BiQuadFilter type must be between 0 and 6.");
 	    }
 
 	cout << "The Filter type is " << type << ", the coefficients are:\na0: " << a0 << "\na1: " << a1 << "\nb0: " << b0 << "\nb1: " << b1 << "\nb2: " << b2 << endl;

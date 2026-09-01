@@ -124,6 +124,7 @@ void XmlReader::xmltag::destroyTag()
 	while(tp)
 	{
 		tagparam *next=tp->next;
+		tp->next=NULL;
 		delete tp;
 		tp=next;
 	}
@@ -188,31 +189,31 @@ void XmlReader::xmltagset::add(xmltag *itag)
 //----------------------------------------------------------------------------//
 XmlReader::xmltag* XmlReader::xmltagset::find(const char *name)
 {
-	xmltag *tag;
+	xmltag *foundTag;
 	if(searchName)
 	{
 		if(!strcmp(searchName,name))
 		{
-			tag=auxfind(curSearch,name);
-			if(!tag)
+			foundTag=auxfind(curSearch,name);
+			if(!foundTag)
 			{
 				curSearch=NULL;
 				searchName=NULL;
 				return NULL;
 			}
-			return tag;
+			return foundTag;
 		}	
 	}
 
 	searchName=name;
-	tag=auxfind(this,name);
-	if(!tag)
+	foundTag=auxfind(this,name);
+	if(!foundTag)
 	{	
 		searchName=NULL;
 		curSearch=NULL;
 		return NULL;
 	}
-	return tag;
+	return foundTag;
 }
 
 //----------------------------------------------------------------------------//
@@ -281,11 +282,11 @@ bool XmlReader::closeFile()
 //----------------------------------------------------------------------------//
 void XmlReader::dewhitespace(char *c)
 {
-	int l=strlen(c);
+	std::size_t l=strlen(c);
 	bool wsok=false;
-	int nl=0;
+	std::size_t nl=0;
 
-	for(int i=0;i<l;i++)
+	for(std::size_t i=0;i<l;i++)
 	{
 		if(c[i]==' ' || c[i]=='\t' || c[i]=='\r' || c[i]=='\n')
 		{
@@ -332,7 +333,7 @@ bool XmlReader::fillTagBuffer()
 			start=index(inputbuffer,'<');
 		}
 
-		nibuf=strlen(inputbuffer);
+		nibuf=static_cast<int>(strlen(inputbuffer));
 		end=index(inputbuffer,'>');
 	}
 	
@@ -346,7 +347,7 @@ bool XmlReader::fillTagBuffer()
 		if(!fgets(inputbuffer+nibuf,XML_BUFFER_SIZE-nibuf,fp))
 			return false;
 		
-		nibuf=strlen(inputbuffer);
+		nibuf=static_cast<int>(strlen(inputbuffer));
 		end=index(inputbuffer,'>');
 	}
 	
@@ -371,7 +372,7 @@ bool XmlReader::fillTagBuffer()
 	memcpy(tagbuffer,start,end-start+1);
 	memmove(inputbuffer,end+1,nibuf-(end-inputbuffer)+1);
 
-	nibuf-=end-inputbuffer+1;
+	nibuf=static_cast<int>(nibuf-(end-inputbuffer+1));
 
 	tagbuffer[end-start+1]=0;
 	dewhitespace(tagbuffer);

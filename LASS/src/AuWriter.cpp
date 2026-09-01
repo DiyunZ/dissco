@@ -109,7 +109,7 @@ bool AuWriter::write(vector<SoundSample*>& channels, string filename,
     }
 
     //Set the info parameters.
-    s_info.channels = channels.size();
+    s_info.channels = static_cast<int>(channels.size());
     s_info.samplerate = channels[0]->getSamplingRate();
     s_info.format = SF_FORMAT_PCM_24;
     bits = 0; //Do not use the incoming format, 24-bit is all-purpose.
@@ -171,8 +171,6 @@ bool AuWriter::write(vector<SoundSample*>& channels, string filename,
     float* chunk = new float[chunkFrames * channels.size()];
 
 
-    int outOfBounds = 0;
-
     for(m_sample_count_type currentIn = 0; currentIn < minSamples; currentIn += chunkFrames){
       m_sample_count_type framesToWrite = chunkFrames;
       if(framesToWrite > minSamples - currentIn)
@@ -182,8 +180,8 @@ bool AuWriter::write(vector<SoundSample*>& channels, string filename,
           m_sample_type sample = (*channels[c])[i];
 
           //Check bounds.
-          if (sample > 1.0) {sample = 1.0; outOfBounds++;}
-          if (sample < -1.0) {sample = -1.0; outOfBounds++;}
+          if (sample > 1.0) {sample = 1.0;}
+          if (sample < -1.0) {sample = -1.0;}
 
           chunk[(i - currentIn) * channels.size() + c] = sample;
         }

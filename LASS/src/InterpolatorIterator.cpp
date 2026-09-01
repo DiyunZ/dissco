@@ -168,9 +168,9 @@ m_value_type& ExponentialInterpolatorIterator::next()
         // m_value_type dy;
 
         if( y1 == 0 )
-            y1 = .0001;
+            y1 = .0001f;
         if( y2 == 0 )
-            y2 = .0001;
+            y2 = .0001f;
 
         m_value_type alpha = 3;
         if (y1 > y2)
@@ -184,7 +184,7 @@ m_value_type& ExponentialInterpolatorIterator::next()
         m_time_type t2 = e.t_to_;
         m_time_type t = (((t2 - t1) / e.steps_) * (e.steps_ - stepsLeft_)) + t1;
         m_value_type I = (t - t1) / (t2 - t1);
-        m_value_type base = 2.718282;
+        m_value_type base = 2.718282f;
         value_ = y1 + (y2 - y1) * ((1 - pow (base, (I * alpha))) / (1 - pow (base, alpha)));
     }
 
@@ -286,12 +286,12 @@ m_value_type& CubicSplineInterpolatorIterator::next()
         m_value_type a = y1;
         m_value_type b = m1;
         m_value_type c = ((3*l_slp)-(2*m1)-m2)/(x2-x1);
-	m_value_type d = (m1+m2-(2*l_slp))/(pow((x2-x1),2));
+	m_value_type d = static_cast<m_value_type>((m1+m2-(2*l_slp))/(pow((x2-x1),2)));
 
         m_value_type x_dif = x - x1;
 
         // the polynomial
-        m_value_type ux = a + (b*x_dif) + (c*(pow(x_dif,2))) + (d*(pow(x_dif,3)));
+        m_value_type ux = static_cast<m_value_type>(a + (b*x_dif) + (c*(pow(x_dif,2))) + (d*(pow(x_dif,3))));
 
         value_ = ux;
     }

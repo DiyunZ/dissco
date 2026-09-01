@@ -2,7 +2,7 @@
 #include <cmath>
 
 m_value_type lerp(m_value_type a, m_value_type b, double c) {
-  return (1-c) * a + c * b;
+  return static_cast<m_value_type>((1-c) * a + c * b);
 }
 
 ProbabilityEnvelope::ProbabilityEnvelope() {
@@ -30,7 +30,7 @@ void ProbabilityEnvelope::generateCountTable(int num_steps) {
   stepTimes.resize(0);
 
   setSamplingRate(num_steps);
-  m_value_type x_step_size = 1.0 / num_steps;
+  m_value_type x_step_size = static_cast<m_value_type>(1.0 / num_steps);
   Iterator<m_value_type> it = valueIterator();
 
   totalCounts = 0;
@@ -45,7 +45,7 @@ void ProbabilityEnvelope::generateCountTable(int num_steps) {
 
 // TODO: throw uninitialized error
 m_value_type ProbabilityEnvelope::sample(double x) {
-  m_value_type target = totalCounts * x;
+  m_value_type target = static_cast<m_value_type>(totalCounts * x);
   // now search for target in cumulativeStepCounts to find the time index
   size_t upper_idx = std::upper_bound(cumulativeStepCounts.begin(), cumulativeStepCounts.end(), target)
     - cumulativeStepCounts.begin();

@@ -122,7 +122,7 @@ namespace PVCHelper {
     }
 }
 /* ProjectView constructor initializing values for XML file*/
-ProjectView::ProjectView(MainWindow* _mainWindow, QString _pathAndName) {
+ProjectView::ProjectView(MainWindow* _mainWindow, QString /*_pathAndName*/) {
 
     ProjectManager *pm = Inst::get_project_manager();
     qDebug() << "In PV Constructor p:" << pm->get_curr_project();
@@ -366,7 +366,8 @@ bool ProjectView::save(){
                     
                     EnvLibEntryNode* currentNode;
                     EnvLibEntrySeg* libSeg = envLib->head->rightSeg;
-                    while (libSeg != NULL){
+                    // Every envelope has at least two nodes, hence at least one segment.
+                    do {
                         currentNode = libSeg->leftNode;
                         stringBuffer = stringBuffer + QString::number(currentNode->x, 'f', 3);
                         stringBuffer = stringBuffer + "     ";
@@ -389,7 +390,7 @@ bool ProjectView::save(){
 
                         stringBuffer = stringBuffer + QString::number((libSeg->rightNode->x) - (currentNode->x), 'f', 3) + "\n";
                         libSeg = libSeg->rightNode->rightSeg;
-                    }
+                    } while (libSeg != NULL);
 
                     currentNode = currentNode->rightSeg->rightNode;
                     stringBuffer = stringBuffer + QString::number(currentNode->x, 'f', 3) + "     ";
@@ -1312,8 +1313,8 @@ void ProjectView::insertEventCopy(const PaletteEventCopy& snapshot)
     const QList<Layer>* layers = nullptr;
     if (const auto* event = std::get_if<HEvent>(&snapshot.value))
         layers = &event->event_layers;
-    else if (const auto* event = std::get_if<BottomEvent>(&snapshot.value))
-        layers = &event->event.event_layers;
+    else if (const auto* bottomEvent = std::get_if<BottomEvent>(&snapshot.value))
+        layers = &bottomEvent->event.event_layers;
     if (layers) {
         for (const Layer& layer : *layers) {
             for (const Package& package : layer.discrete_packages) {

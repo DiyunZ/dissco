@@ -51,7 +51,7 @@ EnvelopeLibrary::~EnvelopeLibrary ()
 //----------------------------------------------------------------------------//
 EnvelopeLibrary::EnvelopeLibrary (EnvelopeLibrary & lib)
 {
-  for (int envs = 0; envs < lib.library.size (); envs++)
+  for (std::size_t envs = 0; envs < lib.library.size (); envs++)
     library.push_back(lib.library.at(envs)->clone() );
 }
 
@@ -67,7 +67,7 @@ EnvelopeLibrary & EnvelopeLibrary::operator= (EnvelopeLibrary & lib)
       library.clear ();
 
       // reassign new data
-      for (int envs = 0; envs < lib.library.size (); envs++)
+      for (std::size_t envs = 0; envs < lib.library.size (); envs++)
 	library.push_back(lib.library.at(envs) );
     }
   
@@ -99,7 +99,7 @@ bool EnvelopeLibrary::saveLibrary (char * filename)
 
 	outData << library.size () << "\n\n"; // write number of envelopes
 
-      for (int envs = 0; envs < library.size (); envs++)
+      for (std::size_t envs = 0; envs < library.size (); envs++)
 	{
 	  temp_env = library.at(envs);
 	  temp_coll = temp_env -> getPoints ();
@@ -108,7 +108,7 @@ bool EnvelopeLibrary::saveLibrary (char * filename)
 
 	  outData << (temp_coll -> size () ) << "\n"; // number of points
 
-	  for (int pts = 0; pts < ( (temp_coll -> size () ) - 1); pts++)
+	  for (int pts = 0; static_cast<std::size_t>(pts) < ( (temp_coll -> size () ) - 1); pts++)
 	    {
 	      // write point data for this envelope
 	      // format: point nx, point ny
@@ -241,7 +241,7 @@ int EnvelopeLibrary::loadLibrary (char * filename)
       inData.close ();
     }
 
-  return (library.size () );
+  return static_cast<int>(library.size () );
 }
 
 //----------------------------------------------------------------------------//
@@ -319,14 +319,14 @@ int EnvelopeLibrary::loadLibraryNewFormat (char * filename)
     inData.close ();
   }
 
-  return (library.size () );
+  return static_cast<int>(library.size () );
 }
 
 //----------------------------------------------------------------------------//
 
 Envelope * EnvelopeLibrary::getEnvelope (int index)
 {
-  if (index > library.size () )
+  if (static_cast<std::size_t>(index) > library.size () )
     return NULL;
   else
     return (library.at(index - 1) ) -> clone ();
@@ -343,7 +343,7 @@ const Envelope& EnvelopeLibrary::getEnvelopeRef (int index)
 int EnvelopeLibrary::addEnvelope (Envelope * env)
 {
   library.push_back(env);
-  return (library.size () );
+  return static_cast<int>(library.size () );
 }
 
 
@@ -360,7 +360,7 @@ int EnvelopeLibrary::addEnvelope (vector<xy_point> points,
 //----------------------------------------------------------------------------//
 bool EnvelopeLibrary::updateEnvelope (int index, Envelope * env)
 {
-  if (index > library.size () )
+  if (static_cast<std::size_t>(index) > library.size () )
     return false;
   else
     {
@@ -375,7 +375,7 @@ void EnvelopeLibrary::showEnvelope (int index)
 {
   Envelope * temp_env;
   
-  if (index > library.size () )
+  if (static_cast<std::size_t>(index) > library.size () )
     return;
   else
     {
@@ -388,7 +388,7 @@ void EnvelopeLibrary::showEnvelope (int index)
 //----------------------------------------------------------------------------//
 int EnvelopeLibrary::size ()
 {
-  return (library.size () );
+  return static_cast<int>(library.size () );
 }
 
 

@@ -167,7 +167,7 @@ void ModParser::parseExpr(const std::string& exp, int minVal, int maxVal) {
   std::vector<ModParser::Token> operands;
   std::stack<char> operators;
   unsigned chNum = 0;
-  int modIndex = 0;
+  size_t modIndex = 0;
   bool needsOperand = true;
   while (chNum < exp.size()) {
     char ch = exp[chNum];

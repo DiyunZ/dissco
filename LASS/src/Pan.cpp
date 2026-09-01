@@ -87,7 +87,7 @@ MultiTrack* Pan::spatialize_Track(Track& t, int numTracks)
         for (m_sample_count_type i=0; i<sampleCount; i++)
         {
             // calculate the scaling factor:
-            scale = 1.0 - fabs(pos - panIter.next());
+            scale = static_cast<m_value_type>(1.0 - fabs(pos - panIter.next()));
             if (scale > 1.0) scale = 1.0;
             if (scale < 0.0) scale = 0.0;
 

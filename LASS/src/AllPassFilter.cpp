@@ -194,7 +194,7 @@ void AllPassFilter::xml_read(XmlReader::xmltag *apftag)
 {
 	char *value;
 	if((value = apftag->findChildParamValue("g","value")) != 0)
-		set_g(atof(value));
+		set_g(static_cast<float>(atof(value)));
 	
 	if((value = apftag->findChildParamValue("D","value")) != 0)
 		set_D(atoi(value));

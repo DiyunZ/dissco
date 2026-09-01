@@ -1,6 +1,6 @@
 #include "SignalHandlers.h"
 
-void segfaultHandler(int signal) {
+void segfaultHandler(int) {
     static const char diagnostic[] =
         "CMOD internal error: Unexpected invalid memory access (segmentation fault).\n"
         "Context: CMOD runtime\n"
@@ -10,11 +10,11 @@ void segfaultHandler(int signal) {
 #ifdef _WIN32
     _write(STDERR_FILENO, diagnostic, sizeof(diagnostic) - 1);
 #else
-    write(STDERR_FILENO, diagnostic, sizeof(diagnostic) - 1);
+    [[maybe_unused]] const auto written = write(STDERR_FILENO, diagnostic, sizeof(diagnostic) - 1);
 #endif
     void *buf[BACKTRACE_NUM + 2];
     size_t size = backtrace(buf, BACKTRACE_NUM + 2);        // Do a backtrace of the stack
-    char **messages = backtrace_symbols(buf, size);
+    char **messages = backtrace_symbols(buf, static_cast<int>(size));
 
     std::cerr << "--------------------------------------------------------------------------------\n";
     if (size > 2 && messages != nullptr) {
@@ -67,7 +67,7 @@ void segfaultHandler(int signal) {
 }
 
 // Unimplemented
-void interruptHandler(int signal) {
+void interruptHandler(int) {
     exit(1);
 }
 

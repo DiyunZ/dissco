@@ -101,7 +101,7 @@ EnvelopeLibraryEntry::EnvelopeLibraryEntry(Envelope* _envelope, int _number)
   EnvLibEntrySeg*  prevSeg  = nullptr;
 
   // build all but last segment
-  int lastIndex = segments->size() - 1;
+  int lastIndex = static_cast<int>(segments->size() - 1);
   for (int i = 0; i < lastIndex; ++i) {
     // create node
     EnvLibEntryNode* node = new EnvLibEntryNode(segments->at(i).x, segments->at(i).y);
@@ -189,4 +189,4 @@ EnvelopeLibraryEntry* EnvelopeLibraryEntry::duplicateEnvelope(EnvelopeLibraryEnt
  */
 QString EnvelopeLibraryEntry::getNumberString() const {
   return QString::number(number);
-} 
+}

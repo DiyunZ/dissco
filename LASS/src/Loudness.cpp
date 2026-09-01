@@ -116,13 +116,13 @@ void Loudness::calculate(Sound& snd, m_rate_type rate)
         // calculate the numerator:
         m_value_type gammaTotal = 0.0;
         for (int i=0; i<NUM_BANDS; i++)
-            if (i != maxGamma) gammaTotal += bandGamma[i] * BANDS[i][F_FACTOR];
+            if (i != maxGamma) gammaTotal = static_cast<m_value_type>(gammaTotal + bandGamma[i] * BANDS[i][F_FACTOR]);
         m_value_type numerator = snd.getParam(LOUDNESS) / (bandGamma[(int)maxGamma] + gammaTotal);
         
         // for each band:
         for (int b=0; b<NUM_BANDS; b++)
         {
-            int size = CBands[b].partials_.size();
+            int size = static_cast<int>(CBands[b].partials_.size());
             // for each partial
             for (int p=0; p<size; p++)
             {
@@ -162,14 +162,10 @@ int Loudness::criticalBandIndex(m_value_type freq)
     if (freq < BANDS[0][LOWER_BOUND])
     {
         return 0;
-        cout << "WARNING: Frequency (" << freq 
-             << ") outside of any critical bands." << endl;
     }
     if (freq > BANDS[NUM_BANDS-1][UPPER_BOUND])
     {
         return NUM_BANDS-1;
-        cout << "WARNING: Frequency (" << freq 
-             << ") outside of any critical bands." << endl;
     }
     
     // common case:
@@ -200,14 +196,14 @@ m_value_type Loudness::CriticalBand::getBandGamma(m_value_type maxAmp)
     
     for(int p = 0; p < (int)partials_.size(); p++)
     {
-        bandGamma += pow(
+        bandGamma = static_cast<m_value_type>(bandGamma + pow(
             (double)(partials_[p].amp_ / maxAmp),
-            (double)(1.0 / log10(2.0) / BANDS[ID_][SLOPE]) );
+            (double)(1.0 / log10(2.0) / BANDS[ID_][SLOPE]) ));
     }
 
-    bandGamma = pow(
+    bandGamma = static_cast<m_value_type>(pow(
         (double)bandGamma,
-        (double)(log10(2.0) / BANDS[ID_][SLOPE]) );
+        (double)(log10(2.0) / BANDS[ID_][SLOPE]) ));
 
     return bandGamma;
 }
@@ -229,13 +225,13 @@ m_value_type Loudness::PartialSnapshot::getScalingFactor(
     m_value_type Ls = (amp_ / maxAmp) * numerator;
     
     // [eq 2.4]
-    m_value_type Lp = log(Ls) / log(2.0) * 10.0 + 40.0;
+    m_value_type Lp = static_cast<m_value_type>(log(Ls) / log(2.0) * 10.0 + 40.0);
     
     // [eq 2.13]
-    m_value_type L = BANDS[bandID][OFFSET] + ( BANDS[bandID][SLOPE] * Lp );
+    m_value_type L = static_cast<m_value_type>(BANDS[bandID][OFFSET] + ( BANDS[bandID][SLOPE] * Lp ));
 
     // [eq 2.5]
-    m_value_type A = pow(10.0, (-1.0 * ( (120.0 - L) / 20.0 ) ) );
+    m_value_type A = static_cast<m_value_type>(pow(10.0, (-1.0 * ( (120.0 - L) / 20.0 ) ) ));
 
 
     return (A / amp_);

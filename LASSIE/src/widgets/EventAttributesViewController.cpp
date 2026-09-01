@@ -674,8 +674,8 @@ void EventAttributesViewController::showCurrentEventData() {
     // populate fields
     ProjectManager *pm = Inst::get_project_manager();
     // ui->nameEntry->setText(QString::fromStdString(m_currentlyShownEvent->getEventName()));
-    HEvent event;
     if(type <= bottom){
+        HEvent event;
         if(type == bottom){
             const BottomEvent& bottom_event = pm->bottomevents()[m_curreventindex];
             ExtraInfo extra_info = bottom_event.extra_info;

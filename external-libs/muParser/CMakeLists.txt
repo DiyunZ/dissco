@@ -8,6 +8,11 @@ file(GLOB_RECURSE MUPARSER_SRC
     "${PROJECT_SOURCE_DIR}/*.h"
 )
 
+list(REMOVE_ITEM MUPARSER_SRC
+    "${PROJECT_SOURCE_DIR}/muParserTest.cpp"
+    "${PROJECT_SOURCE_DIR}/muParserTest.h"
+)
+
 ### in the future, we'll let this be shared if there's a viable muparser lib install
 add_library(MUPARSER STATIC ${MUPARSER_SRC})
 target_compile_definitions(MUPARSER PUBLIC MUPARSER_STATIC)

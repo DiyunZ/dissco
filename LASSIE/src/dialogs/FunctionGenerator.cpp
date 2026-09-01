@@ -130,9 +130,9 @@ FunctionWidget* FunctionGenerator::ensureRegisteredWidget(CMODFunction id)
 
 void FunctionGenerator::handleFunctionChanged(int index)
 {
-    QVariant data = ui->functionOptions->itemData(index);
-    if (!data.isValid()) return;
-    const CMODFunction id = static_cast<CMODFunction>(data.toInt());
+    QVariant functionData = ui->functionOptions->itemData(index);
+    if (!functionData.isValid()) return;
+    const CMODFunction id = static_cast<CMODFunction>(functionData.toInt());
 
     if (id == NOT_A_FUNCTION) {
         ui->resultTextEdit->clear();

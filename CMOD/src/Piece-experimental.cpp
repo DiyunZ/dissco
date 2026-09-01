@@ -386,8 +386,8 @@ Piece::Piece(string _workingPath, string _projectTitle){
       throw;
     }
   };
-  pieceSpan.start = evaluateSetting(pieceStartTime, "PieceStartTime");
-  pieceSpan.duration = evaluateSetting(pieceDuration, "Duration");
+  pieceSpan.start = static_cast<float>(evaluateSetting(pieceStartTime, "PieceStartTime"));
+  pieceSpan.duration = static_cast<float>(evaluateSetting(pieceDuration, "Duration"));
   if (!std::isfinite(pieceSpan.duration) || pieceSpan.duration <= 0) {
     throw CmodError(CmodError::Kind::Project,
                     "The piece duration must be finite and greater than zero.",
@@ -550,10 +550,10 @@ vector<pugi::xml_node> Piece::calcEventM(pugi::xml_node eventElement){
 	    if(type <= 4){  //Top, High, Medium, Low, Bottom
 
 	      thisEventElement = GNES(thisEventElement); //maxChildDur
-	      float maxChildDur = (float)utilities->evaluate(XMLTC(thisEventElement), (void*)this);
+	      utilities->evaluate(XMLTC(thisEventElement), (void*)this);
 
 	      thisEventElement = GNES(thisEventElement); //newEDUPerBeat
-	      int newEDUPerBeat = (int) utilities->evaluate(XMLTC(thisEventElement),(void*)this);
+	      utilities->evaluate(XMLTC(thisEventElement),(void*)this);
 
 	      thisEventElement = GNES(thisEventElement); //Time Signature element
 
@@ -570,18 +570,12 @@ vector<pugi::xml_node> Piece::calcEventM(pugi::xml_node eventElement){
 	      pugi::xml_node AttackSieveElement = GNES(childDurationElement);
 	      pugi::xml_node DurationSieveElement = GNES(AttackSieveElement);
 	      pugi::xml_node methodFlagElement = GNES(DurationSieveElement);
-	      pugi::xml_node childStartTypeFlag = GNES(methodFlagElement);
-	      pugi::xml_node childDurationTypeFlag = GNES(childStartTypeFlag);
 
 	      //Read Flag values (Needed for modification)
 	      string defFlag = XMLTC(methodFlagElement);
 	      int definitionVal = atoi(defFlag.c_str());
 
 	      if(definitionVal == 0){     //Only Continuum
-
-		//Calculating start time orignality
-		string startFlag = XMLTC(childStartTypeFlag);
-		int startFlagVal = atoi(startFlag.c_str());
 
 	      //layers, initialize child names
 	      thisEventElement = GNES(childEventDefElement);
@@ -606,7 +600,7 @@ vector<pugi::xml_node> Piece::calcEventM(pugi::xml_node eventElement){
 	      if (XMLTC(flagElement) =="0"){ // Continuum
 		pugi::xml_node entry1Element = GNES(flagElement);
 		if (XMLTC(entry1Element)==""){
-		  numChildren = childTypeElements.size();
+		  numChildren = static_cast<int>(childTypeElements.size());
 		}
 		else {
 		  numChildren =(int) utilities->evaluate(XMLTC(entry1Element), (void*)this);
@@ -627,7 +621,7 @@ vector<pugi::xml_node> Piece::calcEventM(pugi::xml_node eventElement){
 	      else {// by layer
 	      numChildren = 0;
           for (unsigned i = 0; i < layerElements.size(); i ++){
-            numChildren +=utilities->evaluate(XMLTC(GFEC(layerElements[i])),(void*)this);
+            numChildren = static_cast<int>(numChildren + utilities->evaluate(XMLTC(GFEC(layerElements[i])),(void*)this));
           }
 	      }
 
@@ -642,13 +636,10 @@ vector<pugi::xml_node> Piece::calcEventM(pugi::xml_node eventElement){
 
 		if(flagVal == 0){ //Equal Temperament
 		  mVal += EQUAL_TEMP * (log(1 / EQUAL_TEMP)/log(2));
-		  pugi::xml_node freqEntry1 = GNES(GNES(frequencyFlagElement));
 	      }
 
 	      else if(flagVal == 1){//Fundamental
 		mVal += FUNDAMENTAL * (log(1 / FUNDAMENTAL)/log(2));
-		pugi::xml_node freqEntry1 = GNES(GNES(frequencyFlagElement));
-		pugi::xml_node freqEntry2 = GNES(freqEntry1);
 	      }
 
 	      else if(flagVal == 2){//Continuum
@@ -664,9 +655,9 @@ vector<pugi::xml_node> Piece::calcEventM(pugi::xml_node eventElement){
 		else  {
 		   mVal += POW2 * (log(1 / POW2)/log(2));
 		  /* 3rd arg is a float (power of 2) */
-		  float step = utilities->evaluate(XMLTC(freqEntry1), (void*)this);
-		  double range = log10(CEILING / MINFREQ) / log10(2.); // change log base
-		  double baseFreqResult = pow(2, step * range) * MINFREQ;  // equal chance for all 8vs
+		  float step = static_cast<float>(utilities->evaluate(XMLTC(freqEntry1), (void*)this));
+		  double range = static_cast<double>(log10(CEILING / MINFREQ) / log10(2.)); // change log base
+		  static_cast<void>(static_cast<double>(pow(2, step * range) * MINFREQ));  // equal chance for all 8vs
 		}
 	      }
 
@@ -682,8 +673,9 @@ vector<pugi::xml_node> Piece::calcEventM(pugi::xml_node eventElement){
 	    for(int i = 0; i < numChildren; i++){
 
 	      double childType = utilities->evaluate(XMLTC(childTypeElement),(void*)this);
-	      string childName = XMLTC(GFEC(childTypeElements[childType]));
-	      EventType childEventType = (EventType) utilities->evaluate(XMLTC(GNES(GFEC(childTypeElements[childType]))),(void*)this);
+	      const size_t childTypeIndex = static_cast<size_t>(childType);
+	      string childName = XMLTC(GFEC(childTypeElements[childTypeIndex]));
+	      EventType childEventType = (EventType) utilities->evaluate(XMLTC(GNES(GFEC(childTypeElements[childTypeIndex]))),(void*)this);
 
 	      pugi::xml_node childElement = utilities->getEventElement(childEventType, childName);
 	      childElements.push_back(childElement);
@@ -697,7 +689,7 @@ return childElements;
 }
 
 //Experimental - For now only bottom events
-void Piece::geneticOptimization(string fitnessFunction, double optimum){
+void Piece::geneticOptimization(string, double optimum){
 
   // Step 1: Calculating current Aesthetic of the piece - User decides function
   string evName = utilities->topEventnames.at(0);
@@ -958,7 +950,6 @@ vector<pugi::xml_node> Piece::modifyPiece(pugi::xml_node eventElement){
       pugi::xml_node freqEntry1 = GNES(GNES(frequencyFlagElement));
 
       if(GFEC(freqEntry1) != NULL){
-        pugi::xml_node funcElement = GFEC(freqEntry1);
         //functionModifier(funcElement, 100);
       }
 
@@ -1021,8 +1012,8 @@ vector<pugi::xml_node> Piece::modifyPiece(pugi::xml_node eventElement){
         //char *loudnessvalue = XMLString::transcode(loudnessElement->getFirstChild()->getNodeValue());
         //cout<<"hey:"<<loudnessvalue[0]<<loudnessvalue[1]<<loudnessvalue[2]<<endl;
 
-        string typeString = XMLTC(loudnessElement);
-        int val = atoi(typeString.c_str());
+        string loudnessString = XMLTC(loudnessElement);
+        int val = atoi(loudnessString.c_str());
         int loudnessNum = val;
         loudnessNum = Random::RandInt(0, 225);
         //cout<<"loudness = "<< loudnessNum<<endl;
@@ -1159,7 +1150,7 @@ void Piece::functionModifier(pugi::xml_node functionElement, int maxValue){ //Ne
     std::vector<std::string> list = utilities->listElementToStringVector(listElement);
 
     if(GFEC(indexElement) != NULL){
-      functionModifier(GFEC(indexElement), list.size() - 1);
+      functionModifier(GFEC(indexElement), static_cast<int>(list.size() - 1));
     }
 
     else{
@@ -1287,10 +1278,10 @@ void Piece::functionModifier(pugi::xml_node functionElement, int maxValue){ //Ne
     if(type <= 4){  //Top, High, Medium, Low, Bottom
 
       thisEventElement = GNES(thisEventElement); //maxChildDur
-      float maxChildDur = (float)utilities->evaluate(XMLTC(thisEventElement), (void*)this);
+      utilities->evaluate(XMLTC(thisEventElement), (void*)this);
 
       thisEventElement = GNES(thisEventElement); //newEDUPerBeat
-      int newEDUPerBeat = (int) utilities->evaluate(XMLTC(thisEventElement),(void*)this);
+      utilities->evaluate(XMLTC(thisEventElement),(void*)this);
 
       thisEventElement = GNES(thisEventElement); //Time Signature element
 
@@ -1305,19 +1296,12 @@ void Piece::functionModifier(pugi::xml_node functionElement, int maxValue){ //Ne
       pugi::xml_node AttackSieveElement = GNES(childDurationElement);
       pugi::xml_node DurationSieveElement = GNES(AttackSieveElement);
       pugi::xml_node methodFlagElement = GNES(DurationSieveElement);
-      pugi::xml_node childStartTypeFlag = GNES(methodFlagElement);
-      pugi::xml_node childDurationTypeFlag = GNES(childStartTypeFlag);
 
       //Read Flag values (Needed for modification)
       string defFlag = XMLTC(methodFlagElement);
       int definitionVal = atoi(defFlag.c_str());
 
       if(definitionVal == 0){     //Only Continuum
-
-        //Calculating start time orignality
-        string startFlag = XMLTC(childStartTypeFlag);
-        int startFlagVal = atoi(startFlag.c_str());
-
 
         /*//Calculating Duration entropy
 
@@ -1378,7 +1362,7 @@ void Piece::functionModifier(pugi::xml_node functionElement, int maxValue){ //Ne
       if (XMLTC(flagElement) =="0"){ // Continuum
         pugi::xml_node entry1Element = GNES(flagElement);
         if (XMLTC(entry1Element)==""){
-          numChildren = childTypeElements.size();
+          numChildren = static_cast<int>(childTypeElements.size());
         }
         else {
           numChildren =(int) utilities->evaluate(XMLTC(entry1Element), (void*)this);
@@ -1399,7 +1383,7 @@ void Piece::functionModifier(pugi::xml_node functionElement, int maxValue){ //Ne
       else {// by layer
         numChildren = 0;
         for (unsigned i = 0; i < layerElements.size(); i ++){
-          numChildren +=utilities->evaluate(XMLTC(GFEC(layerElements[i])),(void*)this);
+          numChildren = static_cast<int>(numChildren + utilities->evaluate(XMLTC(GFEC(layerElements[i])),(void*)this));
         }
       }
 
@@ -1428,8 +1412,8 @@ void Piece::functionModifier(pugi::xml_node functionElement, int maxValue){ //Ne
         pugi::xml_node freqEntry2 = GNES(freqEntry1);
 
         for(int i = 0; i < NUM_SAMPLES; i++){
-          float fund_freq = utilities->evaluate(XMLTC(freqEntry1), (void*)this);
-          int overtone_step = utilities->evaluate(XMLTC(freqEntry2), (void*)this);
+          float fund_freq = static_cast<float>(utilities->evaluate(XMLTC(freqEntry1), (void*)this));
+          int overtone_step = static_cast<int>(utilities->evaluate(XMLTC(freqEntry2), (void*)this));
           double baseFreqResult = fund_freq * overtone_step;
           samples.push_back(baseFreqResult);
         }
@@ -1446,9 +1430,9 @@ void Piece::functionModifier(pugi::xml_node functionElement, int maxValue){ //Ne
         }
         else  {
           /* 3rd arg is a float (power of 2) */
-          float step = utilities->evaluate(XMLTC(freqEntry1), (void*)this);
-          double range = log10(CEILING / MINFREQ) / log10(2.); // change log base
-          double baseFreqResult = pow(2, step * range) * MINFREQ;  // equal chance for all 8vs
+          float step = static_cast<float>(utilities->evaluate(XMLTC(freqEntry1), (void*)this));
+          double range = static_cast<double>(log10(CEILING / MINFREQ) / log10(2.)); // change log base
+          double baseFreqResult = static_cast<double>(pow(2, step * range) * MINFREQ);  // equal chance for all 8vs
           samples.push_back(baseFreqResult);
         }
       }
@@ -1485,8 +1469,9 @@ void Piece::functionModifier(pugi::xml_node functionElement, int maxValue){ //Ne
     for(int i = 0; i < numChildren; i++){
 
       double childType = utilities->evaluate(XMLTC(childTypeElement),(void*)this);
-      string childName = XMLTC(GFEC(childTypeElements[childType]));
-      EventType childEventType = (EventType) utilities->evaluate(XMLTC(GNES(GFEC(childTypeElements[childType]))),(void*)this);
+      const size_t childTypeIndex = static_cast<size_t>(childType);
+      string childName = XMLTC(GFEC(childTypeElements[childTypeIndex]));
+      EventType childEventType = (EventType) utilities->evaluate(XMLTC(GNES(GFEC(childTypeElements[childTypeIndex]))),(void*)this);
 
       pugi::xml_node childElement = utilities->getEventElement(childEventType, childName);
       childElements.push_back(childElement);
@@ -1510,7 +1495,6 @@ return childElements;
 
     std::sort(sampleData.begin(), sampleData.end());
 
-    double sampleRange = sampleData[sampleData.size() - 1] - sampleData[0];
 
     for(unsigned i = 0; i < sampleData.size(); i++){
       if(partitionMethod.compare("Pow2") == 0){
@@ -1535,19 +1519,17 @@ return childElements;
 
   if(partitionMethod.compare("Pow2") == 0){
 
-    numPartitions = ceil(log(max)/log(2)) - floor(log(min)/log(2));
+    numPartitions = static_cast<int>(ceil(log(max)/log(2)) - floor(log(min)/log(2)));
   }
 
   else if(partitionMethod.compare("Unit") == 0){
 
-    numPartitions = max - min;
+    numPartitions = static_cast<int>(max - min);
   }
 
   maxEntropy = log(numPartitions)/log(2);
   //redundancy = 1 - (shannonEntropy/maxEntropy);
   redundancy = maxEntropy - shannonEntropy;
-  double relativeShannonEntropy = shannonEntropy/maxEntropy;
-  double benseOriginality = relativeShannonEntropy/redundancy;
   cout<<shannonEntropy<<endl;
 
   return redundancy;

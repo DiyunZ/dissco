@@ -70,8 +70,8 @@ static const double WELL_TEMP_INCR = pow(2, 1./12.);
 //static const double WELL_TEMP_INCR = pow(2, 1./24.);
 //static const double WELL_TEMP_INCR = 1.0594631;
 // static const float MAX_SONES = 256.;
-static const float FIRST_CONST = -5.54;
-static const float SECOND_CONST = -1.84;
+static const float FIRST_CONST = static_cast<float>(-5.54);
+static const float SECOND_CONST = static_cast<float>(-1.84);
 static const int SAMPLING_RATE = 44100;
 
 // constants for the Event class

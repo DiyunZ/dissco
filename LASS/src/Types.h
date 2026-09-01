@@ -26,6 +26,8 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #ifndef __TYPES_H
 #define __TYPES_H
 
+#include <cstdint>
+
 //----------------------------------------------------------------------------//
 
 /**
@@ -51,6 +53,9 @@ typedef float m_value_type;
 
 /// Specifies a rate for playback.
 typedef unsigned int m_rate_type;
+
+/// Signed, pointer-width identifier used by the legacy LASS XML format.
+typedef std::intptr_t m_xml_id_type;
 
 /**
 *  This is used in EnvelopeEntry to specify whether the entry

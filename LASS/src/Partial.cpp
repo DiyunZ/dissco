@@ -209,7 +209,7 @@ MultiTrack* Partial::render(int numChannels,
     m_time_type amptransprob;
     m_time_type freqtransprob;
 
-    srand(time(0));
+    srand(static_cast<unsigned int>(time(0)));
 
     //flags to tell if we are in a transient
     int amptransflag = 0;
@@ -239,7 +239,7 @@ MultiTrack* Partial::render(int numChannels,
       amptransprob = amptrans_rate_it.next();
 
       // grab the tremolo value
-        tremolo =  tremolo_amp_it.next() * sin(2.0 * M_PI * tremolo_phase);
+        tremolo = static_cast<m_value_type>(tremolo_amp_it.next() * sin(2.0 * M_PI * tremolo_phase));
         // increment the tremolo phase
         tremolo_phase = pmod( tremolo_phase + (tremolo_rate_it.next() / samplingRate) );
 
@@ -280,7 +280,7 @@ MultiTrack* Partial::render(int numChannels,
 	//decrease the check counter
 	amptranscheck--;
 
-        amplitude = loudnes_scalar_it.next() * wave_shape_it.next() * (1.0 + tremolo);
+        amplitude = static_cast<m_value_type>(loudnes_scalar_it.next() * wave_shape_it.next() * (1.0 + tremolo));
 
 	//apply transient modifier to amplitude
 	amplitude = amplitude + amptransient*amplitude;
@@ -327,7 +327,7 @@ MultiTrack* Partial::render(int numChannels,
         // perhaps the vibrato should be keyed to PartialNumber.
 
         // grab the vibrato value
-        vibrato =  vibrato_amp_it.next() * sin(2.0 * M_PI * vibrato_phase);
+        vibrato = static_cast<m_value_type>(vibrato_amp_it.next() * sin(2.0 * M_PI * vibrato_phase));
         // increment the vibrato phase
         vibrato_phase = pmod( vibrato_phase + (vibrato_rate_it.next() / samplingRate) );
 
@@ -335,7 +335,7 @@ MultiTrack* Partial::render(int numChannels,
         frequency  = frequency_it.next() * freq_it.next() * detuning_it.next();
 //      frequency  = frequency_it.next() * freq_it.next(); // * detuning_it.next()
         //frequency += freq_deviation_it.next();
-        frequency *= 1.0 + vibrato;
+        frequency = static_cast<m_value_type>(frequency * (1.0 + vibrato));
 
 
 	//apply frequency transient adjustments
@@ -355,7 +355,7 @@ MultiTrack* Partial::render(int numChannels,
         // expression exactly whenever the modulation depth is zero.
         m_value_type phase_mod_depth = phase_amp_it.next();
         if (phase_mod_depth != 0.0)
-            phase += phase_mod_depth * sin(2.0 * M_PI * phase_mod_phase);
+            phase = static_cast<m_value_type>(phase + phase_mod_depth * sin(2.0 * M_PI * phase_mod_phase));
 
         // Advance the PM oscillator even while its depth is zero so that a
         // time-varying depth envelope can enter with continuous LFO phase.
@@ -369,12 +369,12 @@ MultiTrack* Partial::render(int numChannels,
         {
             case 1:
                 // random
-                sample = amplitude * 2 * ((((double) std::rand()) / ((double) RAND_MAX)) - 0.5);
+                sample = static_cast<m_sample_type>(amplitude * 2 * ((((double) std::rand()) / ((double) RAND_MAX)) - 0.5));
                 break;
 
             default:
                 // calculate the sample
-                sample = amplitude * ( sin(2.0 * M_PI * phase));
+                sample = static_cast<m_sample_type>(amplitude * ( sin(2.0 * M_PI * phase)));
                 break;
         }
 
@@ -459,7 +459,7 @@ void Partial::xml_print( ofstream& xmlOutput, list<Reverb*>& revObjs, list<Dynam
 	xmlOutput << "\t\t<partial>" << endl;
 
         // Output reverb ID and update reverb collection if necessary
-        xmlOutput << "\t\t\t<reverb_ptr id=\"" << (long)reverbObj << "\" />" << endl;
+        xmlOutput << "\t\t\t<reverb_ptr id=\"" << reinterpret_cast<m_xml_id_type>(reverbObj) << "\" />" << endl;
         list<Reverb*>::const_iterator revit;
         for( revit=revObjs.begin(); revit != revObjs.end(); revit++ )
         {
@@ -540,7 +540,7 @@ void Partial::xml_print( ofstream& xmlOutput, list<Reverb*>& revObjs, list<Dynam
 	xmlOutput << "\t\t</partial>" << endl;
 }
 
-void Partial::xml_read(XmlReader::xmltag* partialtag, DISSCO_HASHMAP<long, Reverb *>* reverbHash, DISSCO_HASHMAP<long, DynamicVariable *> *dvHash)
+void Partial::xml_read(XmlReader::xmltag* partialtag, DISSCO_HASHMAP<m_xml_id_type, Reverb *>* reverbHash, DISSCO_HASHMAP<m_xml_id_type, DynamicVariable *> *dvHash)
 {
 	if(strcmp("partial",partialtag->name))
 	{
@@ -552,7 +552,7 @@ void Partial::xml_read(XmlReader::xmltag* partialtag, DISSCO_HASHMAP<long, Rever
 
 	if((value = partialtag->findChildParamValue("reverb_ptr", "id")) != 0)
 	{
-		long id=atoi(value);
+		m_xml_id_type id=static_cast<m_xml_id_type>(std::strtoll(value, nullptr, 10));
 		Reverb * temp;
 		temp = (*reverbHash)[id];
 
@@ -564,10 +564,10 @@ void Partial::xml_read(XmlReader::xmltag* partialtag, DISSCO_HASHMAP<long, Rever
 
 	if((value = partialtag->findChildParamValue(
 	  "relative_amplitude", "value")) != 0)
-	  	setParam(RELATIVE_AMPLITUDE, atof(value));
+		setParam(RELATIVE_AMPLITUDE, static_cast<m_value_type>(atof(value)));
 
 	if((value = partialtag->findChildParamValue("partial_num","value")) != 0)
-		setParam(PARTIAL_NUM, atoi(value));
+		setParam(PARTIAL_NUM, static_cast<m_value_type>(atoi(value)));
 
 	// For sake of ease, I am going to forego searching for each item and instead
 	// iterate thru the list of child tags.
@@ -611,14 +611,14 @@ void Partial::xml_read(XmlReader::xmltag* partialtag, DISSCO_HASHMAP<long, Rever
 	}
 }
 
-void Partial::auxLoadParam(enum PartialDynamicParam param,XmlReader::xmltag *tag, DISSCO_HASHMAP<long, DynamicVariable *> *dvHash)
+void Partial::auxLoadParam(enum PartialDynamicParam param,XmlReader::xmltag *tag, DISSCO_HASHMAP<m_xml_id_type, DynamicVariable *> *dvHash)
 {
 	char *value;
 
 	// Try and do a lookup
 	if((value = tag->findChildParamValue("dv_ptr", "id")) != 0)
 	{
-		long id=atol(value);
+		m_xml_id_type id=static_cast<m_xml_id_type>(std::strtoll(value, nullptr, 10));
 		DynamicVariable *dv=(*dvHash)[id];
 
 		if(dv)

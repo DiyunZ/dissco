@@ -106,7 +106,7 @@ static int checkedIntegerArgument(double value, const string& function,
 }
 
 Utilities::Utilities(pugi::xml_node root,
-                     string _workingPath,
+                     string,
                      bool _soundSynthesis,
                      bool _outputParticel,
                      int _numThreads,
@@ -1122,16 +1122,16 @@ string Utilities::function_Stochos(pugi::xml_node _functionElement, void* _objec
   float returnVal = 0.0;
 
   if(method == "FUNCTIONS") {
-    float randomNumber;
+    float randomNumber = 0.0f;
 
     // stacked up envelopes: their values at the same moment add up to 1
     for (int i = 0; i < (int)envVect.size(); i++) {
-      returnVal = envVect[i]->getValue(checkpoint, 1.);
+      returnVal = envVect[i]->getValue(static_cast<m_value_type>(checkpoint), 1.);
       if(envVect.size() > 1) {                      // probability areas
-        if(i == 0) randomNumber = Random::Rand();
+        if(i == 0) randomNumber = static_cast<float>(Random::Rand());
         if (returnVal >= randomNumber) {
-          returnVal = i;
-          i = envVect.size(); // done: break out of the for loop
+          returnVal = static_cast<float>(i);
+          break;
         }
       }
     }
@@ -1149,10 +1149,10 @@ string Utilities::function_Stochos(pugi::xml_node _functionElement, void* _objec
     }
     const size_t offset = static_cast<size_t>(offsetValue);
     for(int i = 0; i < 2; i++) {
-      limit[i] = envVect[3 * offset + i]->getValue(checkpoint, 1);
+      limit[i] = envVect[3 * offset + i]->getValue(static_cast<m_value_type>(checkpoint), 1);
     }
 
-    returnVal = envVect[3 * offset + 2]->getValue(Random::Rand(), 1);
+    returnVal = envVect[3 * offset + 2]->getValue(static_cast<m_value_type>(Random::Rand()), 1);
 
     returnVal *= (limit[1] - limit[0]);
     returnVal += limit[0];
@@ -1722,13 +1722,13 @@ cout << "intList size: " << stringList.size() << "    " << endl;
 
     // Find Expand parameters
     elementIter = GNES(elementIter);
-    int mod = evaluate ( XMLTranscode( elementIter), _object);
+    int mod = static_cast<int>(evaluate(XMLTranscode(elementIter), _object));
 
     elementIter = GNES(elementIter);
-    int low = evaluate ( XMLTranscode( elementIter), _object);
+    int low = static_cast<int>(evaluate(XMLTranscode(elementIter), _object));
 
     elementIter = GNES(elementIter);
-    int high = evaluate ( XMLTranscode( elementIter), _object);
+    int high = static_cast<int>(evaluate(XMLTranscode(elementIter), _object));
 
     // Recurse on the pattern to expand
     elementIter = GNES(elementIter);
@@ -2075,7 +2075,7 @@ Envelope* Utilities::envLib(pugi::xml_node _functionElement, void* _object){
   Envelope* env = envelopeLibrary->getEnvelope(envelopeNumber);
   //cout <<"EnvLib: #"<<envelopeNumber<<endl;
   double scale = evaluate(XMLTranscode(GNES(_functionElement)), _object);
-  env->scale(scale);
+  env->scale(static_cast<m_value_type>(scale));
   return env;
 
 }
@@ -2170,11 +2170,11 @@ Envelope* Utilities::makeEnvelope(pugi::xml_node _functionElement, void* _object
   float prevXVal = 0;
   while (x!=NULL && y!=NULL) {
     xy_point xy;
-    xy.x = evaluate(XMLTranscode(x), _object);
-    xy.y = evaluate(XMLTranscode(y), _object);
+    xy.x = static_cast<m_value_type>(evaluate(XMLTranscode(x), _object));
+    xy.y = static_cast<m_value_type>(evaluate(XMLTranscode(y), _object));
 
     if (xy.x - prevXVal < 0) { // flag to keep previous xval
-      xy.x = prevXVal * 1.01;
+      xy.x = static_cast<m_value_type>(prevXVal * 1.01);
     }
     if (xy.y < 0) { // flag to keep previous yval
       xy.y = prevYVal;
@@ -2230,7 +2230,7 @@ Envelope* Utilities::makeEnvelope(pugi::xml_node _functionElement, void* _object
 
   // Create a new envelope given the points and segments defined
   Envelope* madeEnv = new Envelope(points, segments);
-  madeEnv->scale(scale);
+  madeEnv->scale(static_cast<m_value_type>(scale));
 
   // Clean up the temporary point and segment collections
   points.clear();
@@ -2247,6 +2247,6 @@ Envelope* Utilities::getEnvelopeshape(int env_num, double scale){
       cout << "Error in getEnvelopeShape: env_num exceeds size of EnvLibrary" << endl;
       return NULL;
     }
-    env->scale(scale);
+    env->scale(static_cast<m_value_type>(scale));
     return env;
 }

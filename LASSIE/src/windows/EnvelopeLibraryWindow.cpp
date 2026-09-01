@@ -115,7 +115,7 @@ EnvelopeLibraryWindow::EnvelopeLibraryWindow(QWidget* parent)
             this, &EnvelopeLibraryWindow::duplicateEnvelope);
 
     actionSave = new QAction("Save", this);
-    actionSave->setShortcut(QKeySequence(Qt::CTRL + Qt::Key_S));
+    actionSave->setShortcut(QKeySequence(Qt::CTRL | Qt::Key_S));
     connect(actionSave, &QAction::triggered,
             this, &EnvelopeLibraryWindow::fileSave);
     addAction(actionSave);
@@ -431,8 +431,8 @@ void EnvelopeLibraryWindow::valueEntriesChanged()
     
     // Only update if we have valid numeric input
     bool xOk, yOk;
-    double xVal = xEntry->text().toDouble(&xOk);
-    double yVal = yEntry->text().toDouble(&yOk);
+    xEntry->text().toDouble(&xOk);
+    yEntry->text().toDouble(&yOk);
     
     if (xOk && yOk) {
         drawingArea->setActiveNodeCoordinate(

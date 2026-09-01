@@ -212,8 +212,8 @@ public:
 //    **/
 //    void xml_read( XmlReader::xmltag *scoretag);
     
-    DISSCO_HASHMAP<long, Reverb *>* reverbHash;
-    DISSCO_HASHMAP<long, DynamicVariable *>* dvHash;
+    DISSCO_HASHMAP<m_xml_id_type, Reverb *>* reverbHash;
+    DISSCO_HASHMAP<m_xml_id_type, DynamicVariable *>* dvHash;
 
 private:
     ClippingManagementMode cmm_;

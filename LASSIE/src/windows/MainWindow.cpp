@@ -419,7 +419,7 @@ void MainWindow::runProject()
 
     const auto cmod = new QProcess(this);
     connect(cmod, QOverload<int, QProcess::ExitStatus>::of(&QProcess::finished), 
-            [=](const int exit_code)
+            [this](const int exit_code)
             { 
                 statusBar()->showMessage(tr("CMOD exited with code %1").arg(exit_code)); 
             }

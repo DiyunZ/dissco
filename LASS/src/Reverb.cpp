@@ -44,30 +44,30 @@ Reverb::Reverb(m_rate_type samplingRate)
   float lp_gain_list[REVERB_NUM_COMB_FILTERS];
   int i;
 
-  comb_gain_list[0] = 0.46;
-  comb_gain_list[1] = 0.48;
+  comb_gain_list[0] = 0.46f;
+  comb_gain_list[1] = 0.48f;
   comb_gain_list[2] = 0.50;
-  comb_gain_list[3] = 0.52;
-  comb_gain_list[4] = 0.53;
-  comb_gain_list[5] = 0.55;
+  comb_gain_list[3] = 0.52f;
+  comb_gain_list[4] = 0.53f;
+  comb_gain_list[5] = 0.55f;
 
   vector<envelope_segment> segmentCollection;
   envelope_segment seg;
 
-  seg.x = 0.0; seg.y = 0.83;
+  seg.x = 0.0; seg.y = 0.83f;
   seg.interType = LINEAR; seg.lengthType = FLEXIBLE;
   segmentCollection.push_back(seg);
-  seg.x = 1.0; seg.y = 0.83;
+  seg.x = 1.0; seg.y = 0.83f;
   segmentCollection.push_back(seg);
 
   percentReverb = new Envelope(segmentCollection);
 
-  float hi_low_spread = 0.05;
+  float hi_low_spread = 0.05f;
   for(i=0;i<REVERB_NUM_COMB_FILTERS;i++)
-    lp_gain_list[i] = 0.05 + (hi_low_spread * (0.95 - comb_gain_list[i]));
+    lp_gain_list[i] = static_cast<float>(0.05 + (hi_low_spread * (0.95 - comb_gain_list[i])));
 
   ConstructorCommon(percentReverb, &comb_gain_list[0], &lp_gain_list[0],
-		    0.7, 0.6, samplingRate);
+		    0.7f, 0.6f, samplingRate);
 
 }
 
@@ -80,27 +80,27 @@ Reverb::Reverb(float room_size, m_rate_type samplingRate)
   vector<envelope_segment> segmentCollection;
   envelope_segment seg;
 
-  float flatReverb = 0.345 + (0.625 * room_size);
+  float flatReverb = static_cast<float>(0.345 + (0.625 * room_size));
   seg.x = 0.0; seg.y = flatReverb;
   seg.interType = LINEAR; seg.lengthType = FLEXIBLE;
   segmentCollection.push_back(seg);
   seg.x = 1.0; seg.y = flatReverb;
   segmentCollection.push_back(seg);
   percentReverb = new Envelope(segmentCollection);
-  float hilow_spread  = 0.056 + (0.430 * room_size);
-  float gainAllPass   = 0.7;
-  float delay         = 0.176 + (0.233 * room_size);
+  float hilow_spread  = static_cast<float>(0.056 + (0.430 * room_size));
+  float gainAllPass   = 0.7f;
+  float delay         = static_cast<float>(0.176 + (0.233 * room_size));
 
 //  percentReverb->Print();
-  comb_gain_list[0] = 0.46;
-  comb_gain_list[1] = 0.48;
+  comb_gain_list[0] = 0.46f;
+  comb_gain_list[1] = 0.48f;
   comb_gain_list[2] = 0.50;
-  comb_gain_list[3] = 0.52;
-  comb_gain_list[4] = 0.53;
-  comb_gain_list[5] = 0.55;
+  comb_gain_list[3] = 0.52f;
+  comb_gain_list[4] = 0.53f;
+  comb_gain_list[5] = 0.55f;
 
   for(i=0;i<REVERB_NUM_COMB_FILTERS;i++)
-    lp_gain_list[i] = 0.05 + (hilow_spread * (0.95 - comb_gain_list[i]));
+    lp_gain_list[i] = static_cast<float>(0.05 + (hilow_spread * (0.95 - comb_gain_list[i])));
 
   ConstructorCommon(percentReverb, &comb_gain_list[0], &lp_gain_list[0],
 		    gainAllPass, delay, samplingRate);
@@ -116,17 +116,17 @@ Reverb::Reverb(Envelope *percentReverb, float hilow_spread, float gainAllPass,
   Envelope* temp = new Envelope(*percentReverb);
   percentReverb = new Envelope(*temp);
 
-  comb_gain_list[0] = 0.46;
-  comb_gain_list[1] = 0.48;
+  comb_gain_list[0] = 0.46f;
+  comb_gain_list[1] = 0.48f;
   comb_gain_list[2] = 0.50;
-  comb_gain_list[3] = 0.52;
-  comb_gain_list[4] = 0.53;
-  comb_gain_list[5] = 0.55;
+  comb_gain_list[3] = 0.52f;
+  comb_gain_list[4] = 0.53f;
+  comb_gain_list[5] = 0.55f;
 
   for(i=0;i<REVERB_NUM_COMB_FILTERS;i++)
     {
 //      cout<<i<<endl;
-      lp_gain_list[i] = 0.05 + (hilow_spread * (0.95 - comb_gain_list[i]));
+      lp_gain_list[i] = static_cast<float>(0.05 + (hilow_spread * (0.95 - comb_gain_list[i])));
     }
   ConstructorCommon(percentReverb, &comb_gain_list[0], &lp_gain_list[0],
 		    gainAllPass, delay, samplingRate);
@@ -238,9 +238,9 @@ void Reverb::ConstructorCommon(Envelope *percentReverbInput, float *combGainList
   float alpha = 0.0; // alpha is the steady state gain (which is also the max of the gain fn
 #define max(x,y) ((x) > (y) ? (x) : (y))
   for(i=0;i<6;i++)
-    alpha = max(alpha, combGainList[i]/(1.0 - lpGainList[i]));
-  float T_r = -3.0 * delay / log(alpha);
-  decay_duration = T_r*1.0;
+    alpha = static_cast<float>(max(alpha, combGainList[i]/(1.0 - lpGainList[i])));
+  float T_r = static_cast<float>(-3.0 * delay / log(alpha));
+  decay_duration = static_cast<float>(T_r*1.0);
 }
 
 /**
@@ -556,7 +556,7 @@ void Reverb::xml_print( ofstream& xmlOutput )
 {
   int i;
   Reverb* pnt2rev = this;
-  xmlOutput << "<reverb id=\"" << (long)pnt2rev << "\">" << endl;
+  xmlOutput << "<reverb id=\"" << reinterpret_cast<m_xml_id_type>(pnt2rev) << "\">" << endl;
   //  I don't know if this next line will work -AL
   xmlOutput << "\t<percentReverb value=\"" << percentReverb << "\" />" << endl;
   xmlOutput << "\t<allPassDelay value=\"" << allPassDelay << "\" />" << endl;
@@ -584,16 +584,16 @@ void Reverb::xml_read(XmlReader::xmltag *reverbtag)
 
   char *value;
   if((value = reverbtag->findChildParamValue("gainDirect","value")) != 0)
-      set_gainDirect(atof(value));
+      set_gainDirect(static_cast<float>(atof(value)));
 
   if((value = reverbtag->findChildParamValue("gainReverb","value")) != 0)
-      set_gainReverb(atof(value));
+      set_gainReverb(static_cast<float>(atof(value)));
 
   if((value = reverbtag->findChildParamValue("allPassDelay","value")) != 0)
-      set_allPassDelay(atof(value));
+      set_allPassDelay(static_cast<float>(atof(value)));
 
   if((value = reverbtag->findChildParamValue("decay_duration","value")) != 0)
-      set_decay_duration(atof(value));
+      set_decay_duration(static_cast<float>(atof(value)));
 
   XmlReader::xmltag *childtag;
   int lpIndex = 0;

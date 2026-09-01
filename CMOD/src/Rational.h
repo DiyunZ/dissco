@@ -572,7 +572,7 @@ public:
 
   static Rational<T> fromString(const std::string& str)
   {
-    T len = str.length();
+    T len = static_cast<T>(str.length());
     T numerator = 0;
     T denominator = 0;
     bool isPastSlash = false;

@@ -57,7 +57,7 @@ string Sieve::getFileName() {
 //---------------------------------------------------------------------------//
 
 void Sieve::BuildFromExpr(int minVal, int maxVal,
-                          const char *eMethod, const char *wMethod,
+                          const char *, const char *wMethod,
                           std::string expr, vector<int> wArgVect, vector<int> offsetVect) {
   ModParser mp(offsetVect);
   mp.parseExpr(expr, minVal, maxVal);
@@ -132,9 +132,9 @@ int Sieve::GetNumItems() {
   int result = 0;
 
   if (eList.size() >= wList.size()) {
-    result = eList.size();
+    result = static_cast<int>(eList.size());
   } else {
-    result = wList.size();
+    result = static_cast<int>(wList.size());
   }
   return result;
 }
@@ -261,8 +261,6 @@ void Sieve::Meaningful(int minVal, int maxVal, vector<int> eArgVect, std::vector
 //---------------------------------------------------------------------------//
 
 void Sieve::Multiples(int minVal, int maxVal, vector<int> numMods, std::vector<int> offsetVect) {
-  int element, modulo;
-
   eList.clear();
 
   skip = 0;
@@ -404,6 +402,12 @@ void Sieve::IncludeWeights(const vector<int>& wArgVect) {
 //---------------------------------------------------------------------------//
 
 void Sieve::AddEnvelope(Envelope *env, string method) {
+  if (method != "CONSTANT" && method != "VARIABLE") {
+    throw CmodError(CmodError::Kind::Project,
+                    "Sieve envelope method '" + method + "' is not supported.",
+                    "Sieve -> Envelope Method",
+                    "Choose CONSTANT or VARIABLE for the sieve's envelope method.");
+  }
   float value;
   double checkPoint;
   double probability;
@@ -423,10 +427,10 @@ void Sieve::AddEnvelope(Envelope *env, string method) {
     } else {
       checkPoint = 0;
     }
-    value = env->getValue(checkPoint, 1.);
+    value = env->getValue(static_cast<m_value_type>(checkPoint), 1.);
     if (method == "VARIABLE") {
       probability = Random::PreferedValueDistribution(value, checkPoint);
-    } else if (method == "CONSTANT") {
+    } else {
       probability = value;
     }
 

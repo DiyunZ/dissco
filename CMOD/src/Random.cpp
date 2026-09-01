@@ -44,7 +44,7 @@ void Random::SeedBySystemTime() {
 
   if (seed == 0){
   // Get the current system time and seed it
-  Seed(time(NULL));
+  Seed(static_cast<unsigned int>(time(NULL)));
   }
 }
 
@@ -131,7 +131,7 @@ int Random::RandOrderInt(int low, int high, int id) {
   vector<int>& choices = choicesMap[id];
 
   // Choose a random element from available choices
-  int randIndex = RandInt(0, choices.size() - 1);
+  int randIndex = RandInt(0, static_cast<int>(choices.size() - 1));
   int result = choices[randIndex];
 
   // Remove chosen element from choices
@@ -182,7 +182,7 @@ int Random::ChooseFromProb(vector<double> probs) {
 //----------------------------------------------------------------------------//
 
 void Random::AssignProb(list<double> &myProbList) {
-  double len = myProbList.size();
+  double len = static_cast<double>(myProbList.size());
   double prob = 0.0;
 
   list<double>::iterator iter = myProbList.begin();

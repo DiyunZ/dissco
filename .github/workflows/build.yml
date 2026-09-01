@@ -29,6 +29,9 @@ jobs:
     name: Linux build
     runs-on: ubuntu-22.04
     steps:
+      - name: Configure Git defaults
+        run: git config --global init.defaultBranch main
+
       - uses: actions/checkout@v5
 
       - name: Install system dependencies
@@ -55,10 +58,11 @@ jobs:
         run: |
           cmake -S . -B build -G Ninja \
             -DCMAKE_BUILD_TYPE=Release \
+            -DCMAKE_COMPILE_WARNING_AS_ERROR=ON \
             -DCMAKE_PREFIX_PATH="${Qt6_DIR}"
 
       - name: Build
-        run: cmake --build build --parallel
+        run: cmake --build build --parallel --verbose
 
   windows:
     name: Windows build
@@ -69,13 +73,11 @@ jobs:
         shell: pwsh
 
     steps:
+      - name: Configure Git defaults
+        run: git config --global init.defaultBranch main
+
       - name: Checkout repository
         uses: actions/checkout@v5
-
-      - name: Configure MSVC environment
-        uses: ilammy/msvc-dev-cmd@v1
-        with:
-          arch: x64
 
       - name: Install Qt 6.8.1
         uses: jurplel/install-qt-action@v4
@@ -88,7 +90,13 @@ jobs:
 
       - name: Install vcpkg dependencies
         run: |
+          $vswhere = "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.exe"
+          $vsRoot = & $vswhere -latest -products * -requires Microsoft.VisualStudio.Component.VC.Tools.x86.x64 -property installationPath
+          if (-not $vsRoot) { throw "Visual Studio with the x64 C++ toolchain was not found." }
+          & "$vsRoot\Common7\Tools\Launch-VsDevShell.ps1" -Arch amd64 -HostArch amd64 -SkipAutomaticLocation
+
           $vcpkgRoot = "$env:RUNNER_TEMP\vcpkg"
+          $env:VCPKG_ROOT = $vcpkgRoot
 
           git clone --depth 1 https://github.com/microsoft/vcpkg.git $vcpkgRoot
           & "$vcpkgRoot\bootstrap-vcpkg.bat" -disableMetrics
@@ -101,12 +109,19 @@ jobs:
         env:
           CL: /EHsc /DNOMINMAX /DNOGDI /DMUPARSER_STATIC /D_CRT_SECURE_NO_WARNINGS
         run: |
+          $vswhere = "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.exe"
+          $vsRoot = & $vswhere -latest -products * -requires Microsoft.VisualStudio.Component.VC.Tools.x86.x64 -property installationPath
+          if (-not $vsRoot) { throw "Visual Studio with the x64 C++ toolchain was not found." }
+          & "$vsRoot\Common7\Tools\Launch-VsDevShell.ps1" -Arch amd64 -HostArch amd64 -SkipAutomaticLocation
+
           $vcpkgRoot = "$env:RUNNER_TEMP\vcpkg"
+          $env:VCPKG_ROOT = $vcpkgRoot
 
           Write-Host "MSVC flags: $env:CL"
 
           cmake -S . -B build -G Ninja `
             -DCMAKE_BUILD_TYPE=Release `
+            -DCMAKE_COMPILE_WARNING_AS_ERROR=ON `
             "-DCMAKE_PREFIX_PATH=$env:Qt6_DIR" `
             "-DCMAKE_TOOLCHAIN_FILE=$vcpkgRoot\scripts\buildsystems\vcpkg.cmake" `
             -DVCPKG_TARGET_TRIPLET=x64-windows `
@@ -118,6 +133,14 @@ jobs:
         env:
           CL: /EHsc /DNOMINMAX /DNOGDI /DMUPARSER_STATIC /D_CRT_SECURE_NO_WARNINGS
         run: |
+          $vswhere = "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.exe"
+          $vsRoot = & $vswhere -latest -products * -requires Microsoft.VisualStudio.Component.VC.Tools.x86.x64 -property installationPath
+          if (-not $vsRoot) { throw "Visual Studio with the x64 C++ toolchain was not found." }
+          & "$vsRoot\Common7\Tools\Launch-VsDevShell.ps1" -Arch amd64 -HostArch amd64 -SkipAutomaticLocation
+
+          $vcpkgRoot = "$env:RUNNER_TEMP\vcpkg"
+          $env:VCPKG_ROOT = $vcpkgRoot
+
           Write-Host "MSVC flags: $env:CL"
           cmake --build build --parallel --verbose
 
@@ -125,12 +148,27 @@ jobs:
     name: macOS build
     runs-on: macos-14
     steps:
+      - name: Configure Git defaults
+        run: git config --global init.defaultBranch main
+
       - uses: actions/checkout@v5
 
       - name: Install dependencies
         run: |
           brew update
-          brew install cmake ninja libsndfile
+
+          if brew tap | grep -qx 'aws/tap'; then
+            brew untap aws/tap
+          fi
+
+          dependencies=()
+          command -v cmake >/dev/null 2>&1 || dependencies+=(cmake)
+          command -v ninja >/dev/null 2>&1 || dependencies+=(ninja)
+          brew list --versions libsndfile >/dev/null 2>&1 || dependencies+=(libsndfile)
+
+          if (( ${#dependencies[@]} )); then
+            brew install "${dependencies[@]}"
+          fi
 
       - name: Install Qt 6.8
         uses: jurplel/install-qt-action@v4
@@ -146,7 +184,8 @@ jobs:
         run: |
           cmake -S . -B build -G Ninja \
             -DCMAKE_BUILD_TYPE=Release \
+            -DCMAKE_COMPILE_WARNING_AS_ERROR=ON \
             -DCMAKE_PREFIX_PATH="${Qt6_DIR}"
 
       - name: Build
-        run: cmake --build build --parallel
+        run: cmake --build build --parallel --verbose

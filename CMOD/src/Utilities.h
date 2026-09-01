@@ -464,9 +464,6 @@ private:
   Piece* piece;
   Score* score;
 
-  // A flag to indicate that the CMOD computation is done.
-  bool doneCreatingSoundObjects = false;
-
 };
 
 #endif
