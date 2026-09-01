@@ -23,7 +23,9 @@ project(DISSCO VERSION ${DISSCO_VERSION})
 
 include(CTest)
 
-if(CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang")
+# Apple Clang adds /usr/local/lib to link commands, and ld64.lld warns when
+# that optional directory is absent. Use the platform linker on macOS.
+if(NOT APPLE AND CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang")
     find_program(LLD_LINKER ld.lld)
     if(LLD_LINKER)
         add_link_options(-fuse-ld=lld)
