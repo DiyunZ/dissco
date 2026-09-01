@@ -158,7 +158,7 @@ float Modifier::getProbability(double checkPoint) {
     return 0;
   }
   checkPt = checkPoint;
-  return probEnv->getValue(checkPoint, 1);
+  return probEnv->getValue(static_cast<m_value_type>(checkPoint), 1);
 }
 
 //----------------------------------------------------------------------------//
@@ -240,7 +240,7 @@ void Modifier::applyModSound(Sound* snd) {
     snd->setPartialParam(FREQTRANS_RATE_ENV, *(env_values[1]));
     snd->setPartialParam(FREQTRANS_WIDTH, *(env_values[2]));
   } else if (type == "WAVE_TYPE") {
-    snd->setPartialParam(WAVE_TYPE, env_values[0]->getValue(checkPt, 1));
+    snd->setPartialParam(WAVE_TYPE, env_values[0]->getValue(static_cast<m_value_type>(checkPt), 1));
   } else if (type == "DETUNE"){
     snd->setDetune(direction, spread, velocity);
   }else {
@@ -314,7 +314,7 @@ void Modifier::applyModPartial(Sound* snd) {
     delete env_values.front();
     env_values.pop_front();
   } else if (type == "WAVE_TYPE") {
-    snd->get(partialNum).setParam(WAVE_TYPE, env_values.front()->getValue(checkPt, 1));
+    snd->get(partialNum).setParam(WAVE_TYPE, env_values.front()->getValue(static_cast<m_value_type>(checkPt), 1));
     delete env_values.front();
     env_values.pop_front();
   } else  {

@@ -78,7 +78,7 @@ Envelope::Envelope(vector<xy_point> xy_points, vector<envelope_segment> segs)
     seg.x = tpt.x;
     seg.y = tpt.y;
     segments_->push_back(seg);
-    for (int i = 1; i < xy_points.size(); i++)
+    for (std::size_t i = 1; i < xy_points.size(); i++)
 	{
 	    seg = segs.at(i - 1);
 	    seg.x = xy_points.at(i).x;
@@ -112,7 +112,7 @@ Envelope::~Envelope()
 	delete(segments_);
 
 	if (interpolators_) {
-		for (int i = 0; i < interpolators_->size(); i++) {
+		for (std::size_t i = 0; i < interpolators_->size(); i++) {
 			delete(interpolators_->at(i));
 		}
 		delete(interpolators_);
@@ -130,7 +130,7 @@ void Envelope::print()
         return;
     }
 
-    int iNumSegments = segments_->size();
+    int iNumSegments = static_cast<int>(segments_->size());
     int iLoop = 0;
 
     cout << endl;
@@ -349,7 +349,7 @@ void Envelope::defineShape()
 	//===
 	envelope_segment temp_seg;
 	m_value_type temp = 0;
-	for (int i = 0; i < segments_->size(); i++)	{
+	for (std::size_t i = 0; i < segments_->size(); i++)	{
 		temp_seg = segments_->at(i);
 		temp_seg.length = temp_seg.x - temp;
 		segments_->at(i) = temp_seg;
@@ -384,7 +384,7 @@ void Envelope::addToShape(vector<envelope_segment> segs)
 
 
     // for every element in the new collections
-    for (int i = startIndex; i < segs.size(); i++)
+    for (std::size_t i = static_cast<std::size_t>(startIndex); i < segs.size(); i++)
 	{
 		// add the current segment and point + 1 to our existing vectors
 	    segTemp = segs.at(i);
@@ -421,12 +421,12 @@ Envelope* Envelope::multiply(Envelope & env1, Envelope & env2)
 	envelope_segment seg1, seg2, newseg;
 	m_value_type length=0, max1=0, max2=0;
 	// find the biggest x values
-	for (int i = 0; i < env1Segs->size(); i++) {
+	for (std::size_t i = 0; i < env1Segs->size(); i++) {
 		if (env1Segs->at(i).x > max1) {
 			max1 = env1Segs->at(i).x;
 		}
 	}
-	for (int i = 0; i < env2Segs->size(); i++) {
+	for (std::size_t i = 0; i < env2Segs->size(); i++) {
 		if (env2Segs->at(i).x > max2) {
 			max2 = env2Segs->at(i).x;
 		}
@@ -521,7 +521,7 @@ vector<xy_point>* Envelope::getPoints()
     vector< xy_point > *points = new vector<xy_point>();
     xy_point
 	xy;
-    for (int i = 0; i < segments_->size(); i++) {
+    for (std::size_t i = 0; i < segments_->size(); i++) {
 	    xy.x = segments_->at(i).x;
 	    xy.y = segments_->at(i).y;
 	    points->push_back(xy);
@@ -665,7 +665,7 @@ void Envelope::setSegmentInterpolationType(int index, interpolation_type interTy
 inline bool Envelope::checkValidSegmentIndex(int index)
 {
     // check if index is valid
-    return ((index >= 0) && (segments_->size() > index));
+    return ((index >= 0) && (segments_->size() > static_cast<std::size_t>(index)));
 }
 
 //----------------------------------------------------------------------------//
@@ -693,7 +693,7 @@ Iterator<m_value_type> Envelope::valueIterator()
 //----------------------------------------------------------------------------//
 void Envelope::generateLengths(m_time_type totalLength)
 {
-	int iNumSegments = segments_->size() - 1;
+	int iNumSegments = static_cast<int>(segments_->size() - 1);
 	double dTotalFixedLength = 0;
 	double dTotalFlexPercent = 0;
 	double dScaleRatio = 1;
@@ -741,8 +741,8 @@ void Envelope::generateLengths(m_time_type totalLength)
 	    for (int iIndex = 0; iIndex < iNumSegments; iIndex++) {
 		    // scale every FIXED length value
 		    if (this->getSegmentLengthType(iIndex) == FIXED) {
-				generatedSegmentLengths_->at(iIndex) = getSegmentLength(iIndex) * dScaleRatio;
-			    setSegmentLength(iIndex, getSegmentLength(iIndex) * dScaleRatio);
+				generatedSegmentLengths_->at(iIndex) = static_cast<m_time_type>(getSegmentLength(iIndex) * dScaleRatio);
+			    setSegmentLength(iIndex, static_cast<m_value_type>(getSegmentLength(iIndex) * dScaleRatio));
 			} else {
 			    // all flex length entries are set to 0
 			    generatedSegmentLengths_->at(iIndex) = 0;
@@ -757,7 +757,7 @@ void Envelope::generateLengths(m_time_type totalLength)
 	    // scale percentages
 	    for (int iIndex = 0; iIndex < iNumSegments; iIndex++) {
 		    if (getSegmentLengthType(iIndex) == FLEXIBLE) {
-				generatedSegmentLengths_->at(iIndex) = getSegmentLength(iIndex) * dScaleRatio;
+				generatedSegmentLengths_->at(iIndex) = static_cast<m_time_type>(getSegmentLength(iIndex) * dScaleRatio);
 			}
 		}
 	}
@@ -772,7 +772,7 @@ void Envelope::generateLengths(m_time_type totalLength)
 	    for (int iIndex = 0; iIndex < iNumSegments; iIndex++) {
 		    // if this is a flex-length entry, set length accordingly
 		    if (getSegmentLengthType(iIndex) == FLEXIBLE) {
-			    generatedSegmentLengths_->at(iIndex) = generatedSegmentLengths_->at(iIndex) * flexLengthAvailable;
+			    generatedSegmentLengths_->at(iIndex) = static_cast<m_time_type>(generatedSegmentLengths_->at(iIndex) * flexLengthAvailable);
 			}
 		}
 	}
@@ -781,9 +781,9 @@ void Envelope::generateLengths(m_time_type totalLength)
 //----------------------------------------------------------------------------//
 void Envelope::addInterpolators(m_rate_type rate)
 {
-	int iNumSegments = segments_->size();
+	int iNumSegments = static_cast<int>(segments_->size());
 	// clear out interpolators that are stored, if there are any stored
-	for (int i = 0; i < interpolators_->size(); i++) {
+	for (std::size_t i = 0; i < interpolators_->size(); i++) {
 		delete(interpolators_->at(i));
 	}
 	interpolators_->clear();
@@ -826,7 +826,7 @@ void Envelope::addInterpolators(m_rate_type rate)
 //----------------------------------------------------------------------------//
 void Envelope::scale(m_value_type factor)
 {
-	int iNumSegments = segments_->size();
+	int iNumSegments = static_cast<int>(segments_->size());
 	envelope_segment segTemp;
 
 	// for every point that we've got stored
@@ -842,7 +842,7 @@ void Envelope::scale(m_value_type factor)
 //----------------------------------------------------------------------------//
 m_value_type Envelope::getMaxValue()
 {
-    int iNumSegments = segments_->size();
+    int iNumSegments = static_cast<int>(segments_->size());
     m_value_type maxVal = 0.0;
 
     // for every point that we've got stored
@@ -895,7 +895,7 @@ void Envelope::xml_print(ofstream & xmlOutput)
 {
     DynamicVariable *pnt2dyn = this;
 
-    xmlOutput << "<dv id=\"" << (long) pnt2dyn << "\">" << endl;
+    xmlOutput << "<dv id=\"" << reinterpret_cast<m_xml_id_type>(pnt2dyn) << "\">" << endl;
     xmlOutput << "\t<dv_type value=\"envelope\" />" << endl;
     xmlOutput << "\t<duration value=\"" << getDuration() << "\" />" << endl;
     xmlOutput << "\t<rate value=\"" << getSamplingRate() << "\" />" << endl;
@@ -949,7 +949,7 @@ void Envelope::xml_print(ofstream & xmlOutput, list < DynamicVariable * >&dynObj
 
     //Print the pointer value as an ID, then the "meat" gets printed later
     xmlOutput << "\t\t\t\t<dv_type value=\"envelope\" />" << endl;
-    xmlOutput << "\t\t\t\t<dv_ptr id=\"" << (long) pnt2dyn << "\" />" << endl;
+    xmlOutput << "\t\t\t\t<dv_ptr id=\"" << reinterpret_cast<m_xml_id_type>(pnt2dyn) << "\" />" << endl;
 
     // Update dynamic variable list if necessary
     list < DynamicVariable * >::const_iterator dynit;
@@ -970,7 +970,7 @@ void Envelope::xml_read(XmlReader::xmltag * envtag)
     envelope_segment seg;
 
   if((value = envtag->findChildParamValue("duration", "value")) != 0)
-    setDuration(atof(value));
+    setDuration(static_cast<m_time_type>(atof(value)));
 
   if((value = envtag->findChildParamValue("rate", "value")) != 0) {
     setSamplingRate(atoi(value));
@@ -979,10 +979,10 @@ void Envelope::xml_read(XmlReader::xmltag * envtag)
     while ((segtag = envtag->children->find("segment")) != 0) {
 	    XmlReader::xmltag * xy = segtag->children->find("xyPoint");
 	    if ((value = xy->getParamValue("x")) != 0) {
-		    seg.x = atof(value);
+		    seg.x = static_cast<m_value_type>(atof(value));
 		}
 	    if ((value = xy->getParamValue("y")) != 0) {
-		    seg.y = atof(value);
+		    seg.y = static_cast<m_value_type>(atof(value));
 		}
 	    if ((value = segtag->findChildParamValue("type", "value")) != 0) {
 		    if (strcmp(value, "LINEAR") == 0)

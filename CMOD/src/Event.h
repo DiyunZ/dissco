@@ -427,7 +427,7 @@ protected:
     /**
     *  Converts "SECONDS" to "sec.", "PERCENTAGE" to "%", etc.
     **/
-    string unitTypeToUnits(string type);
+    string unitTypeToUnits(string unitType);
 
     /**
     *  helper functions

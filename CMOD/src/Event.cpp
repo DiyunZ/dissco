@@ -346,7 +346,7 @@ string Event::getTempoStringFromDOMElement(pugi::xml_node _element){
   double fractionEntry1 = utilities->evaluate(XMLTC(thisElement),(void*)this);
 
   thisElement = GNES(thisElement);
-  double fractionEntry2 = utilities->evaluate(XMLTC(thisElement),(void*)this);
+  utilities->evaluate(XMLTC(thisElement),(void*)this);
 
   thisElement = GNES(thisElement);
   double valueEntry = utilities->evaluate(XMLTC(thisElement),(void*)this);
@@ -653,21 +653,20 @@ bool Event::buildContinuum() {
   // get the start time
   float rawChildStartTime = 0.0;
   float rawChildDuration = 0.0;
-  int endTime = 0;
 
   if (align) {
     if (matrix == NULL) buildMatrix(false);
     MatPoint childPt = matrix->chooseContinuum();
 
-    rawChildStartTime = childPt.stime;
+    rawChildStartTime = static_cast<float>(childPt.stime);
     tsChild.startEDU = childPt.stime;
     tsChild.start = childPt.stime * tempo.getEDUDurationInSeconds().To<float>();
 
-    rawChildDuration = childPt.dur;
+    rawChildDuration = static_cast<float>(childPt.dur);
     tsChild.durationEDU = childPt.dur;
     tsChild.duration = childPt.dur * tempo.getEDUDurationInSeconds().To<float>();
   } else {
-    rawChildStartTime = utilities->evaluate(XMLTC(childStartTimeElement),(void*)this);
+    rawChildStartTime = static_cast<float>(utilities->evaluate(XMLTC(childStartTimeElement),(void*)this));
     // how to process start time: EDU, SECONDS or PERCENTAGE
     if (startType == "1" ) { //"EDU"
       tsChild.start = rawChildStartTime *
@@ -691,7 +690,7 @@ bool Event::buildContinuum() {
     childName = XMLTC(GFEC(childTypeElements[childType]));
 
     // get the duration
-    rawChildDuration = utilities->evaluate(XMLTC(childDurationElement),(void*)this);
+    rawChildDuration = static_cast<float>(utilities->evaluate(XMLTC(childDurationElement),(void*)this));
 
     // assign previousChild Duration here so that the next child can use it
     //  a MISNOMER, actually the ENDTIME of present child
@@ -831,11 +830,11 @@ bool Event::buildSweep() {
     if (matrix == NULL) buildMatrix(false);
     MatPoint childPt = matrix->chooseSweep(numChildren - currChildNum - 1);
 
-    rawChildStartTime = childPt.stime;
+    rawChildStartTime = static_cast<float>(childPt.stime);
     tsChild.startEDU = childPt.stime;
     tsChild.start = childPt.stime * tempo.getEDUDurationInSeconds().To<float>();
 
-    rawChildDuration = childPt.dur;
+    rawChildDuration = static_cast<float>(childPt.dur);
     tsChild.durationEDU = childPt.dur;
     tsChild.duration = childPt.dur * tempo.getEDUDurationInSeconds().To<float>();
   } else {
@@ -843,7 +842,7 @@ bool Event::buildSweep() {
 //  rawChildStartTime =
 //    utilities->evaluate(XMLTC(childStartTimeElement),(void*)this);
 
-    rawChildStartTime = previousChildEndTime;			//actually endTime
+    rawChildStartTime = static_cast<float>(previousChildEndTime);			//actually endTime
 //cout << "Event::buildSweep - rawChildStartTime=" << rawChildStartTime << endl;
 
     if (startType == "1" ) {					//EDU
@@ -861,7 +860,7 @@ bool Event::buildSweep() {
 
     if (tsChild.start < tsPrevious.end) { // Prevent events from overlapping
       tsChild.start = tsPrevious.end;
-      tsChild.startEDU = tsPrevious.end;
+      tsChild.startEDU = static_cast<int>(tsPrevious.end);
     }
 
   // get the type
@@ -869,7 +868,7 @@ bool Event::buildSweep() {
   childName = XMLTC(GFEC(childTypeElements[childType]));
 
     // get the duration
-    rawChildDuration = utilities->evaluate(XMLTC(childDurationElement),(void*)this);
+    rawChildDuration = static_cast<float>(utilities->evaluate(XMLTC(childDurationElement),(void*)this));
 
     //assign previousChild Duration here so that the next child can use it
    // this is a MISNOMER actually the endTime of the present child
@@ -903,7 +902,7 @@ bool Event::buildSweep() {
   }
 
   if(startType == "1" && durType == "1") {
-    endTime = Event::verify_valid(previousChildEndTime);		//missnomer !
+    endTime = Event::verify_valid(static_cast<int>(previousChildEndTime));		//missnomer !
 
     tsChild.start = rawChildStartTime *			       	    //SEVER 5/19 2022
         tempo.getEDUDurationInSeconds().To<float>();
@@ -1251,7 +1250,7 @@ list<Note> Event::getNotes() {
 int Event::getCurrentLayer() {
   int countInLayer = 0;
   for(unsigned i = 0; i < layerVect.size(); i++) {
-    countInLayer += layerVect[i].size();
+    countInLayer = static_cast<int>(countInLayer + layerVect[i].size());
     if(childType >= 0 && childType < countInLayer)
       return i;
   }
@@ -1327,12 +1326,12 @@ string Event::getEDUDurationExactness(void) {
 //----------------------------------------------------------------------------//
 //Checked
 
-string Event::unitTypeToUnits(string type) {
-  if(type == "UNITS" || type == "EDU")
+string Event::unitTypeToUnits(string unitType) {
+  if(unitType == "UNITS" || unitType == "EDU")
     return "EDU";
-  else if(type == "SECONDS")
+  else if(unitType == "SECONDS")
     return "sec.";
-  else if(type == "PERCENTAGE")
+  else if(unitType == "PERCENTAGE")
     return "normalized";
   else
     return "";
@@ -1366,7 +1365,7 @@ bool Event::buildDiscrete() {
   string childName = XMLTC(GFEC(childTypeElements[childType]));
 
   if(durEDU > (int)maxChildDur)
-    durEDU = maxChildDur;
+    durEDU = static_cast<int>(maxChildDur);
   tsChild.startEDU = stimeEDU;
   tsChild.durationEDU = durEDU;
 
@@ -1510,9 +1509,9 @@ void Event::buildMatrix(bool discrete) {
     numTypesInLayers.push_back (numOfDiscretePackages);
   }
 
-  int parentEDUs = Note::str_to_int(tempo.getEDUPerSecond().toPrettyString()) * ts.duration;
+  int parentEDUs = static_cast<int>(Note::str_to_int(tempo.getEDUPerSecond().toPrettyString()) * ts.duration);
 
-  matrix = new Matrix(childTypeElements.size(), attackSiv->GetNumItems(),
+  matrix = new Matrix(static_cast<int>(childTypeElements.size()), attackSiv->GetNumItems(),
        durSiv->GetNumItems(),  numTypesInLayers, parentEDUs, tempo, sieveAligned);
 
   if (discrete) {
@@ -1570,7 +1569,7 @@ int Event::verify_valid(int endTime){
 //cout << " " << endl;
   }
 
-  int length = attackSweep.size();
+  int length = static_cast<int>(attackSweep.size());
   if (length == 0) {
     return endTime;
   }

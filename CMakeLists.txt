@@ -35,7 +35,9 @@ option(BUILD_LASS_EXAMPLES "Build LASS examples" OFF)
 
 # see Cross Compiling with CMake -- Mastering CMake for more on the eponymous subject
 if(WIN32)
-    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /Wall")
+    # /Wall includes default-off optimization chatter from the compiler and STL.
+    # Keep normal strict diagnostics and decode UTF-8 sources consistently.
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /W4 /utf-8")
     set(CMAKE_TOOLCHAIN_FILE "${CMAKE_SOURCE_DIR}/toolchains/windows.cmake")
 elseif(APPLE)
     set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wall -Wextra -Wno-unused-parameter -Wno-unused-variable -Wno-unused-function -Wno-deprecated")

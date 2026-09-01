@@ -163,11 +163,11 @@ void LPCombFilter::xml_read(XmlReader::xmltag *lptag)
 {
 	char *value;
 	if((value = lptag->findChildParamValue("g", "value")) != 0)
-		set_g(atof(value));
+		set_g(static_cast<float>(atof(value)));
 	if((value = lptag->findChildParamValue("D", "value")) != 0)
 		set_D(atoi(value));
 	if((value = lptag->findChildParamValue("lpf_g","value")) != 0)
-		set_lpf_g(atof(value));
+		set_lpf_g(static_cast<float>(atof(value)));
 }
 
 

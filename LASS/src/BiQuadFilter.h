@@ -65,6 +65,7 @@ public:
 	 * \param freq The center or cutoff frequency in Hz
 	 * \param srate The sampling rate in samples per second
 	 * \param bandwidth The bandwidth in octaves
+	 * \throws std::invalid_argument if type is outside the supported range 0-6
 	 **/
 	BiQuadFilter(int type, m_sample_type dbGain, /* gain of filter */
                           m_sample_type freq,             /* center frequency */

@@ -39,7 +39,7 @@ struct TimeSignature {
     bar_edus_ = Note::str_to_int(tempo_.getEDUPerBar().toPrettyString());
     unit_note_ = tempo_.getTimeSignatureBeat().Den(); // the note that represents one beat
 
-    tuplet_limit_ = CalculateTupletLimit();
+    tuplet_limit_ = static_cast<int>(CalculateTupletLimit());
 
     ConstructTupletNames();
   }
@@ -54,7 +54,7 @@ struct TimeSignature {
     bar_edus_ = Note::str_to_int(tempo.getEDUPerBar().toPrettyString());
     unit_note_ = tempo.getTimeSignatureBeat().Den(); // the note that represents one beat
 
-    tuplet_limit_ = CalculateTupletLimit();
+    tuplet_limit_ = static_cast<int>(CalculateTupletLimit());
 
     ConstructTupletNames();
   }
@@ -70,7 +70,7 @@ struct TimeSignature {
     size_t tuplet_num = 1;
 
     while (beat_edus_ % tuplet_num == 0) {
-      valid_dividers_.push_back(beat_edus_ / tuplet_num);
+      valid_dividers_.push_back(static_cast<int>(beat_edus_ / tuplet_num));
       tuplet_num++;
     }
 

@@ -408,7 +408,7 @@ void Score::scale(MultiTrack* mt)
 
     // -----
     // create a scaling factor:
-    m_sample_type scalingFactor = 1.0 / maxAmp;
+    m_sample_type scalingFactor = static_cast<m_sample_type>(1.0 / maxAmp);
 
     // -----
     // scale every value by this factor
@@ -456,7 +456,7 @@ void Score::channelScale(MultiTrack* mt)
 
         // -----
         // create a scaling factor:
-        m_sample_type scalingFactor = 1.0 / maxAmp;
+        m_sample_type scalingFactor = static_cast<m_sample_type>(1.0 / maxAmp);
 
         // -----
         // scale every value by this factor
@@ -501,7 +501,7 @@ void Score::anticlip(MultiTrack* mt)
         // scale if necessary
         if (totalAmp > 1.0)
         {
-            m_sample_type scalingFactor = 1.0 / totalAmp;
+            m_sample_type scalingFactor = static_cast<m_sample_type>(1.0 / totalAmp);
             for (int t=0; t<numTracks; t++)
             {
                 (*amp[t] )[s] *= scalingFactor;
@@ -592,7 +592,7 @@ void Score::channelAnticlip(MultiTrack* mt)
         ((double)peakPlace / (double)mt->get(0)->getWave().getSamplingRate())
            << " seconds. Compressing [-6, " << todB(maxAmplitude)
            << ") to [-6, 0) dB" << endl;
-     maxAmplitude /= 0.99; //Never actually allow it to hit 0dB.
+     maxAmplitude = static_cast<m_sample_type>(maxAmplitude / 0.99); //Never actually allow it to hit 0dB.
 
       //m_sample_type normalizeValue = maxAmplitude;
       for (int t=0; t<mt->size(); t++)

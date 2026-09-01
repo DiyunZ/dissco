@@ -343,7 +343,7 @@ void Bottom::buildSound(SoundAndNoteWrapper* _soundNoteWrapper) {
     pugi::xml_node distanceElement = GNES(partialEnvElement);
 
     Envelope* waveShape = (Envelope*) utilities->evaluateObject(XMLTC(partialEnvElement),(void*)this, eventEnv );
-    float distance = utilities->evaluate(XMLTC(distanceElement),(void*)this);
+    float distance = static_cast<float>(utilities->evaluate(XMLTC(distanceElement),(void*)this));
 
     //instead of reading partials, generate spectrum envelope and add to sound
     generatePartials(newSound, baseFrequency, loudSones, distance, waveShape);
@@ -363,7 +363,7 @@ void Bottom::buildSound(SoundAndNoteWrapper* _soundNoteWrapper) {
         Partial partial;
 
         //Set the partial number of the partial based on the current index.
-        partial.setParam(PARTIAL_NUM, i);
+        partial.setParam(PARTIAL_NUM, static_cast<m_value_type>(i));
 
         //Compute the deviation for partials above the fundamental.
         double deviation = 0;
@@ -373,7 +373,7 @@ void Bottom::buildSound(SoundAndNoteWrapper* _soundNoteWrapper) {
 
         //Set the frequencies for each partial.
         float actualFrequency = setPartialFreq(
-          partial, deviation, baseFrequency, i);
+          partial, static_cast<float>(deviation), baseFrequency, i);
 
         //Report the actual frequency.
         stringstream ss; if(i != 0) ss << "Partial " << i; else ss << "Fundamental";
@@ -461,21 +461,21 @@ void Bottom::buildNote(SoundAndNoteWrapper* _soundNoteWrapper) {
   vector<string> noteMods = applyNoteModifiers(modifiersInfo);
   newNote->setModifiers(noteMods);
 // set childStaff
-  int noteStaff = utilities->evaluate(XMLTC(staffsInfo),(void*)this);
+  int noteStaff = static_cast<int>(utilities->evaluate(XMLTC(staffsInfo),(void*)this));
   // int noteStaff = applyNoteStaffs(_soundNoteWrapper->element);
   newNote->setStaffNum(noteStaff);
 
   //Set the pitch.
   float baseFrequency = computeBaseFreq();
 
-  int absPitchNum;
+  int notePitch;
 
   if(wellTempPitch <= 0) { 		//if frequency is in Hertz
-    absPitchNum = newNote->HertzToPitch(baseFrequency);
+    notePitch = newNote->HertzToPitch(baseFrequency);
   } else {
-    absPitchNum = wellTempPitch;
+    notePitch = wellTempPitch;
   }
-  newNote->setPitchWellTempered(absPitchNum);
+  newNote->setPitchWellTempered(notePitch);
 
   // Set notation start, start absolute, and end times in edus
   newNote->setStartTime(_soundNoteWrapper->ts.startEDU.To<int>());
@@ -528,12 +528,12 @@ float Bottom::computeBaseFreq() {
     /* 2nd arg is a string (HERTZ or POW2) */
 
     if (utilities->evaluate(XMLTC(continuumFlagElement), NULL)==0) { //Hertz
-      baseFreqResult = utilities->evaluate(XMLTC(valueElement), (void*)this);
+      baseFreqResult = static_cast<float>(utilities->evaluate(XMLTC(valueElement), (void*)this));
       /* 3rd arg is a float (baseFreq in Hz) */
     }
     else  {//power of 2
       /* 3rd arg is a float (power of 2) */
-      float step = utilities->evaluate(XMLTC(valueElement), (void*)this);
+      float step = static_cast<float>(utilities->evaluate(XMLTC(valueElement), (void*)this));
       if(step <= log2(MINFREQ/C0) || step >= log2(CEILING/C0)) {
         cerr << "CMOD warning: " << context << " / FrequencyEntry1: power-of-two step "
              << step << " is outside the audible range ("
@@ -541,7 +541,7 @@ float Bottom::computeBaseFreq() {
              << "Check the power-of-two expression; partial frequencies outside "
              << MINFREQ << " to " << CEILING << " Hz are clamped." << endl;
       }
-      baseFreqResult = C0 * pow(2, step);
+      baseFreqResult = static_cast<float>(C0 * pow(2, step));
     }
   } else if (frequencyMode == 0) { //equal tempered
     /* 2nd arg is an int */
@@ -554,10 +554,10 @@ float Bottom::computeBaseFreq() {
                       "Check the pitch expression and choose a pitch that produces a finite, positive frequency.");
     }
     wellTempPitch = static_cast<int>(pitch);
-    baseFreqResult = C0 * pow(WELL_TEMP_INCR, wellTempPitch);
+    baseFreqResult = static_cast<float>(C0 * pow(WELL_TEMP_INCR, wellTempPitch));
   } else  {// fundamental
     /* 2nd arg is (float)fundamental_freq, 3rd arg is (int)overtone_num */
-    float fund_freq = utilities->evaluate(XMLTC(valueElement), (void*)this);
+    float fund_freq = static_cast<float>(utilities->evaluate(XMLTC(valueElement), (void*)this));
     const double overtone = utilities->evaluate(XMLTC(valueElement2), this);
     if (overtone < 1 || overtone > std::numeric_limits<int>::max()) {
       throw CmodError(CmodError::Kind::Project,
@@ -585,7 +585,7 @@ float Bottom::computeLoudness() {
 //       expVal += utilities->evaluate(XMLTC(loudnessElement), (void*)this);
 //   }
   // expVal /= 10;
-  float loudval = utilities->evaluate(XMLTC(loudnessElement), (void*)this);
+  float loudval = static_cast<float>(utilities->evaluate(XMLTC(loudnessElement), (void*)this));
   // float diff = loudval - expVal;
   // loudval -= 0.4 * diff;
   // cout << "bottom loudness: " << loudval << endl;
@@ -607,7 +607,7 @@ float Bottom::computeCarrierPhase() {
     return 0.0f;
   }
 
-  float phase = utilities->evaluate(phaseExpression, (void*)this);
+  float phase = static_cast<float>(utilities->evaluate(phaseExpression, (void*)this));
   if (!std::isfinite(phase)) {
     cerr << "WARNING: Carrier Phase for Bottom " << name
          << " is not finite; using 0 cycle." << endl;
@@ -668,7 +668,7 @@ int Bottom::computeNumPartials(float baseFreq, pugi::xml_node _spectrum) {
 
 float Bottom::computeDeviation( pugi::xml_node _spectrum) {
   pugi::xml_node devElement = GNES(GNES(GNES(GFEC(_spectrum))));
-  return utilities->evaluate(XMLTC(devElement), (void*)this);
+  return static_cast<float>(utilities->evaluate(XMLTC(devElement), (void*)this));
 }
 
 //----------------------------------------------------------------------------//
@@ -676,7 +676,7 @@ float Bottom::computeDeviation( pugi::xml_node _spectrum) {
 float Bottom::setPartialFreq(Partial& part, float deviation, float baseFreq, int partNum) {
 
   // assign frequency to each partial
-  float pDev = deviation * (Random::Rand() - 0.5) * 2;
+  float pDev = static_cast<float>(deviation * (Random::Rand() - 0.5) * 2);
   float pFreq = baseFreq * ((partNum + 1) + pDev);
 
   // if pFreq is out of range then set it to the closer of the max or min value
@@ -926,7 +926,7 @@ void Bottom::spatializationMultiPan(Sound *s,
 /* ZIYUAN CHEN, July 2023 */
 MultiPan Bottom::computeSpatializationMultiPan(vector<Envelope*> mult) {
 
-  MultiPan multipan(mult.size(), mult);
+  MultiPan multipan(static_cast<int>(mult.size()), mult);
 
   for (unsigned i = 0; i < mult.size(); i++) {
     delete mult[i];
@@ -1007,7 +1007,7 @@ MultiPan Bottom::computeSpatializationPolar(string thetaEnvStr, string radiusEnv
     //cout << "TIME    THETA   RADIUS" << endl;
     for (int i = 0; i <= numPolarSamples; i++) {
       time = (float)i / numPolarSamples;
-      theta = PI * thetaEnv->getScaledValueNew(time, 1.0);
+      theta = static_cast<float>(PI * thetaEnv->getScaledValueNew(time, 1.0));
       radius = radiusEnv->getScaledValueNew(time, 1.0);
 
       multipan.addEntryLocation(time, theta, radius);
@@ -1030,8 +1030,8 @@ MultiPan Bottom::computeSpatializationPolar(string thetaEnvStr, string radiusEnv
 //----------------------------------------------------------------------------//
 
 void Bottom::applyFilter(Sound* s){
-  pugi::xml_node filterElement = utilities->evaluateFil((void*) this);
-  if (filterElement == NULL) return; //no filter
+  pugi::xml_node evaluatedFilter = utilities->evaluateFil((void*) this);
+  if (evaluatedFilter == NULL) return; //no filter
 
 //  <Fun>
 //    <Name>MakeFilter</Name>
@@ -1040,8 +1040,8 @@ void Bottom::applyFilter(Sound* s){
 //    <BandWidth>4.5</BandWidth>
 //    <dBGain/>
 //  </Fun>
-  pugi::xml_node it = GNES(GFEC(filterElement));
-  string type = XMLTC(it);
+  pugi::xml_node it = GNES(GFEC(evaluatedFilter));
+  string filterType = XMLTC(it);
   it = GNES(it);
   double frequency = utilities->evaluate(XMLTC(it), (void*)this);
   it = GNES(it);
@@ -1050,16 +1050,16 @@ void Bottom::applyFilter(Sound* s){
   double gain = utilities->evaluate(XMLTC(it), (void*)this);
 
   int typeInt;
-  if (type =="LPF") typeInt = 0;
-  else if (type == "HPF") typeInt =1;
-  else if (type == "BPF") typeInt =2;
-  else if (type == "NF") typeInt =3;
-  else if (type == "PBEQF") typeInt =4;
-  else if (type == "LSF") typeInt =5;
-  else if (type == "HSF") typeInt =6;
+  if (filterType =="LPF") typeInt = 0;
+  else if (filterType == "HPF") typeInt =1;
+  else if (filterType == "BPF") typeInt =2;
+  else if (filterType == "NF") typeInt =3;
+  else if (filterType == "PBEQF") typeInt =4;
+  else if (filterType == "LSF") typeInt =5;
+  else if (filterType == "HSF") typeInt =6;
   else {
     throw CmodError(CmodError::Kind::Project,
-                    "Unknown filter Type '" + type + "'.",
+                    "Unknown filter Type '" + filterType + "'.",
                     "Bottom '" + name + "' / Filter / Type",
                     "Choose LPF, HPF, BPF, NF, PBEQF, LSF, or HSF, or remove the filter if it is not needed.");
   }
@@ -1087,10 +1087,10 @@ void Bottom::applyFilter(Sound* s){
 
   BiQuadFilter *filterObj= new BiQuadFilter(
         typeInt,
-        gain,
-        frequency,
-        utilities->getSamplingRate(),
-        bandWidth);
+        static_cast<m_sample_type>(gain),
+        static_cast<m_sample_type>(frequency),
+        static_cast<m_sample_type>(utilities->getSamplingRate()),
+        static_cast<m_sample_type>(bandWidth));
 
   s->use_filter(filterObj);
 }
@@ -1215,7 +1215,7 @@ Reverb* Bottom::computeReverberationSimple(pugi::xml_node sizeElement, int iPart
                "Set Room Size in the reverb definition if a non-default room is intended.");
     roomSize = 0.0;
   } else {
-    roomSize = utilities->evaluate(envstr, (void*)this);
+    roomSize = static_cast<float>(utilities->evaluate(envstr, (void*)this));
   }
 
   Reverb* reverbObj = new Reverb(roomSize, SAMPLING_RATE);
@@ -1301,9 +1301,9 @@ Reverb* Bottom::computeReverberationMedium(pugi::xml_node percentElement,
 	 (Envelope*) utilities->evaluateObject(envstr, this, eventEnv);
 
     //3 floats:  hi/low spread, gain all pass, delay
-    float hi_low_spread = utilities->evaluate(XMLTC(spreadElement),this);
-    float gain_all_pass = utilities->evaluate(XMLTC(allPassElement),this);
-    float delay = utilities->evaluate(XMLTC(delayElement),this);
+    float hi_low_spread = static_cast<float>(utilities->evaluate(XMLTC(spreadElement),this));
+    float gain_all_pass = static_cast<float>(utilities->evaluate(XMLTC(allPassElement),this));
+    float delay = static_cast<float>(utilities->evaluate(XMLTC(delayElement),this));
 
     if (!std::isfinite(delay) || delay < 0) {
       delete percent_rev;
@@ -1444,8 +1444,8 @@ Reverb* Bottom::computeReverberationAdvanced(pugi::xml_node percentElement,
     }
 
     //2 floats:  gain all pass, delay
-    float gain_all_pass = utilities->evaluate(XMLTC(allPassElement),this);
-    float delay = utilities->evaluate(XMLTC(delayElement),this);
+    float gain_all_pass = static_cast<float>(utilities->evaluate(XMLTC(allPassElement),this));
+    float delay = static_cast<float>(utilities->evaluate(XMLTC(delayElement),this));
 
     if (!std::isfinite(delay) || delay < 0) {
       delete percent_rev;
@@ -2017,8 +2017,8 @@ vector<string> Bottom::applyNoteModifiers( pugi::xml_node _playingMethods) {
   // } while ( currentTechnique != NULL);
 
   while (currentTechnique != NULL) {
-    string name = XMLTC(currentTechnique);
-    modNames.push_back(name);
+    string techniqueName = XMLTC(currentTechnique);
+    modNames.push_back(techniqueName);
     currentTechnique = GNES(currentTechnique);
   }
 
@@ -2027,8 +2027,7 @@ vector<string> Bottom::applyNoteModifiers( pugi::xml_node _playingMethods) {
 
 //----------------------------------------------------------------------------//
 
-void Bottom::generatePartials(Sound* newsound, float frequency, float loudness, float distance, Envelope* waveShape){
-  float strength = loudness*distance/256*2;   //strength is normalized between 0 and 2
+void Bottom::generatePartials(Sound* newsound, float frequency, float, float, Envelope* waveShape){
 
   if ((frequency < 233) || frequency > 932){
     warnBottom(name, "Generate Spectrum / Frequency",
@@ -2072,7 +2071,7 @@ void Bottom::generatePartials(Sound* newsound, float frequency, float loudness, 
     Partial partial;
 
     //Set the partial number of the partial based on the current index.
-    partial.setParam(PARTIAL_NUM, i);
+    partial.setParam(PARTIAL_NUM, static_cast<m_value_type>(i));
 
     //Set the frequencies for each partial.
     float actualFrequency = setPartialFreq(

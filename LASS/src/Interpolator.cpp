@@ -85,7 +85,7 @@ void Interpolator::xml_print( ofstream& xmlOutput )
 {
 	DynamicVariable* pnt2dyn = this;
 
-        xmlOutput << "<dv id=\"" << (long)pnt2dyn << "\">" << endl;
+        xmlOutput << "<dv id=\"" << reinterpret_cast<m_xml_id_type>(pnt2dyn) << "\">" << endl;
         xmlOutput << "\t<dv_type value=\"interp\" />" << endl;
         xmlOutput << "\t<interp_type value=\"" << getType() << "\" />" << endl;
         xmlOutput << "\t<duration value=\"" << getDuration() << "\" />" << endl;
@@ -110,7 +110,7 @@ void Interpolator::xml_print( ofstream& xmlOutput, list<DynamicVariable*>& dynOb
 
         //Print the pointer value as an ID, then the "meat" gets printed later
         xmlOutput << "\t\t\t\t<dv_type value=\"interp\" />" << endl;
-        xmlOutput << "\t\t\t\t<dv_ptr id=\"" << (long)pnt2dyn << "\" />" << endl;
+        xmlOutput << "\t\t\t\t<dv_ptr id=\"" << reinterpret_cast<m_xml_id_type>(pnt2dyn) << "\" />" << endl;
 
         // Update dynamic variable list if necessary
         list<DynamicVariable*>::const_iterator dynit;
@@ -132,7 +132,7 @@ void Interpolator::xml_read(XmlReader::xmltag* envtag)
 	
 	if((value = envtag->findChildParamValue("duration","value")) != 0)
 	{
-		setDuration(atof(value));
+		setDuration(static_cast<m_time_type>(atof(value)));
 	}
 	
 	if((value = envtag->findChildParamValue("rate","value")) != 0)
@@ -145,9 +145,9 @@ void Interpolator::xml_read(XmlReader::xmltag* envtag)
 		float time = 0.0f;
 		float val = 0.0f;
 		if((value=entrytag->getParamValue("time")) != 0)
-			time = atof(value);
+			time = static_cast<float>(atof(value));
 		if((value=entrytag->getParamValue("value")) != 0)
-			val = atof(value);
+			val = static_cast<float>(atof(value));
 		//Add the entry to the collection.
     entries_.push_back(InterpolatorEntry(time,val));
 	}

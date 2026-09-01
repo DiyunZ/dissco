@@ -251,7 +251,7 @@ public:
     /**
     *	\deprecated
     **/
-    void xml_read(XmlReader::xmltag* soundtag, DISSCO_HASHMAP<long, Reverb *>* reverbHash, DISSCO_HASHMAP<long, DynamicVariable *>* dvHash);
+    void xml_read(XmlReader::xmltag* soundtag, DISSCO_HASHMAP<m_xml_id_type, Reverb *>* reverbHash, DISSCO_HASHMAP<m_xml_id_type, DynamicVariable *>* dvHash);
 
     /**
      *  This returns the total duration of the sound.  If there is no reverb

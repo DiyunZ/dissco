@@ -106,7 +106,6 @@ void Patter::SimplePat() {
   
   for(unsigned i = 0; i < intervals.size(); i++) {
     int lastNum = patty.back();
-    int thisNum = lastNum + intervals[i];    
     patty.push_back( lastNum + intervals[i] );
   }
 
@@ -142,7 +141,7 @@ void Patter::Adjust() {
 //---------------------------------------------------------------------------//
 
 void Patter::Equivalence(int modulo, int low, int high) {
-  int newElement, numTerms, pointNum;
+  int newElement, numTerms;
   int sign = -1;
 //cout << "\t PATTER Equivalence  origin:"<< this->origin << endl;
 
@@ -229,7 +228,7 @@ void Patter::Equivalence(int modulo, int low, int high) {
 
 //---------------------------------------------------------------------------//
 
-void Patter::Symmetries(int modulo, int low, int high) {
+void Patter::Symmetries(int, int, int) {
   cerr << "Patter::Symmetries - this method is not available at the present time"
     << endl;
   exit(1);
@@ -237,7 +236,7 @@ void Patter::Symmetries(int modulo, int low, int high) {
 
 //---------------------------------------------------------------------------//
 
-void Patter::Distort(int modulo, int low, int high) {
+void Patter::Distort(int, int, int) {
   cerr << "Patter::Distort - this method is not available at the present time"
     << endl;
   exit(1);

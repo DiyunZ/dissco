@@ -128,7 +128,7 @@ MarkovModel<T>::MarkovModel(int size) {
 
 template<typename T>
 int MarkovModel<T>::getStateSize() const {
-  return transitionMatrix.size();
+  return static_cast<int>(transitionMatrix.size());
 }
 
 
@@ -141,8 +141,8 @@ const vector<double>& MarkovModel<T>::getTransitionProbabilities(int state) cons
 
 template<typename T>
 void MarkovModel<T>::makeConsistent() {
-  for (unsigned i = 0; i < transitionMatrix.size(); i++) {
-    vector<double>& row = transitionMatrix[i];
+  for (unsigned rowIndex = 0; rowIndex < transitionMatrix.size(); rowIndex++) {
+    vector<double>& row = transitionMatrix[rowIndex];
     // find row sum
     double sum = 0.0;
     for (unsigned i = 0; i < row.size(); i++) {
@@ -180,16 +180,16 @@ template<typename T>
 std::string MarkovModel<T>::to_str() {
   std::stringstream ss;
   ss << getStateSize() << std::endl;
-  for (int i = 0; i < stateValues.size(); i++) {
+  for (std::size_t i = 0; i < stateValues.size(); i++) {
     ss << stateValues[i] << " ";
   }
   ss << std::endl;
-  for (int i = 0; i < initialDistribution.size(); i++) {
+  for (std::size_t i = 0; i < initialDistribution.size(); i++) {
     ss << initialDistribution[i] << " ";
   }
   ss << std::endl;
-  for (int i = 0; i < transitionMatrix.size(); i++) {
-    for (int j = 0; j < transitionMatrix[i].size(); j++) {
+  for (std::size_t i = 0; i < transitionMatrix.size(); i++) {
+    for (std::size_t j = 0; j < transitionMatrix[i].size(); j++) {
       ss << transitionMatrix[i][j] << " ";
     }
   }

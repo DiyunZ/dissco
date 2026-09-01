@@ -144,7 +144,6 @@ void NotationScore::Build() {
       // in terms of the previous tempo's EDU's
       vector<Section>::iterator iter = score_staff[i].begin();
       vector<Section>::iterator next = score_staff[i].begin() + 1;
-      int last_start_time_edu = 0;
       string previous_time_signature;
       bool first_section = true;    
 

@@ -99,7 +99,7 @@ m_rate_type SoundSample::getSamplingRate()
 //----------------------------------------------------------------------------//
 m_sample_count_type SoundSample::getSampleCount()
 {
-    return data_.size();
+    return static_cast<m_sample_count_type>(data_.size());
 }
 
 //----------------------------------------------------------------------------//
@@ -120,7 +120,7 @@ void SoundSample::composite(SoundSample& ss, m_time_type startTime)
     }
 
     // find the number of samples to composite
-    m_sample_count_type samplesToCopy = ss.data_.size();
+    m_sample_count_type samplesToCopy = ss.getSampleCount();
     m_sample_count_type samplesToSkip = 
         m_sample_count_type(startTime * float(samplingRate_));
     m_sample_count_type lengthNeeded = samplesToCopy + samplesToSkip;

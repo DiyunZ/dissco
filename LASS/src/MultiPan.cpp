@@ -222,8 +222,8 @@ void MultiPan::addEntry(double t, ...)
 	va_start(marker, t);
 	for(i=0;i<n_channels;i++)
 	{
-		y_i = va_arg(marker, double);
-		addEntryHelperFn(i, t, y_i);
+		y_i = static_cast<float>(va_arg(marker, double));
+		addEntryHelperFn(i, static_cast<float>(t), y_i);
 	}
 	va_end(marker);
 }
@@ -275,7 +275,7 @@ void MultiPan::addEntryLocation(float t, float theta, float radius)
 	{
 		curSpeaker = new Speaker();
 
-		curTheta = 2.0 * M_PI * (double)i / (double)n_channels;
+		curTheta = static_cast<float>(2.0 * M_PI * (double)i / (double)n_channels);
 		curSpeaker->x = cos(curTheta);
 		curSpeaker->y = sin(curTheta);
   		//cout << "\tx = " << curSpeaker->x;
@@ -295,14 +295,14 @@ void MultiPan::addEntryLocation(float t, float theta, float radius)
 	for(i=0;i<n_channels;i++)
 	{
 		SpeakerList[i]->dist = 
-			1.0 / (
+			static_cast<float>(1.0 / (
 				1.0 *
 			      	(
 				JBL_SQRD(curX - SpeakerList[i]->x) +
 				JBL_SQRD(curY - SpeakerList[i]->y) 
 				) + 
 				0.5
-			);
+			));
 		total_dist += SpeakerList[i]->dist;
 	}
 

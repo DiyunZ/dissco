@@ -66,11 +66,11 @@ Sound::Sound(int numPartials, m_value_type baseFreq)
     for (int i=0; i<numPartials; i++)
     {
         Partial p;
-        p.setParam(RELATIVE_AMPLITUDE, (1/pow(2.71828,i)));
+        p.setParam(RELATIVE_AMPLITUDE, static_cast<m_value_type>(1/pow(2.71828,i)));
 
         // INCREMENT FREQUENCY MULTIPLIER FOR GLISSANDO
         p.setParam(FREQUENCY, baseFreq * (i+1));
-        p.setParam(PARTIAL_NUM, i);
+        p.setParam(PARTIAL_NUM, static_cast<m_value_type>(i));
         partials_.push_back(p);
     }
 
@@ -168,9 +168,9 @@ void Sound::setDetune(double direction, double spread, double velocity){
   // Direction is a sign, not a magnitude. Canonicalizing here keeps the
   // renderer's two envelope branches compatible with legacy positive and
   // negative values such as 0.5 and -0.5.
-  setParam(DETUNE_DIRECTION, direction < 0.0 ? -1.0 : 1.0);
-  setParam(DETUNE_SPREAD,spread);
-  setParam(DETUNE_VELOCITY, velocity);
+  setParam(DETUNE_DIRECTION, direction < 0.0 ? -1.0f : 1.0f);
+  setParam(DETUNE_SPREAD, static_cast<m_value_type>(spread));
+  setParam(DETUNE_VELOCITY, static_cast<m_value_type>(velocity));
 //   setParam(DETUNE_FUNDAMENTAL, 1);
 }
 
@@ -430,9 +430,9 @@ cout << 	"Final spread= " << spread << endl;
   if(getParam(DETUNE_DIRECTION) < 0.0) // divergence (detuning)
   {
 //cout << "		diverging (detuning)" << endl;
-  detuning_env->addEntry(x[0], y[2]);
-  detuning_env->addEntry(x[1], y[1]);
-  detuning_env->addEntry(x[2], y[0]);
+  detuning_env->addEntry(static_cast<m_time_type>(x[0]), static_cast<m_value_type>(y[2]));
+  detuning_env->addEntry(static_cast<m_time_type>(x[1]), static_cast<m_value_type>(y[1]));
+  detuning_env->addEntry(static_cast<m_time_type>(x[2]), static_cast<m_value_type>(y[0]));
 /*
 cout << "  x0=" << x[0] << " y2=" << y[2] << endl;
 cout << "  x1=" << x[1] << " y1=" << y[1] << endl;
@@ -441,9 +441,9 @@ cout << "  x2=" << x[2] << " y0=" << y[0] << endl;
 */
   } else if(getParam(DETUNE_DIRECTION) > 0.0) {      // convergence (tuning)
 //cout << "		 converging (tuning)" << endl;
-  detuning_env->addEntry(x[0], y[0]);
-  detuning_env->addEntry(x[1], y[1]);
-  detuning_env->addEntry(x[2], y[2]);
+  detuning_env->addEntry(static_cast<m_time_type>(x[0]), static_cast<m_value_type>(y[0]));
+  detuning_env->addEntry(static_cast<m_time_type>(x[1]), static_cast<m_value_type>(y[1]));
+  detuning_env->addEntry(static_cast<m_time_type>(x[2]), static_cast<m_value_type>(y[2]));
 /*
 cout << "    	x0=" << x[0] << " y0=" << y[0] << endl;
 cout << "    	x1=" << x[1] << " y1=" << y[1] << endl;
@@ -474,20 +474,20 @@ void Sound::setup_detuning_env(LinearInterpolator *detuning_env){
   x[0] = 0.0;
   y[0] = 1.0;
 
-  x[1] = (((vel*0.95)+1.0)/2.0);
+  x[1] = static_cast<float>(((vel*0.95)+1.0)/2.0);
   y[1] = x[1];
   x[2] = 1.0;
   y[2] = 0.0;
 
   // scale by the height spread of the envelope
   spread0 = getParam(DETUNE_SPREAD);
-  spread = spread0 * randy * 2.0 - spread0;
+  spread = static_cast<float>(spread0 * randy * 2.0 - spread0);
 /*
 cout << "    randy=" << randy << endl;
 cout <<         "Final spread= " << spread << endl;
 */
   y[0] *= spread;
-  y[1] *= spread * (randy * 0.5);
+  y[1] = static_cast<float>(y[1] * (spread * (randy * 0.5)));
 
   // then offset to normalize the whole thing at 1.0
   y[0] += 1.0;
@@ -531,7 +531,7 @@ m_time_type Sound::getTotalDuration(void)
 			maxDuration = curDuration;
 	}
 
-	maxDuration += ( (reverbObj != NULL) ? reverbObj->getDecay() : 0.0);
+	maxDuration = static_cast<m_time_type>(maxDuration + ( (reverbObj != NULL) ? reverbObj->getDecay() : 0.0));
 
 	return maxDuration;
 }
@@ -542,7 +542,7 @@ void Sound::xml_print( ofstream& xmlOutput, list<Reverb*>& revObjs, list<Dynamic
 	xmlOutput << "\t<sound>" << endl;
 
 	// Output reverb ID and update reverb collection if necessary
-	xmlOutput << "\t\t<reverb_ptr id=\"" << (long)reverbObj << "\" />" << endl;
+	xmlOutput << "\t\t<reverb_ptr id=\"" << reinterpret_cast<m_xml_id_type>(reverbObj) << "\" />" << endl;
 	list<Reverb*>::const_iterator revit;
 	
 	for( revit=revObjs.begin(); revit != revObjs.end(); revit++ )
@@ -577,7 +577,7 @@ void Sound::xml_print( ofstream& xmlOutput, list<Reverb*>& revObjs, list<Dynamic
 }
 
 //----------------------------------------------------------------------------//
-void Sound::xml_read(XmlReader::xmltag* soundtag, DISSCO_HASHMAP<long, Reverb *>* reverbHash, DISSCO_HASHMAP<long, DynamicVariable *>* dvHash)
+void Sound::xml_read(XmlReader::xmltag* soundtag, DISSCO_HASHMAP<m_xml_id_type, Reverb *>* reverbHash, DISSCO_HASHMAP<m_xml_id_type, DynamicVariable *>* dvHash)
 {
 	if(strcmp("sound",soundtag->name))
 	{
@@ -588,16 +588,16 @@ void Sound::xml_read(XmlReader::xmltag* soundtag, DISSCO_HASHMAP<long, Reverb *>
 	char *value;
 	
 	if((value=soundtag->findChildParamValue("reverb_ptr","id")) != 0)
-		if(Reverb* temp = (*reverbHash)[atoi(value)])
+		if(Reverb* temp = (*reverbHash)[static_cast<m_xml_id_type>(std::strtoll(value, nullptr, 10))])
 			use_reverb(temp);
 	if((value = soundtag->findChildParamValue("duration","value")) != 0)
-		setParam(DURATION, atof(value));
+		setParam(DURATION, static_cast<m_value_type>(atof(value)));
 	if((value = soundtag->findChildParamValue("start_time","value")) != 0)
-		setParam(START_TIME, atof(value));
+		setParam(START_TIME, static_cast<m_value_type>(atof(value)));
 	if((value = soundtag->findChildParamValue("loudness","value")) != 0)
-		setParam(LOUDNESS, atof(value));
+		setParam(LOUDNESS, static_cast<m_value_type>(atof(value)));
 	if((value = soundtag->findChildParamValue("loudness_rate","value")) != 0)
-		setParam(LOUDNESS_RATE, atof(value));
+		setParam(LOUDNESS_RATE, static_cast<m_value_type>(atof(value)));
 	double detuneSpread = getParam(DETUNE_SPREAD);
 	double detuneDirection = getParam(DETUNE_DIRECTION);
 	double detuneVelocity = getParam(DETUNE_VELOCITY);
@@ -617,7 +617,7 @@ void Sound::xml_read(XmlReader::xmltag* soundtag, DISSCO_HASHMAP<long, Reverb *>
 	if(hasDetuneParameters)
 		setDetune(detuneDirection, detuneSpread, detuneVelocity);
 	if((value = soundtag->findChildParamValue("detune_fundamental","value")) != 0)
-		setParam(DETUNE_FUNDAMENTAL, atof(value));
+		setParam(DETUNE_FUNDAMENTAL, static_cast<m_value_type>(atof(value)));
 	
 	XmlReader::xmltag *partialtag;
 

@@ -976,6 +976,9 @@ bool ProjectManager::parse(Project* p, const QString& filepath,
 #include <QTextStream>
 
 Project::Project(const QString& _title, const QByteArray& _id){
+#ifndef TABEDITOR
+    Q_UNUSED(_id);
+#endif
     if(_title.isEmpty()){
         title = tr("Untitled");
     }else{

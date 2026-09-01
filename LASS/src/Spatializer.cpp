@@ -43,7 +43,7 @@ MultiTrack* Spatializer::spatialize_Track(Track& t, int numTracks)
 
 
     Track* scaledTrack = new Track(t);
-    scaledTrack->scale( 1.0/float(numTracks) );
+    scaledTrack->scale( static_cast<m_value_type>(1.0/float(numTracks)) );
     
     // create a new multitrack:
     MultiTrack* mt = new MultiTrack;

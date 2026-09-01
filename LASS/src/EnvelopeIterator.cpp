@@ -115,7 +115,7 @@ bool EnvelopeIterator::hasNext()
 m_value_type& EnvelopeIterator::next()
 {
     bool gotNewValue = false;
-    int iNumInterpolators = interpolators_->size();
+    int iNumInterpolators = static_cast<int>(interpolators_->size());
     
     // if we haven't started iterating yet, start with the first iterator
     if ((currentIterator_ == NULL) && (iNumInterpolators > 0))

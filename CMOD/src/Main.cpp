@@ -100,7 +100,7 @@ static int runCmod(int parameterCount, char **parameterList) {
   time_t endTime;
   time(&endTime);
 
-  int seconds = difftime(endTime, startTime);
+  int seconds = static_cast<int>(difftime(endTime, startTime));
   int hr = seconds / 3600;
   int min = (seconds % 3600) / 60;
   int sec = seconds % 60;

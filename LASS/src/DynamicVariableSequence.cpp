@@ -117,7 +117,7 @@ void DynamicVariableSequence::Print()
 	return;
       }
 
-    int iNumSegments = segments_->size();
+    int iNumSegments = static_cast<int>(segments_->size());
     int iLoop = 0;
 
     cout << endl;
@@ -375,7 +375,7 @@ void DynamicVariableSequence::AddToShape
       return;
     }
 
-  int iNumSegments = segments.size();
+  int iNumSegments = static_cast<int>(segments.size());
   m_time_type timeOffset = xyPoints_->at(xyPoints_->size() - 1).x;
   xy_point pointTemp;
 
@@ -542,7 +542,7 @@ void DynamicVariableSequence::setSegmentInterpolationType
 inline bool DynamicVariableSequence::checkValidSegmentIndex (int index)
 {
     // check if index is valid
-    return ((index >= 0) && (segments_->size() > index));
+    return ((index >= 0) && (segments_->size() > static_cast<std::size_t>(index)));
 }
 
     
@@ -550,7 +550,7 @@ inline bool DynamicVariableSequence::checkValidSegmentIndex (int index)
 inline bool DynamicVariableSequence::checkValidPointIndex (int index)
 {
     // check if index is valid
-    return ((index >= 0) && (xyPoints_->size() > index));
+    return ((index >= 0) && (xyPoints_->size() > static_cast<std::size_t>(index)));
 }
 
 
@@ -586,7 +586,7 @@ void DynamicVariableSequence::generateTimes (m_time_type totalTime)
 #ifdef DEBUG_MODE
     cout << "DVS::generateTimes" << endl;
 #endif
-    int iNumSegments = segments_->size();
+    int iNumSegments = static_cast<int>(segments_->size());
     double dTotalFixedTime = 0;
     double dTotalFlexPercent = 0;
     double dScaleRatio = 1;
@@ -643,7 +643,7 @@ void DynamicVariableSequence::generateTimes (m_time_type totalTime)
             if (this->getSegmentTimeType(iIndex) == FIXED)
             {
                 generatedSegmentTimes_->at(iIndex) =
-                     this->getSegmentTime(iIndex) * dScaleRatio;
+                     static_cast<m_time_type>(this->getSegmentTime(iIndex) * dScaleRatio);
             }
             else
             {
@@ -668,7 +668,7 @@ void DynamicVariableSequence::generateTimes (m_time_type totalTime)
             if (this->getSegmentTimeType(iIndex) == FLEXIBLE)
             {
                 generatedSegmentTimes_->at(iIndex) =
-                     this->getSegmentTime(iIndex) * dScaleRatio;
+                     static_cast<m_time_type>(this->getSegmentTime(iIndex) * dScaleRatio);
             }
         }
     }
@@ -691,7 +691,7 @@ void DynamicVariableSequence::generateTimes (m_time_type totalTime)
             if (this->getSegmentTimeType(iIndex) == FLEXIBLE)
             {
                 generatedSegmentTimes_->at(iIndex) =
-                     generatedSegmentTimes_->at(iIndex) * flexTimeAvailable;
+                     static_cast<m_time_type>(generatedSegmentTimes_->at(iIndex) * flexTimeAvailable);
             }
         }
     }
@@ -716,7 +716,7 @@ void DynamicVariableSequence::addInterpolators (m_rate_type rate)
     cout << "num points: " << xyPoints_->size() << endl;
 #endif
 
-    int iNumSegments = segments_->size();
+    int iNumSegments = static_cast<int>(segments_->size());
 
     // clear out interpolators that are stored, if there are any stored
     if (interpolators_ != NULL)
@@ -773,7 +773,7 @@ void DynamicVariableSequence::addInterpolators (m_rate_type rate)
 //----------------------------------------------------------------------------//
 void DynamicVariableSequence::scale(m_value_type factor)
 {
-    int iNumPoints = xyPoints_->size();
+    int iNumPoints = static_cast<int>(xyPoints_->size());
     xy_point pointTemp;
 
     // for every point that we've got stored
@@ -790,7 +790,7 @@ void DynamicVariableSequence::scale(m_value_type factor)
 //----------------------------------------------------------------------------//
 m_value_type DynamicVariableSequence::getMaxValue()
 {
-    int iNumPoints = xyPoints_->size();
+    int iNumPoints = static_cast<int>(xyPoints_->size());
     m_value_type maxVal = 0.0;
 
     // for every point that we've got stored
@@ -811,7 +811,7 @@ void DynamicVariableSequence::xml_print( ofstream& xmlOutput )
 {
 	DynamicVariable* pnt2dyn = this;
 
-	xmlOutput << "<dv id=\"" << (long)pnt2dyn << "\">" << endl;
+	xmlOutput << "<dv id=\"" << reinterpret_cast<m_xml_id_type>(pnt2dyn) << "\">" << endl;
 	xmlOutput << "\t<dv_type value=\"dvs\" />" << endl;
 	xmlOutput << "\t<duration value=\"" << getDuration() << "\" />" << endl;
 	xmlOutput << "\t<rate value=\"" << getSamplingRate() << "\" />" << endl;
@@ -844,7 +844,7 @@ void DynamicVariableSequence::xml_print( ofstream& xmlOutput, list<DynamicVariab
 
 	//Print the pointer value as an ID, then the "meat" gets printed later
 	xmlOutput << "\t\t\t\t<dv_type value=\"dvs\" />" << endl;
-	xmlOutput << "\t\t\t\t<dv_ptr id=\"" << (long)pnt2dyn << "\" />" << endl;
+	xmlOutput << "\t\t\t\t<dv_ptr id=\"" << reinterpret_cast<m_xml_id_type>(pnt2dyn) << "\" />" << endl;
 
         // Update dynamic variable list if necessary
         list<DynamicVariable*>::const_iterator dynit;

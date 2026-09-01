@@ -314,8 +314,8 @@ void EnvLibDrawingArea::paintEvent(QPaintEvent* event)
 void EnvLibDrawingArea::mouseMoveEvent(QMouseEvent* event)
 {
     int w = width(), h = height();
-    double x = event->x()*(w+1)/double(w*w);
-    double y = 1.0 - event->y()*(h+1)/double(h*h);
+    double x = qRound(event->position().x())*(w+1)/double(w*w);
+    double y = 1.0 - qRound(event->position().y())*(h+1)/double(h*h);
     y = mouseAdjustY(y);
 
     // round to 3 decimals
@@ -343,8 +343,8 @@ void EnvLibDrawingArea::mousePressEvent(QMouseEvent* event)
     if (!env) { QWidget::mousePressEvent(event); return; }
 
     activeSegment = nullptr;
-    mouseX = event->x();
-    mouseY = height() - event->y();
+    mouseX = qRound(event->position().x());
+    mouseY = height() - qRound(event->position().y());
 
     // pick a node within ±5px
     EnvLibEntryNode* cand = env->head;
@@ -376,7 +376,7 @@ void EnvLibDrawingArea::mousePressEvent(QMouseEvent* event)
     // right-click → context menu
     if (event->button() == Qt::RightButton) {
         actionRemove->setEnabled(activeNode && activeNode->leftSeg && activeNode->rightSeg);
-        m_pMenuPopup->exec(event->globalPos());
+        m_pMenuPopup->exec(event->globalPosition().toPoint());
     }
     // left-click → start drag
     else if (event->button() == Qt::LeftButton) {
@@ -612,4 +612,4 @@ double EnvLibDrawingArea::getAdjustedY(double y) const
 double EnvLibDrawingArea::mouseAdjustY(double y) const
 {
     return y*(upperY-lowerY) + lowerY;
-} 
+}

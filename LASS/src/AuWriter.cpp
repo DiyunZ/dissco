@@ -109,7 +109,7 @@ bool AuWriter::write(vector<SoundSample*>& channels, string filename,
     }
 
     //Set the info parameters.
-    s_info.channels = channels.size();
+    s_info.channels = static_cast<int>(channels.size());
     s_info.samplerate = channels[0]->getSamplingRate();
     s_info.format = SF_FORMAT_PCM_24;
     bits = 0; //Do not use the incoming format, 24-bit is all-purpose.

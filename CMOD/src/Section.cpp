@@ -327,7 +327,6 @@ bool Section::operator!=(const TimeSignature& time_signature) const {
 
 void Section::EnsureNoteExpressible(Note* n) {
   int dur = n->end_t % time_signature_.beat_edus_;
-	int before = n->end_t;
   int min_diff = time_signature_.beat_edus_;
   bool note_needs_chop = true;
 
@@ -348,7 +347,7 @@ void Section::EnsureNoteExpressible(Note* n) {
 }
 
 void Section::ResizeSection(int new_size) {
-  for(int bar_idx = section_.size(); bar_idx <= new_size; ++bar_idx) {
+  for(int bar_idx = static_cast<int>(section_.size()); bar_idx <= new_size; ++bar_idx) {
     vector<Note*> bar = vector<Note*>(0);
     Note* n = new Note();
     n->start_t = time_signature_.bar_edus_ * bar_idx;
@@ -497,11 +496,19 @@ void Section::CapEnding() {
   } else if (remaining_edus_ == 0 && cur_bar_edus == 0) {
     return; // Sections align perfectly!
   } else {
-    int pow_2 = 0;
+    // The unsplit beat is always the first candidate. Establish its signature
+    // before searching smaller dyadic beats for a closer fit.
+    int pow_2 = 1;
     int best_pow_2 = 0;
-    int min_err = INT_MAX;
-    int ts_num, ts_den;
-    while (time_signature_.beat_edus_ % TimeSignature::Power(2, pow_2) == 0) {
+    int ts_num = total_edus_to_use / time_signature_.beat_edus_;
+    int ts_den = time_signature_.unit_note_;
+    const int remainder = total_edus_to_use % time_signature_.beat_edus_;
+    int min_err = 0;
+    if (remainder != 0) {
+      ++ts_num;
+      min_err = time_signature_.beat_edus_ - remainder;
+    }
+    while (min_err != 0 && time_signature_.beat_edus_ % TimeSignature::Power(2, pow_2) == 0) {
       int tmp_beat_edus = time_signature_.beat_edus_ / TimeSignature::Power(2, pow_2);
       if (total_edus_to_use % tmp_beat_edus == 0) {
         ts_num = total_edus_to_use / tmp_beat_edus;
@@ -740,7 +747,6 @@ void Section::NoteInTuplet(Note* current_note, int tuplet_type, int duration) {
 
   int beat = duration / (time_signature_.beat_edus_ / tuplet_type); // working in tuplet beats
   int unit_in_tuplet = time_signature_.unit_note_ * TimeSignature::CalculateNearestPow2(tuplet_type);
-  int power_of_2 = TimeSignature::DiscreteLog2(unit_in_tuplet);
   while (beat > 0){
 
     int power_of_2 = TimeSignature::DiscreteLog2(unit_in_tuplet);
