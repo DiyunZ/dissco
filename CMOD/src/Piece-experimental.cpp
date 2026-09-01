@@ -570,17 +570,12 @@ vector<pugi::xml_node> Piece::calcEventM(pugi::xml_node eventElement){
 	      pugi::xml_node AttackSieveElement = GNES(childDurationElement);
 	      pugi::xml_node DurationSieveElement = GNES(AttackSieveElement);
 	      pugi::xml_node methodFlagElement = GNES(DurationSieveElement);
-	      pugi::xml_node childStartTypeFlag = GNES(methodFlagElement);
 
 	      //Read Flag values (Needed for modification)
 	      string defFlag = XMLTC(methodFlagElement);
 	      int definitionVal = atoi(defFlag.c_str());
 
 	      if(definitionVal == 0){     //Only Continuum
-
-		//Calculating start time orignality
-		string startFlag = XMLTC(childStartTypeFlag);
-		atoi(startFlag.c_str());
 
 	      //layers, initialize child names
 	      thisEventElement = GNES(childEventDefElement);
@@ -1301,18 +1296,12 @@ void Piece::functionModifier(pugi::xml_node functionElement, int maxValue){ //Ne
       pugi::xml_node AttackSieveElement = GNES(childDurationElement);
       pugi::xml_node DurationSieveElement = GNES(AttackSieveElement);
       pugi::xml_node methodFlagElement = GNES(DurationSieveElement);
-      pugi::xml_node childStartTypeFlag = GNES(methodFlagElement);
 
       //Read Flag values (Needed for modification)
       string defFlag = XMLTC(methodFlagElement);
       int definitionVal = atoi(defFlag.c_str());
 
       if(definitionVal == 0){     //Only Continuum
-
-        //Calculating start time orignality
-        string startFlag = XMLTC(childStartTypeFlag);
-        atoi(startFlag.c_str());
-
 
         /*//Calculating Duration entropy
 
