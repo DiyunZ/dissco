@@ -32,6 +32,9 @@ set(CPACK_RESOURCE_FILE_LICENSE "${CMAKE_SOURCE_DIR}/LICENSE")
 set(CPACK_PACKAGE_FILE_NAME "DISSCO-${DISSCO_VERSION}-${CMAKE_SYSTEM_NAME}")
 
 if(APPLE)
+    set(DISSCO_CODESIGN_IDENTITY "" CACHE STRING
+        "Developer ID Application identity used to sign release bundles")
+
     # Locate every tool used by the install-time app fixup. Missing optional
     # packaging tools are reported when `package` runs, not during a normal
     # developer build.
@@ -56,6 +59,7 @@ if(APPLE)
                 \"MACDEPLOYQT=${MACDEPLOYQT_EXECUTABLE}\"
                 \"OTOOL=${OTOOL_EXECUTABLE}\"
                 \"QT_ROOT=${_qt_root_dir}\"
+                \"DISSCO_CODESIGN_IDENTITY=${DISSCO_CODESIGN_IDENTITY}\"
                 \"${BASH_EXECUTABLE}\"
                 \"${CMAKE_SOURCE_DIR}/packaging/macos/fixup-dissco-app.sh\"
             RESULT_VARIABLE _fixup_result

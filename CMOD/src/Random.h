@@ -84,13 +84,9 @@ class Random {
     static int RandInt(int low, int high);
 
     /**
-     * (Experimental)
-     * TODO: find a way to support multiple RandomOrderInt functions of identical bounds.
-     * 
      * Returns a random integer in the range [low, high].
-     * Avoids repetition, given that
-     *   range of [low, high]
-     * - every RandomOrderInt function with range [low, high] is unique
+     * Each id has its own nonrepeating cycle. The cycle restarts when
+     * all choices are used or that id's bounds change.
      * @param low Inclusive lower bound of the available integers
      * @param high Inclusive upper bound of the available integers
      * @param id - Distinguishes between unique calls of the randOrderInt function

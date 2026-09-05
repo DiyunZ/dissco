@@ -1,6 +1,69 @@
 #include "FunctionEntryRow.hpp"
 #include "../../dialogs/FunctionGenerator.hpp"
 
+#include <QDomDocument>
+#include <QPainter>
+#include <QStyle>
+#include <QStyleOptionFrame>
+
+namespace {
+class ExpressionLineEdit : public QLineEdit {
+public:
+    ExpressionLineEdit()
+    {
+        connect(this, &QLineEdit::textChanged, this, [this](const QString& xml) {
+            m_summary.clear();
+            QDomDocument document;
+            if (document.setContent(xml)) {
+                const auto function = document.documentElement();
+                const QString name = function.firstChildElement(QStringLiteral("Name")).text();
+                if (function.tagName() == QStringLiteral("Fun") && !name.isEmpty()) {
+                    QStringList arguments;
+                    for (auto arg = function.firstChildElement(); !arg.isNull();
+                         arg = arg.nextSiblingElement()) {
+                        if (arg.tagName() == QStringLiteral("Name")
+                            || arg.tagName() == QStringLiteral("Id")) continue;
+                        const auto nested = arg.firstChildElement(QStringLiteral("Fun"));
+                        arguments << (nested.isNull() ? arg.text().simplified()
+                            : nested.firstChildElement(QStringLiteral("Name")).text()
+                                + QStringLiteral("(…)"));
+                    }
+                    m_summary = name + '(' + arguments.join(QStringLiteral(", ")) + ')';
+                }
+            }
+            setAccessibleDescription(m_summary);
+            setToolTip(m_summary.isEmpty() ? QString()
+                : QStringLiteral("<pre>%1</pre>").arg(xml.toHtmlEscaped()));
+            update();
+        });
+    }
+
+protected:
+    void paintEvent(QPaintEvent* event) override
+    {
+        if (hasFocus() || m_summary.isEmpty()) {
+            QLineEdit::paintEvent(event);
+            return;
+        }
+        // Render a summary without replacing the editable/stored expression.
+        QStyleOptionFrame option;
+        initStyleOption(&option);
+        QPainter painter(this);
+        style()->drawPrimitive(QStyle::PE_PanelLineEdit, &option, &painter, this);
+        QRect area = style()->subElementRect(QStyle::SE_LineEditContents, &option, this);
+        const auto margins = textMargins();
+        area.adjust(margins.left() + 2, margins.top(), -margins.right() - 2, -margins.bottom());
+        painter.setClipRect(area);
+        style()->drawItemText(&painter, area, Qt::AlignVCenter | Qt::AlignLeft,
+            palette(), isEnabled(), fontMetrics().elidedText(m_summary, Qt::ElideRight, area.width()),
+            QPalette::Text);
+    }
+
+private:
+    QString m_summary;
+};
+}
+
 FunctionEntryRow::FunctionEntryRow(const QString& labelText,
                                    int index,
                                    FunctionReturnType fnReturnType,
@@ -20,7 +83,7 @@ FunctionEntryRow::FunctionEntryRow(const QString& labelText,
     m_hBox->setSpacing(4);
 
     m_label   = new QLabel(labelText);
-    m_entry   = new QLineEdit;
+    m_entry   = new ExpressionLineEdit;
     if(fnVisible) { m_fnButton = new QPushButton("fn"); }
     if(rmVisible) { m_rmButton = new QPushButton("rm"); }
     if(insVisible) { m_insButton = new QPushButton("ins"); }

@@ -17,6 +17,8 @@ jobs:
   macos:
     name: macOS arm64 packages
     runs-on: macos-14
+    env:
+      DISSCO_RELEASE_BUILD: ${{ startsWith(github.ref, 'refs/tags/v') || (github.event_name == 'workflow_dispatch' && inputs.tag != '') }}
     steps:
       - uses: actions/checkout@v5
 
@@ -35,17 +37,106 @@ jobs:
           modules: ""
           cache: true
 
+      - name: Import Apple Developer ID certificate
+        if: env.DISSCO_RELEASE_BUILD == 'true'
+        env:
+          MACOS_CERTIFICATE_P12: ${{ secrets.MACOS_CERTIFICATE_P12 }}
+          MACOS_CERTIFICATE_PASSWORD: ${{ secrets.MACOS_CERTIFICATE_PASSWORD }}
+        run: |
+          set -euo pipefail
+          : "${MACOS_CERTIFICATE_P12:?Missing MACOS_CERTIFICATE_P12 secret}"
+          : "${MACOS_CERTIFICATE_PASSWORD:?Missing MACOS_CERTIFICATE_PASSWORD secret}"
+
+          certificate_path="${RUNNER_TEMP}/dissco-signing.p12"
+          keychain_path="${RUNNER_TEMP}/dissco-signing.keychain-db"
+          keychain_password="$(openssl rand -hex 32)"
+          trap 'rm -f "${certificate_path}"' EXIT
+          printf '%s' "${MACOS_CERTIFICATE_P12}" | base64 --decode > "${certificate_path}"
+
+          security create-keychain -p "${keychain_password}" "${keychain_path}"
+          security set-keychain-settings -lut 21600 "${keychain_path}"
+          security unlock-keychain -p "${keychain_password}" "${keychain_path}"
+          security import "${certificate_path}" \
+            -P "${MACOS_CERTIFICATE_PASSWORD}" \
+            -A \
+            -t cert \
+            -f pkcs12 \
+            -k "${keychain_path}"
+          security set-key-partition-list \
+            -S apple-tool:,apple:,codesign: \
+            -s \
+            -k "${keychain_password}" \
+            "${keychain_path}"
+          security list-keychains -d user -s "${keychain_path}"
+
+          codesign_identity="$(
+            security find-identity -v -p codesigning "${keychain_path}" |
+              sed -n 's/.*"\(Developer ID Application:.*\)"/\1/p' |
+              head -n 1
+          )"
+          if [[ -z "${codesign_identity}" ]]; then
+            echo "The imported certificate is not a Developer ID Application certificate." >&2
+            exit 1
+          fi
+          printf 'DISSCO_CODESIGN_IDENTITY=%s\n' "${codesign_identity}" >> "${GITHUB_ENV}"
+          printf 'DISSCO_KEYCHAIN_PATH=%s\n' "${keychain_path}" >> "${GITHUB_ENV}"
+
       - name: Configure
         run: |
-          cmake -S . -B build -G Ninja \
-            -DCMAKE_BUILD_TYPE=Release \
-            -DCMAKE_PREFIX_PATH="${Qt6_DIR}"
+          set -euo pipefail
+          cmake_args=(
+            -S .
+            -B build
+            -G Ninja
+            -DCMAKE_BUILD_TYPE=Release
+            "-DCMAKE_PREFIX_PATH=${Qt6_DIR}"
+          )
+          if [[ "${DISSCO_RELEASE_BUILD}" == "true" ]]; then
+            : "${DISSCO_CODESIGN_IDENTITY:?Developer ID certificate was not imported}"
+            cmake_args+=(
+              "-DDISSCO_CODESIGN_IDENTITY=${DISSCO_CODESIGN_IDENTITY}"
+            )
+          fi
+          cmake "${cmake_args[@]}"
 
       - name: Build
         run: cmake --build build --parallel
 
       - name: Package (DMG)
         run: cmake --build build --target package
+
+      - name: Sign, notarize, and verify DMG
+        if: env.DISSCO_RELEASE_BUILD == 'true'
+        env:
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
+        run: |
+          set -euo pipefail
+          : "${APPLE_ID:?Missing APPLE_ID secret}"
+          : "${APPLE_TEAM_ID:?Missing APPLE_TEAM_ID secret}"
+          : "${APPLE_APP_SPECIFIC_PASSWORD:?Missing APPLE_APP_SPECIFIC_PASSWORD secret}"
+
+          shopt -s nullglob
+          dmg_paths=(build/DISSCO-*-Darwin.dmg)
+          if [[ ${#dmg_paths[@]} -ne 1 ]]; then
+            echo "Expected exactly one DISSCO DMG; found ${#dmg_paths[@]}." >&2
+            exit 1
+          fi
+          dmg_path="${dmg_paths[0]}"
+
+          codesign \
+            --force \
+            --timestamp \
+            --sign "${DISSCO_CODESIGN_IDENTITY}" \
+            "${dmg_path}"
+          xcrun notarytool submit "${dmg_path}" \
+            --apple-id "${APPLE_ID}" \
+            --team-id "${APPLE_TEAM_ID}" \
+            --password "${APPLE_APP_SPECIFIC_PASSWORD}" \
+            --wait
+          xcrun stapler staple "${dmg_path}"
+          packaging/macos/verify-dissco-dmg.sh "${dmg_path}"
 
       - name: Package standalone CMOD
         run: cmake --build build --target cmod-package
@@ -57,6 +148,15 @@ jobs:
           path: |
             build/DISSCO-*-Darwin.dmg
             build/CMOD-*-Darwin-*.tar.gz
+
+      - name: Delete temporary signing keychain
+        if: always() && env.DISSCO_RELEASE_BUILD == 'true'
+        run: |
+          keychain_path="${DISSCO_KEYCHAIN_PATH:-${RUNNER_TEMP}/dissco-signing.keychain-db}"
+          if [[ -f "${keychain_path}" ]]; then
+            security delete-keychain "${keychain_path}"
+          fi
+          rm -f "${RUNNER_TEMP}/dissco-signing.p12"
 
   linux:
     name: Linux x86_64 packages

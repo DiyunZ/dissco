@@ -3,7 +3,7 @@ cmake_minimum_required(VERSION 3.25)
 project(LASSIE)
 message(STATUS "== LASSIE ==")
 
-find_package(Qt6 REQUIRED COMPONENTS Widgets Core Xml Network)
+find_package(Qt6 6.8 REQUIRED COMPONENTS Widgets Core Xml Network)
 if(WIN32 AND Qt6_VERSION VERSION_LESS "6.8.1")
     message(FATAL_ERROR
         "Windows builds require Qt 6.8.1 or newer. Qt 6.8.0 can substitute "
@@ -24,6 +24,8 @@ qt_add_executable(LASSIE
     src/widgets/EnvLibDrawingArea.cpp src/widgets/EnvLibDrawingArea.hpp 
     src/core/EnvelopeLibraryEntry.cpp src/core/EnvelopeLibraryEntry.hpp
     src/core/ProjectXmlWriter.cpp src/core/ProjectXmlWriter.hpp
+    src/core/RandomOrderIntId.cpp src/core/RandomOrderIntId.hpp
+    src/core/CmodEnvironment.cpp src/core/CmodEnvironment.hpp
     src/core/ModifierUsageQtAdapter.cpp src/core/ModifierUsageQtAdapter.hpp
     src/dialogs/FunctionGenerator.cpp src/dialogs/FunctionGenerator.hpp src/ui/FunctionGenerator.ui
     src/dialogs/FunctionXmlFormat.cpp src/dialogs/FunctionXmlFormat.hpp
@@ -41,7 +43,7 @@ qt_add_executable(LASSIE
     src/dialogs/functions/impl/MarkovFunction.hpp
     src/dialogs/functions/impl/RandomFunction.hpp
     src/dialogs/functions/impl/RandomIntFunction.hpp
-    src/dialogs/functions/impl/RandomOrderIntFunction.hpp
+    src/dialogs/functions/impl/RandomOrderIntFunction.cpp src/dialogs/functions/impl/RandomOrderIntFunction.hpp
     src/dialogs/functions/impl/RandomizerFunction.hpp
     src/dialogs/functions/impl/RandomDensityFunction.hpp
     src/dialogs/functions/impl/EnvLibFunction.hpp

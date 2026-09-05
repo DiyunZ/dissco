@@ -43,13 +43,19 @@ mkdir -p "${frameworks}"
     -i "${QT_ROOT}" \
     -i "/System/Library"
 
+macdeployqt_args=(
+    "${APP_BUNDLE}"
+    "-executable=${cmod}"
+    -always-overwrite
+)
+if [[ -n "${DISSCO_CODESIGN_IDENTITY:-}" ]]; then
+    macdeployqt_args+=(
+        "-sign-for-notarization=${DISSCO_CODESIGN_IDENTITY}"
+    )
+fi
+
 set +e
-macdeploy_output="$(
-    "${MACDEPLOYQT}" \
-        "${APP_BUNDLE}" \
-        "-executable=${cmod}" \
-        -always-overwrite 2>&1
-)"
+macdeploy_output="$("${MACDEPLOYQT}" "${macdeployqt_args[@]}" 2>&1)"
 macdeploy_result=$?
 set -e
 
@@ -69,12 +75,35 @@ if [[ ${macdeploy_result} -ne 0 ]]; then
     exit "${macdeploy_result}"
 fi
 
+if [[ -n "${DISSCO_CODESIGN_IDENTITY:-}" ]]; then
+    /usr/bin/codesign --verify --deep --strict --verbose=2 "${APP_BUNDLE}"
+    signature_info="$(
+        /usr/bin/codesign --display --verbose=4 "${APP_BUNDLE}" 2>&1
+    )"
+    if ! grep -Fq 'Authority=Developer ID Application:' \
+            <<<"${signature_info}"; then
+        echo "DISSCO app is not signed with a Developer ID Application certificate." >&2
+        exit 1
+    fi
+    if ! grep -Eq '^TeamIdentifier=[A-Z0-9]+$' <<<"${signature_info}"; then
+        echo "DISSCO app signature does not contain an Apple Team ID." >&2
+        exit 1
+    fi
+fi
+
 otool_dependencies() {
-    "${OTOOL}" -L "$1" | tail -n +2
+    if [[ "$1" == *.dylib ]]; then
+        # For a dylib, otool prints its LC_ID_DYLIB before its dependencies.
+        # That install name is metadata for future linkers, not a path loaded
+        # by the packaged application.
+        "${OTOOL}" -L "$1" | tail -n +3
+    else
+        "${OTOOL}" -L "$1" | tail -n +2
+    fi
 }
 
-# The first otool line is the inspected file's own path (normally under
-# /Users/runner in CI), not a dependency, so exclude it from validation.
+# Exclude otool's heading and each dylib's install name so this report contains
+# only paths the packaged executables and libraries will load at runtime.
 dependency_report="$(otool_dependencies "${lassie}")"
 dependency_report+=$'\n'
 dependency_report+="$(otool_dependencies "${cmod}")"

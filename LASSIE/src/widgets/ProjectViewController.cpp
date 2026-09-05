@@ -910,29 +910,38 @@ void ProjectView::setProperties() {
 
  
     if (projectPropertiesDialog->exec() == QDialog::Accepted) {
+        bool changed = false;
+        const auto updateProperty = [&changed](auto& value, const auto& newValue) {
+            if (value != newValue) {
+                value = newValue;
+                changed = true;
+            }
+        };
         QString new_title = projectPropertiesDialog->ui->titleEntry->text();
-        pm->fileflag() = projectPropertiesDialog->ui->flagEntry->text();
-        pm->numchannels() = projectPropertiesDialog->ui->numChannelsEntry->text();
-        pm->samplerate() = projectPropertiesDialog->ui->rateEntry->text();
-        pm->samplesize() = projectPropertiesDialog->ui->sizeEntry->text();
-        pm->numthreads() = projectPropertiesDialog->ui->numThreadsEntry->text();
-        pm->synthesis() = projectPropertiesDialog->ui->synthesisCheckBox->isChecked();
-        pm->score() = projectPropertiesDialog->ui->scoreCheckBox->isChecked();
-        pm->grandstaff() = projectPropertiesDialog->ui->staffCheckBox->isChecked();
-        pm->numstaffs() = projectPropertiesDialog->ui->numStaffEntry->text();
-        pm->outputparticel() = projectPropertiesDialog->ui->particelBox->isChecked();
+        updateProperty(pm->fileflag(), projectPropertiesDialog->ui->flagEntry->text());
+        updateProperty(pm->numchannels(), projectPropertiesDialog->ui->numChannelsEntry->text());
+        updateProperty(pm->samplerate(), projectPropertiesDialog->ui->rateEntry->text());
+        updateProperty(pm->samplesize(), projectPropertiesDialog->ui->sizeEntry->text());
+        updateProperty(pm->numthreads(), projectPropertiesDialog->ui->numThreadsEntry->text());
+        updateProperty(pm->synthesis(), projectPropertiesDialog->ui->synthesisCheckBox->isChecked());
+        updateProperty(pm->score(), projectPropertiesDialog->ui->scoreCheckBox->isChecked());
+        updateProperty(pm->grandstaff(), projectPropertiesDialog->ui->staffCheckBox->isChecked());
+        updateProperty(pm->numstaffs(), projectPropertiesDialog->ui->numStaffEntry->text());
+        updateProperty(pm->outputparticel(), projectPropertiesDialog->ui->particelBox->isChecked());
         QString new_topevent = projectPropertiesDialog->ui->topEventEntry->text();
-        pm->duration() = projectPropertiesDialog->ui->durationEntry->text();
+        updateProperty(pm->duration(), projectPropertiesDialog->ui->durationEntry->text());
 
         if (new_title != pm->title()) {
             QString old_pathAndName = pm->fileinfo().absoluteFilePath();
             QString new_pathAndName = pm->fileinfo().absolutePath() + "/" + new_title + ".dissco";
             if (QFile::rename(old_pathAndName, new_pathAndName)) {
                 pm->title() = new_title;
+                changed = true;
             }
         }
 
-        MUtilities::modified();
+        if (changed)
+            MUtilities::modified();
         delete projectPropertiesDialog;
         projectPropertiesDialog = NULL;
     }
@@ -940,13 +949,12 @@ void ProjectView::setProperties() {
 
 void ProjectView::propertiesInsertFunction() {
     if (!projectPropertiesDialog) return;
-    ProjectManager *pm = Inst::get_project_manager();
-    auto* generator = new FunctionGenerator(mainWindow, functionReturnFloat, pm->duration());
+    auto* generator = new FunctionGenerator(mainWindow, functionReturnFloat,
+        projectPropertiesDialog->ui->durationEntry->text());
     if (generator->exec() == QDialog::Accepted) {
         QString result = generator->getResultString();
         if (!result.isEmpty()) {
-            pm->duration() = result;
-            projectPropertiesDialog->ui->durationEntry->setText(pm->duration());
+            projectPropertiesDialog->ui->durationEntry->setText(result);
         }
     }
     delete generator;

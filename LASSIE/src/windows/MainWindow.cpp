@@ -8,6 +8,7 @@
 
 #include "../core/project_struct.hpp"
 #include "../core/Updater.hpp"
+#include "../core/CmodEnvironment.hpp"
 
 #include <QApplication>
 #include <QMenuBar>
@@ -25,7 +26,6 @@
 #include <QDebug>
 
 #include <QProcess>
-#include <QProcessEnvironment>
 #include <QMessageBox>
 #include <QListWidget>
 #include <QListWidgetItem>
@@ -67,30 +67,6 @@ static QString resolveCmodBinary()
 
     // Fall back to the compile-time path for development builds.
     return QStringLiteral(CMOD_BINARY);
-}
-
-static void configureCmodEnvironment(QProcess *cmod)
-{
-    // Portable Windows packages carry LilyPond next to LASSIE. Add only the
-    // bundled bin directory to CMOD's child environment, so launching
-    // lassie.exe directly works without a machine-wide LilyPond install.
-    const QString appDir = QCoreApplication::applicationDirPath();
-    const QString lilyPond = QStandardPaths::findExecutable(
-        QStringLiteral("lilypond"),
-        {appDir + QStringLiteral("/tools/lilypond/bin")});
-    if (lilyPond.isEmpty()) {
-        return;
-    }
-
-    QProcessEnvironment environment = QProcessEnvironment::systemEnvironment();
-    const QString bundledBin = QFileInfo(lilyPond).absolutePath();
-    const QString currentPath = environment.value(QStringLiteral("PATH"));
-    environment.insert(
-        QStringLiteral("PATH"),
-        currentPath.isEmpty()
-            ? bundledBin
-            : bundledBin + QDir::listSeparator() + currentPath);
-    cmod->setProcessEnvironment(environment);
 }
 
 MainWindow::MainWindow(Inst* m)
@@ -429,7 +405,7 @@ void MainWindow::runProject()
         cmod->closeWriteChannel();
     });
     const QString cmodBinary = resolveCmodBinary();
-    configureCmodEnvironment(cmod);
+    CmodEnvironment::configure(cmod);
     qDebug() << "Project run with string:" << cmodBinary + " " + pm->fileinfo().canonicalFilePath();
 
     const auto pw = new PostWindow(cmod, this);

@@ -3,17 +3,18 @@
 
 #include "../MultiEntryFunction.hpp"
 
+#include <QDomDocument>
+
 class RandomOrderIntFunction : public MultiEntryFunction {
     Q_OBJECT
 
 public:
-    explicit RandomOrderIntFunction(QWidget* parent = nullptr)
-        : MultiEntryFunction({
-              { tr("Lower Bound:"), "Low",
-                FunctionReturnType::functionReturnInt, QStringLiteral("0") },
-              { tr("Upper Bound:"), "High",
-                FunctionReturnType::functionReturnInt, QStringLiteral("1") },
-          }, parent) {}
+    explicit RandomOrderIntFunction(QWidget* parent = nullptr);
+
+    void setOriginalXml(const QString& xml);
+    QString buildXMLString() const override;
+    void populateFromXML(QXmlStreamReader& reader) override;
+    void reset() override;
 
     CMODFunction id() const override { return CMODFunction::functionRandomOrderInt; }
     QString xmlName() const override { return QStringLiteral("RandomOrderInt"); }
@@ -26,6 +27,10 @@ public:
             FunctionReturnType::functionReturnPartialNum,
         };
     }
+
+private:
+    QDomDocument m_original;
+    mutable QString m_poolId;
 };
 
 #endif // RANDOMORDERINTFUNCTION_HPP
