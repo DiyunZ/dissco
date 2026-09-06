@@ -1,9 +1,11 @@
 #include "FunctionGenerator.hpp"
 #include "FunctionXmlFormat.hpp"
+#include "../core/RandomOrderIntId.hpp"
 #include "../ui/ui_FunctionGenerator.h"
 
 #include "functions/FunctionRegistry.hpp"
 #include "functions/FunctionWidget.hpp"
+#include "functions/impl/RandomOrderIntFunction.hpp"
 
 #include <QComboBox>
 #include <QDialogButtonBox>
@@ -44,12 +46,16 @@ FunctionGenerator::~FunctionGenerator()
 
 QString FunctionGenerator::getResultString()
 {
-    m_result = FunctionXmlFormat::compact(ui->resultTextEdit->toPlainText());
+    const QString original = FunctionXmlFormat::compact(ui->resultTextEdit->toPlainText());
+    m_result = FunctionXmlFormat::compact(RandomOrderIntId::repairMissing(original));
+    if (m_result != original)
+        ui->resultTextEdit->setPlainText(FunctionXmlFormat::preview(m_result));
     return m_result;
 }
 
 void FunctionGenerator::setupUi()
 {
+    m_originalString = RandomOrderIntId::repairMissing(m_originalString);
     // Populate the combo box from the registry, filtered by return type.
     auto& reg = FunctionRegistry::instance();
     ui->functionOptions->clear();
@@ -97,6 +103,8 @@ void FunctionGenerator::setupUi()
     }
     FunctionWidget* w = ensureRegisteredWidget(id);
     if (!w) return;
+    if (auto* randomOrder = qobject_cast<RandomOrderIntFunction*>(w))
+        randomOrder->setOriginalXml(m_originalString);
 
     // Select the matching combo entry by stored id rather than by string,
     // to handle functions whose display name differs from their xml name

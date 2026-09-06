@@ -1458,6 +1458,8 @@ string Utilities::function_GetPattern(pugi::xml_node _functionElement, void* _ob
 string Utilities::function_RandomInt(pugi::xml_node _functionElement, void* _object){
   pugi::xml_node lowBoundElement = _functionElement.child("Low");
   pugi::xml_node highBoundElement = _functionElement.child("High");
+  if (!lowBoundElement) lowBoundElement = _functionElement.child("LowBound");
+  if (!highBoundElement) highBoundElement = _functionElement.child("HighBound");
 
   const int lowBound = checkedIntegerArgument(
       evaluate(requiredFunctionArgument(lowBoundElement, "RandomInt", "Low"), _object), "RandomInt", "Low");
@@ -1471,13 +1473,23 @@ string Utilities::function_RandomInt(pugi::xml_node _functionElement, void* _obj
 string Utilities::function_RandomOrderInt(pugi::xml_node _functionElement, void* _object) {
   pugi::xml_node lowBoundElement = _functionElement.child("Low");
   pugi::xml_node highBoundElement = _functionElement.child("High");
-  pugi::xml_node idElement = GNES(highBoundElement);
+  if (!lowBoundElement) lowBoundElement = _functionElement.child("LowBound");
+  if (!highBoundElement) highBoundElement = _functionElement.child("HighBound");
+  pugi::xml_node idElement = _functionElement.child("Id");
 
   const int lowBound = checkedIntegerArgument(
       evaluate(requiredFunctionArgument(lowBoundElement, "RandomOrderInt", "Low"), _object), "RandomOrderInt", "Low");
   const int highBound = checkedIntegerArgument(
       evaluate(requiredFunctionArgument(highBoundElement, "RandomOrderInt", "High"), _object), "RandomOrderInt", "High");
-  int id = (int) evaluate(XMLTranscode(idElement), _object);
+  const string idExpression = XMLTranscode(idElement);
+  if (!idElement || idExpression.find_first_not_of(" \t\r\n") == string::npos) {
+    throw CmodError(CmodError::Kind::Project,
+                    "RandomOrderInt is missing its Id.",
+                    "Function: RandomOrderInt -> Id",
+                    "Open this RandomOrderInt in the LASSIE function editor, accept it, and save the project to assign an independent Id.");
+  }
+  const int id = checkedIntegerArgument(
+      evaluate(idExpression, _object), "RandomOrderInt", "Id");
   
   // Event* currentEvent = ((Event*)_object);
   // int numChildren = currentEvent->getNumberOfChildren();

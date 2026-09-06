@@ -120,15 +120,23 @@ int Random::RandOrderInt(int low, int high, int id) {
                     "Function: RandomOrderInt -> Low/High",
                     "Set the lower bound to a value less than or equal to the upper bound.");
   }
-  static map<int, vector<int> > choicesMap;
-  
-  // Initialize choices if a new random order function is found, or
-  // an existing list of choices is empty (occurs when high - low + 1 < numChildren)
-  if (choicesMap.find(id) == choicesMap.end() || choicesMap[id].empty()) {
-    choicesMap[id] = InitializeChoices(low, high);
+  struct OrderChoices {
+    int low = 0;
+    int high = 0;
+    vector<int> remaining;
+  };
+  static map<int, OrderChoices> choicesMap;
+  OrderChoices& state = choicesMap[id];
+
+  // A changed range starts a new cycle; unused values from the old range
+  // must never leak into the new one (for example, into a Select index).
+  if (state.remaining.empty() || state.low != low || state.high != high) {
+    state.remaining = InitializeChoices(low, high);
+    state.low = low;
+    state.high = high;
   }
 
-  vector<int>& choices = choicesMap[id];
+  vector<int>& choices = state.remaining;
 
   // Choose a random element from available choices
   int randIndex = RandInt(0, static_cast<int>(choices.size() - 1));

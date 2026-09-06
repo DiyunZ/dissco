@@ -46,7 +46,7 @@ EnvelopeLibraryWindow::EnvelopeLibraryWindow(QWidget* parent)
 {
     // Window setup
     setWindowTitle("Envelope Library");
-    resize(600, 500);
+    resize(760, 700);
 
     // Central widget and layout
     QWidget* central = new QWidget(this);

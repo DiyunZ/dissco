@@ -1185,7 +1185,7 @@ void EventAttributesViewController::insertFunctionString(FunctionButton button) 
         break;
     case BSContinuumFunButton:
         target = ui->continuumFreqEntry;
-        gen = new FunctionGenerator(nullptr, functionReturnSPE, target->text());
+        gen = new FunctionGenerator(nullptr, functionReturnFloat, target->text());
         break;
     // case spectrumDeviationFunButton:
     //     target = ui->spectrumDeviationEntry;
