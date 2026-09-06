@@ -52,8 +52,7 @@ build and release workflows.
 
 Open **Terminal** from your applications menu. On Ubuntu, **Ctrl+Alt+T** also
 opens it. Copy the commands from one code block at a time, press **Enter**, and
-wait for each step to finish. If a command reports an error, stop and use the
-matching entry in [Troubleshooting](#troubleshooting) before continuing.
+wait for each step to finish.
 
 If your prompt starts with `(base)` because you use Conda, run
 `conda deactivate` before starting these steps.
@@ -161,7 +160,7 @@ git pull --ff-only
 ```
 
 An update succeeds when Git reports a fast-forward update or `Already up to
-date`. If Git refuses the update, use the troubleshooting section below.
+date`.
 
 Both routes should leave you in the repository root: the directory containing
 `CMakeLists.txt`, `BUILDING_LINUX.md`, `LASSIE`, and `CMOD`.
@@ -247,99 +246,6 @@ If you previously built with an older Qt, complete steps 2-3 once before doing
 this update. If you already installed Qt 6.11.2 using this guide, you can keep
 that installation. Pulling GitHub changes updates source files; rebuilding is
 what updates the executable you run.
-
-## Troubleshooting
-
-### `Unable to locate package qt6.8` or `qt8`
-
-Use the installation commands in step 3. `qt6.8` and `qt8` are not the Ubuntu
-package names used by this guide, and installing Ubuntu's older `qt6-base-dev`
-does not satisfy DISSCO's Qt requirement on Ubuntu 22.04 or 24.04.
-
-### CMake finds an older Qt, or says Qt 6.8 is required
-
-Check the SDK installed by this guide:
-
-```sh
-"$HOME/Qt/6.11.2/gcc_64/bin/qmake" -query QT_VERSION
-```
-
-If the file is missing, repeat step 3. If it prints `6.11.2`, repeat the complete
-configuration block in step 5, including `--fresh` and `CMAKE_PREFIX_PATH`.
-Changing the Qt version number in DISSCO's `CMakeLists.txt` is not necessary.
-
-### `cmake: command not found`, or CMake is older than 3.25
-
-Select the tools environment again:
-
-```sh
-. "$HOME/.local/share/dissco-tools/bin/activate"
-cmake --version
-```
-
-If the activation file is missing, repeat step 3. Then continue from step 5.
-
-### pip reports `externally-managed-environment`
-
-The Python environment from step 3 is not active. Run that step's activation
-line, then repeat its `python -m pip install ...` command. Use the separate
-environment rather than `sudo pip` or `--break-system-packages`.
-
-### `The source directory ... does not appear to contain CMakeLists.txt`
-
-Terminal is in the wrong directory. Open Terminal in the DISSCO folder containing
-the top-level `CMakeLists.txt`, then repeat step 5. Do not configure from inside
-the `LASSIE` subfolder.
-
-### Git reports local changes or cannot fast-forward
-
-Stop the update and keep your work. Send the Git error and the output of
-`git status --short --branch` to the person helping you. Do not use `git reset
---hard` or delete the repository as an installation fix.
-
-### LASSIE reports that the `xcb` platform plugin cannot load
-
-Confirm the graphics packages from step 2 finished installing. In particular,
-Qt needs these libraries to open an X11 window:
-
-```sh
-sudo apt install -y libxcb-cursor0 libxkbcommon-x11-0
-```
-
-Then try starting LASSIE again. If the message says it cannot connect to a
-display, run LASSIE from Terminal in your Linux desktop session. An SSH session
-without graphical forwarding cannot display its window.
-
-For a more detailed plugin error, run this from the DISSCO directory:
-
-```sh
-QT_DEBUG_PLUGINS=1 ./build/LASSIE/lassie
-```
-
-### The compiler stops with `Killed` or runs out of memory
-
-Repeat the build using one job:
-
-```sh
-cmake --build build --parallel 1
-```
-
-You do not need to download Qt again. If it still fails, send the first compiler
-error rather than only the final `build stopped` line.
-
-### A different build or startup error remains
-
-Send the command that failed, its error output, and the output of:
-
-```sh
-cat /etc/os-release
-uname -m
-cmake --version
-"$HOME/Qt/6.11.2/gcc_64/bin/qmake" -query QT_VERSION
-```
-
-This identifies the system and Qt version without requiring you to interpret
-the build internals.
 
 ## Optional: score and PDF output
 
