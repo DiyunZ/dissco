@@ -593,7 +593,7 @@ void Envelope::addSegment(envelope_segment segment)
 //----------------------------------------------------------------------------//
 void Envelope::addPoint(xy_point point)
 {
-    envelope_segment seg;
+    envelope_segment seg{};
     seg.x = point.x;
     seg.y = point.y;
     seg.lengthType = FIXED;
