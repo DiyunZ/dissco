@@ -177,12 +177,11 @@ jobs:
             libxkbcommon-dev '^libxcb.*-dev' libx11-xcb-dev \
             libglu1-mesa-dev libxrender-dev libxi-dev libxkbfile-dev
 
-      - name: Install Qt 6.8
+      - name: Install Qt 6.11.2
         uses: jurplel/install-qt-action@v4
         with:
-          # DISSCO's source uses Qt::StringLiterals (6.4+) and project docs
-          # require >= 6.8. Ubuntu 22.04's apt qt6-base-dev is 6.2 — too old.
-          version: "6.8.0"
+          # Match the Linux build workflow; Ubuntu 22.04's apt Qt is too old.
+          version: "6.11.2"
           host: linux
           target: desktop
           arch: linux_gcc_64
@@ -198,6 +197,9 @@ jobs:
       - name: Build
         run: cmake --build build --parallel
 
+      - name: Test Qt UI integration
+        run: ctest --test-dir build --output-on-failure --no-tests=error
+
       - name: Package (AppImage)
         env:
           # linuxdeploy-plugin-qt picks up qmake via QMAKE; install-qt-action
@@ -205,6 +207,16 @@ jobs:
           # findable, but be explicit to avoid surprises.
           QMAKE: ${{ env.QT_ROOT_DIR }}/bin/qmake
         run: cmake --build build --target appimage
+
+      - name: Test bundled Qt application
+        env:
+          APPIMAGE_EXTRACT_AND_RUN: "1"
+          QT_QPA_PLATFORM: offscreen
+          DISSCO_TEST_APPLICATION_IDENTITY: "1"
+        run: |
+          appimages=(build/DISSCO-*-Linux-*.AppImage)
+          test "${#appimages[@]}" -eq 1
+          "${appimages[0]}"
 
       - name: Package standalone CMOD
         run: cmake --build build --target cmod-package

@@ -26,8 +26,12 @@ concurrency:
 
 jobs:
   linux:
-    name: Linux build
-    runs-on: ubuntu-22.04
+    name: Linux build (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-22.04, ubuntu-24.04]
     steps:
       - name: Configure Git defaults
         run: git config --global init.defaultBranch main
@@ -38,31 +42,48 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install -y \
-            build-essential cmake ninja-build \
-            libsndfile1-dev \
-            libgl1-mesa-dev libfuse2 \
+            git build-essential ninja-build python3-venv libsndfile1-dev \
+            libgl1-mesa-dev libxkbcommon-x11-0 libxcb-cursor0 \
             libxkbcommon-dev '^libxcb.*-dev' libx11-xcb-dev \
             libglu1-mesa-dev libxrender-dev libxi-dev libxkbfile-dev
 
-      - name: Install Qt 6.8
-        uses: jurplel/install-qt-action@v4
-        with:
-          version: "6.8.0"
-          host: linux
-          target: desktop
-          arch: linux_gcc_64
-          modules: ""
-          cache: true
+      - name: Install Qt 6.11.2 and CMake as documented
+        run: |
+          python3 -m venv "$HOME/.local/share/dissco-tools"
+          . "$HOME/.local/share/dissco-tools/bin/activate"
+          python -m pip install 'aqtinstall==3.3.*' 'cmake>=3.25,<4'
+          python -m aqt install-qt linux desktop 6.11.2 linux_gcc_64 \
+            --outputdir "$HOME/Qt"
+          test "$("$HOME/Qt/6.11.2/gcc_64/bin/qmake" -query QT_VERSION)" = "6.11.2"
+          cmake --version
+          printf '%s\n' "$HOME/.local/share/dissco-tools/bin" >> "$GITHUB_PATH"
 
       - name: Configure
         run: |
-          cmake -S . -B build -G Ninja \
+          cmake --fresh -S . -B build -G Ninja \
             -DCMAKE_BUILD_TYPE=Release \
+            -DCMAKE_C_COMPILER=/usr/bin/gcc \
+            -DCMAKE_CXX_COMPILER=/usr/bin/g++ \
             -DCMAKE_COMPILE_WARNING_AS_ERROR=ON \
-            -DCMAKE_PREFIX_PATH="${Qt6_DIR}"
+            -DCMAKE_PREFIX_PATH="$HOME/Qt/6.11.2/gcc_64"
 
       - name: Build
-        run: cmake --build build --parallel --verbose
+        run: cmake --build build --parallel 2 --verbose
+
+      - name: Test Qt UI integration
+        run: ctest --test-dir build --output-on-failure --no-tests=error
+
+      - name: Smoke-test desktop startup and CMOD
+        run: |
+          sudo apt-get install -y xvfb xauth
+          status=0
+          xvfb-run -a timeout 5s build/LASSIE/lassie > lassie-startup.log 2>&1 || status=$?
+          cat lassie-startup.log
+          if [[ "$status" -ne 124 ]]; then
+            echo "LASSIE exited before the startup timeout (status $status)." >&2
+            exit 1
+          fi
+          build/CMOD/cmod --help
 
   windows:
     name: Windows build
