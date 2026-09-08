@@ -4,7 +4,7 @@
 
 - Download and install the complete DISSCO application (`DISSCO-*`) by following the [Downloading DISSCO page](../DOWNLOAD.md). This includes LASSIE, which is required for this tutorial.
 
-> **macOS:** A macOS release is not yet available. The downloadable packages for this tutorial currently support Windows and Linux only. See [macOS availability](../DOWNLOAD.md#macos).
+> **macOS:** A macOS standalone appimage is not currently available. [macOS users must build from source](../BUILDING_MACOS.md).
 
 ## 2. Launch LASSIE (if DISSCO is already installed, start here)
 
