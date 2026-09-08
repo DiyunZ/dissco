@@ -261,7 +261,7 @@ void EnvLibDrawingArea::paintEvent(QPaintEvent* event)
             // value = y1 + (y2 - y1) * ((1 - pow(base, (I * alpha))) / (1 - pow(base, alpha)))
             const double base = 2.718282; // e
             double alpha = 3.0;
-            if (starty > endy) {
+            if (starty < endy) {
                 alpha = -alpha; // Reverse curve direction
             }
             
