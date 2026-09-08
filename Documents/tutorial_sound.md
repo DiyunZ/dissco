@@ -4,7 +4,7 @@
 
 - Download and install the complete DISSCO application (`DISSCO-*`) by following the [Downloading DISSCO page](../DOWNLOAD.md). This includes LASSIE, which is required for this tutorial.
 
-> **macOS:** A macOS standalone appimage is not currently available. [macOS users must build from source](../BUILDING_MACOS.md).
+> **macOS:** A macOS standalone appimage is not currently available. [macOS users must build from source](../BUILDING_MACOS.md#quick-start-with-homebrew). Follow the instructions starting at the "Quick Start with Homebrew" section.
 
 ## 2. Launch LASSIE (if DISSCO is already installed, start here)
 
