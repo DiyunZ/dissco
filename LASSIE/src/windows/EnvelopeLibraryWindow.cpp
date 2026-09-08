@@ -73,7 +73,8 @@ EnvelopeLibraryWindow::EnvelopeLibraryWindow(QWidget* parent)
     refModel->setHorizontalHeaderLabels({ "Envelope Library Number" });
     envelopeLibrary->setModel(refModel);
     envelopeLibrary->header()->setStretchLastSection(true);
-    envelopeLibrary->setMinimumWidth(120); // Make the envelope list narrower
+    envelopeLibrary->setMinimumWidth(120);
+    envelopeLibrary->setMinimumHeight(180);
     layout->addWidget(envelopeLibrary);
 
     // Drawing area (moved below envelope list)
