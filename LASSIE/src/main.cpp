@@ -16,7 +16,6 @@
 #include <qt_windows.h>
 #endif
 #include "windows/EnvelopeLibraryWindow.hpp"
-int runSoundTutorialChecks(const QString& check);
 #endif
 #include "widgets/ComboBoxWheelGuard.hpp"
 #include "widgets/TextOverflowDisplayPolicy.hpp"
@@ -46,10 +45,6 @@ int main(int argc, char *argv[])
     WindowShortcutPolicy windowShortcutPolicy(a);
 
 #ifdef DISSCO_ENABLE_UI_LAYOUT_TESTS
-    if (qEnvironmentVariableIsSet("DISSCO_TEST_SOUND_TUTORIAL")) {
-        registerAllFunctions();
-        return runSoundTutorialChecks(qEnvironmentVariable("DISSCO_TEST_SOUND_TUTORIAL"));
-    }
 #ifdef Q_OS_WIN
     if (qEnvironmentVariableIsSet("DISSCO_TEST_WINDOWS_FONT")) {
         const QFont font = a.font();
