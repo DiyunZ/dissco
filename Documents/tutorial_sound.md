@@ -15,13 +15,11 @@ Two projects provide starting and recovery points:
 
 To try a supplied project, download it into its own working folder. On GitHub, use **Download raw file** on the file page. Choose **Open Project**, accept **Project Properties**, and follow [Run and listen](#run-and-listen). Its objects and envelopes already exist.
 
-**For a class:** before class, check that the students' LASSIE build matches the [build used for this tutorial](images/tutorial_sound/README.md), and Run the supplied first tone. During class, pause at each Listen checkpoint: ask students to predict the change, listen, and describe the result. If a student's project stops working, use the appropriate supplied project to rejoin the class. Choose later experiments to match the lesson; the whole reference need not be taught in one sitting.
-
 Screenshots show English LASSIE at high resolution. Open an image to view it at full size; window styling can vary by operating system.
 
 ## Contents
 
-**Core lesson — build a sound, then change it**
+**Get started — build a sound, then change it**
 
 - [1. Install and open LASSIE](#1-install-and-open-lassie)
 - [2. Understand the project structure](#2-understand-the-project-structure)
@@ -363,7 +361,7 @@ DISSCO counts equal-tempered semitones from C0: `48` is C4, `60` is C5, and `72`
 
 **Piece Duration** defines the parent event's time span. The rendered file can end earlier when the last sound finishes, or extend beyond a sound's nominal end because of reverberation. Do not use an exact 30-second file length as the only success check.
 
-Save, close, and reopen `tutorial_sound.dissco`, then Run again to check that it still works. **The core lesson is complete.** Later sections are optional experiments.
+Save, close, and reopen `tutorial_sound.dissco`, then Run again to check that it still works. **Your first piece is complete.** Later sections are optional experiments.
 
 ### Prepare for the later experiments
 
