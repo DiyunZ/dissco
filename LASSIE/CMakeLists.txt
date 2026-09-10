@@ -211,6 +211,14 @@ endif()
 
 if(BUILD_TESTING)
     target_compile_definitions(LASSIE PRIVATE DISSCO_ENABLE_UI_LAYOUT_TESTS)
+    target_sources(LASSIE PRIVATE tests/SoundTutorialChecks.cpp)
+    foreach(check Defaults Functions Envelopes)
+        add_test(NAME LASSIE.SoundTutorial.${check} COMMAND LASSIE)
+        set_tests_properties(LASSIE.SoundTutorial.${check} PROPERTIES
+            ENVIRONMENT "QT_QPA_PLATFORM=offscreen;QT_SCALE_FACTOR=1;DISSCO_TEST_SOUND_TUTORIAL=${check}"
+            TIMEOUT 15
+        )
+    endforeach()
     if(NOT APPLE)
         add_test(NAME LASSIE.ApplicationIdentity COMMAND LASSIE)
         set_tests_properties(LASSIE.ApplicationIdentity PROPERTIES
