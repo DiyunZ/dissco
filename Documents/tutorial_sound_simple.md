@@ -21,8 +21,6 @@ Avoid saving the project inside the DISSCO or LASSIE application/source folder.
 - Name your project `tutorial` and click **Save**.
 <img width="600" height="400" alt="image" src="https://github.com/user-attachments/assets/246bf997-d6d6-48d0-8669-adec0122aee4" />
 
-(Note: Once you choose a folder for your project, do not move or rename it later. Otherwise, DISSCO may not be able to locate the project files.)
-
 (**Note:** Once you choose a folder for your project, do not move or rename it later. Otherwise, DISSCO may not be able to locate the project files.)
 
 - A new window, **Project Properties**, will appear
